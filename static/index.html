@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Software PdM</title>
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <div class="container text-center">
+    <h1 class="mt-5">Bienvenido al Software PdM</h1>
+    <p class="lead">Este software gestiona, analiza y visualiza datos para el mantenimiento predictivo de máquinas.</p>
+    <div id="dbStatus" class="alert alert-info" role="alert">
+      Validando conexión a la base de datos...
+    </div>
+    <button id="startBtn" class="btn btn-primary btn-lg">Iniciar Procesamiento</button>
+  </div>
+
+  <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+  <script>
+    $(document).ready(function(){
+      // Validar conexión a la base de datos
+      $.get("/check_db", function(data){
+        if(data.status === "ok"){
+          $("#dbStatus").removeClass("alert-info").addClass("alert-success").text("Conexión a la base de datos exitosa.");
+        } else {
+          $("#dbStatus").removeClass("alert-info").addClass("alert-danger").text("Error en la conexión a la base de datos.");
+        }
+      });
+
+      // Iniciar procesamiento al pulsar el botón
+      $("#startBtn").click(function(){
+        $.post("/start_processing", function(resp){
+          // Redireccionar a la página de resultados
+          window.location.href = "/results";
+        });
+      });
+    });
+  </script>
+</body>
+</html>
