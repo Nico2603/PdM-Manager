@@ -1,4 +1,3 @@
-# main.py
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -12,8 +11,9 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
 
-# Montar archivos estáticos (HTML, CSS, JS)
-app.mount("/static", StaticFiles(directory="app/static"), name="static")
+# Montar archivos estáticos (HTML, CSS, JS) 
+# Cambia la ruta "static" si tu carpeta está realmente en la raíz del proyecto
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Variable global para almacenar los resultados del procesamiento (para fines de ejemplo)
 processing_results = {"images": []}
@@ -21,8 +21,8 @@ processing_results = {"images": []}
 
 @app.get("/")
 def root():
-    # Servir la página index.html
-    return FileResponse("app/static/index.html")
+    # Servir la página index.html desde la carpeta 'static' en la raíz
+    return FileResponse("static/index.html")
 
 
 @app.get("/check_db")
@@ -68,5 +68,5 @@ def get_results():
 
 @app.get("/results")
 def results_page():
-    # Servir la página results.html
-    return FileResponse("app/static/results.html")
+    # Servir la página results.html desde la carpeta 'static'
+    return FileResponse("static/results.html")
