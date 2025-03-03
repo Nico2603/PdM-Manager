@@ -1,13 +1,65 @@
-/* app/static/css/style.css */
-body {
-  background-color: #f8f9fa;
-  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+/* style.css */
+
+/* Barra lateral (sidebar) */
+.sidebar {
+  background-color: #f8f9fa; /* Color claro para el fondo */
+  min-height: 100vh;         /* Ocupa toda la altura de la ventana */
+  position: sticky;          /* Se mantiene fija al hacer scroll */
+  top: 0;
+  border-right: 1px solid #dee2e6; /* Línea divisoria sutil */
 }
 
-h1 {
-  color: #343a40;
+/* Título en la barra lateral */
+.sidebar-sticky h5 {
+  margin-top: 20px;
+  font-weight: 600;
 }
 
-.container {
-  margin-top: 50px;
+/* Estilos de los enlaces del navbar lateral */
+.nav-link {
+  color: #333;
+  margin: 8px 0;
+  transition: background-color 0.2s, color 0.2s;
+}
+
+.nav-link:hover {
+  background-color: #e2e6ea;
+  color: #007bff;
+  text-decoration: none;
+}
+
+.nav-link.active {
+  background-color: #007bff;
+  color: #fff !important;
+}
+
+/* Secciones de contenido:
+   Por defecto están ocultas (display: none).
+   Se muestra la que tenga la clase .active */
+.section {
+  display: none;
+  margin-top: 20px;
+}
+
+.section.active {
+  display: block;
+}
+
+/* Ajuste de la alerta de estado de BD */
+#dbStatus {
+  margin-top: 20px;
+}
+
+/* Canvas de Chart.js con un tamaño máximo */
+#chartVibracion {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+/* Ajustes responsivos para pantallas pequeñas */
+@media (max-width: 768px) {
+  .sidebar {
+    min-height: auto;
+    position: relative;
+  }
 }

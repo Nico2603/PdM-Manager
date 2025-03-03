@@ -3,5 +3,5 @@ uvicorn
 sqlalchemy
 psycopg2-binary
 pandas
-matplotlib
-scikit-learn
+numpy
+tensorflow

@@ -1,3 +1,4 @@
+# app/models.py
 from sqlalchemy import Column, Integer, Numeric, TIMESTAMP
 from sqlalchemy.sql import func
 from app.database import Base
