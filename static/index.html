@@ -27,7 +27,7 @@
       <div class="sidebar-sticky">
         <div class="text-center my-4">
           <h4 class="font-weight-bold">PdM-Manager</h4>
-          <p class="text-muted small">v1.0.2</p>
+          <p class="text-muted small">v1.0.0</p>
         </div>
         
         <ul class="nav flex-column mt-4">
@@ -86,16 +86,15 @@
         <h1 id="currentSectionTitle" class="h2">Inicio</h1>
         <div class="btn-toolbar mb-2 mb-md-0">
           <div class="btn-group mr-2">
+            <!-- Botón Exportar: genera PDF con datos de resumen y alertas -->
             <button id="btnExportData" class="btn btn-sm btn-outline-secondary">
               <i class="fas fa-file-export mr-1"></i> Exportar
             </button>
+            <!-- Botón Imprimir: genera PDF de la gráfica con conteo de alertas -->
             <button id="btnPrintView" class="btn btn-sm btn-outline-secondary">
               <i class="fas fa-print mr-1"></i> Imprimir
             </button>
           </div>
-          <button id="btnUserProfile" class="btn btn-sm btn-outline-primary">
-            <i class="fas fa-user mr-1"></i> Usuario
-          </button>
         </div>
       </div>
       
@@ -199,8 +198,24 @@
                 </div>
               </div>
               <div class="card-body">
+                <!-- Gráfica principal de la página de inicio -->
                 <div class="chart-area">
                   <canvas id="homeSummaryChart" style="height: 300px;"></canvas>
+                </div>
+                <!-- Tabla/resumen de datos numéricos (simulada) -->
+                <div class="table-responsive mt-3">
+                  <table class="table table-bordered" id="homeSummaryTable">
+                    <thead>
+                      <tr>
+                        <th>Fecha/Hora</th>
+                        <th>Promedio Vibración</th>
+                        <th>Alertas</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <!-- Se llenará dinámicamente con JS -->
+                    </tbody>
+                  </table>
                 </div>
               </div>
             </div>
@@ -421,10 +436,8 @@
                     <div class="col-md-6">
                       <div class="form-group">
                         <label>Modelo:</label>
-                        <select name="model_type" class="form-control">
-                          <option value="latest">Último modelo entrenado</option>
-                          <option value="optimized">Modelo optimizado</option>
-                          <option value="ensemble">Modelo ensemble</option>
+                        <select name="model_type" class="form-control" id="modelTypeSelector">
+                          <!-- Se llenará dinámicamente con la lista de .h5 en la carpeta Modelo -->
                         </select>
                       </div>
                     </div>
@@ -597,25 +610,31 @@
                       <label>Nombre del Sensor:</label>
                       <input type="text" class="form-control" id="sensorNameInput" placeholder="Escriba el nombre del sensor...">
                     </div>
+                    <div class="col-md-12 mb-2">
+                      <label>Descripción del Sensor:</label>
+                      <textarea class="form-control" id="sensorDescriptionInput" rows="2" placeholder="Describa brevemente el sensor..."></textarea>
+                    </div>
+                  </div>
+                  <hr>
+                  <h5>Umbrales ±2σ y ±3σ (Solo visuales)</h5>
+                  <div class="row">
+                    <div class="col-md-6 mb-2">
+                      <label>±2σ (Inferior):</label>
+                      <input type="number" class="form-control" id="threshold2sLower" placeholder="-2.364295">
+                    </div>
+                    <div class="col-md-6 mb-2">
+                      <label>±2σ (Superior):</label>
+                      <input type="number" class="form-control" id="threshold2sUpper" placeholder="2.180056">
+                    </div>
                   </div>
                   <div class="row">
                     <div class="col-md-6 mb-2">
-                      <label>Umbral ±2σ (Inferior):</label>
-                      <input type="number" class="form-control" id="threshold2sLower" placeholder="2σ Inferior">
+                      <label>±3σ (Inferior):</label>
+                      <input type="number" class="form-control" id="threshold3sLower" placeholder="-3.500383">
                     </div>
                     <div class="col-md-6 mb-2">
-                      <label>Umbral ±2σ (Superior):</label>
-                      <input type="number" class="form-control" id="threshold2sUpper" placeholder="2σ Superior">
-                    </div>
-                  </div>
-                  <div class="row">
-                    <div class="col-md-6 mb-2">
-                      <label>Umbral ±3σ (Inferior):</label>
-                      <input type="number" class="form-control" id="threshold3sLower" placeholder="3σ Inferior">
-                    </div>
-                    <div class="col-md-6 mb-2">
-                      <label>Umbral ±3σ (Superior):</label>
-                      <input type="number" class="form-control" id="threshold3sUpper" placeholder="3σ Superior">
+                      <label>±3σ (Superior):</label>
+                      <input type="number" class="form-control" id="threshold3sUpper" placeholder="3.316144">
                     </div>
                   </div>
                   <button class="btn btn-success btn-block mt-3" type="submit">
@@ -691,10 +710,8 @@
           <input type="text" class="form-control" id="modalSensorName" placeholder="Ej: Motor Principal">
         </div>
         
-        <div class="form-group">
-          <label for="modalSensorId">ID (opcional, autogenerado si no se define):</label>
-          <input type="text" class="form-control" id="modalSensorId" placeholder="Ej: 5">
-        </div>
+        <!-- ID no editable (lo maneja la BD), por lo tanto no lo solicitamos -->
+        <p class="text-muted small">El ID del sensor se asigna automáticamente desde la base de datos.</p>
         
       </div>
       <div class="modal-footer">
@@ -710,13 +727,14 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/js/bootstrap.min.js"></script>
 
 <script>
-/* 
-  Aquí vendría la lógica JavaScript para:
-  - Manejar la navegación SPA (mostrar/ocultar secciones).
-  - Cargar/editar la lista de sensores (en configSection y sensorSelector).
-  - Invocar endpoints para obtener datos de vibración, predicciones, etc.
-  - Manejar el modal para crear/renombrar sensores.
-  - Actualizar la UI según la selección de sensor, etc.
+/*
+  Lógica JavaScript para:
+   - Manejar la navegación SPA.
+   - Llenar lista de sensores y tabla de configuración desde "la BD" (simulado).
+   - Crear/editar sensor (llamando a endpoints).
+   - Guardar umbrales (fetch("/update_sensor_thresholds")).
+   - Llenar la lista de modelos .h5 en la carpeta "Modelo" (simulado).
+   - Generar PDF (Exportar e Imprimir) con datos o gráfica (simulado).
 */
 
 $(document).ready(function(){
@@ -740,14 +758,24 @@ $(document).ready(function(){
     $(this).addClass("active");
   });
 
-  // Ejemplo: Llenar la lista de sensores de forma dinámica
-  // Podrías obtenerlos de un endpoint GET /sensors
+  // Sensores simulados (esto se traería con fetch("/sensors"))
   let sensors = [
-    {id: 1, name: "Sensor 1"},
-    {id: 2, name: "Sensor 2"},
-    {id: 3, name: "Compresor"},
-    {id: 4, name: "Motor Principal"}
+    {id: 1, name: "Sensor 1", description: "Sensor en el motor principal"},
+    {id: 2, name: "Compresor", description: "Mide vibraciones del compresor"},
+    {id: 3, name: "Bomba Hidráulica", description: "Ubicada en planta B"},
   ];
+
+  // Modelos simulados en la carpeta "Modelo"
+  let availableModels = [
+    "modeloRNN_multiclase_optimizado.h5",
+    "modeloSVM_anomaly.h5",
+    "modeloEnsemble_v2.h5"
+  ];
+
+  // Rellenar el <select> de modelos en la sección Predicción
+  availableModels.forEach(m => {
+    $("#modelTypeSelector").append(`<option value="${m}">${m}</option>`);
+  });
 
   function refreshSensorDropdowns(){
     // chartsSection sensorSelector
@@ -791,7 +819,6 @@ $(document).ready(function(){
   $("#btnAddSensor").click(function(){
     $("#sensorModalLabel").text("Nuevo Sensor");
     $("#modalSensorName").val("");
-    $("#modalSensorId").val("");
     $("#sensorModal").modal("show");
   });
 
@@ -799,18 +826,27 @@ $(document).ready(function(){
   $("#modalSensorForm").submit(function(e){
     e.preventDefault();
     const name = $("#modalSensorName").val().trim();
-    let idValue = $("#modalSensorId").val().trim();
-
     if(!name){
       alert("Por favor, ingrese el nombre del sensor.");
       return;
     }
-    if(!idValue){
-      // Generar ID si está vacío
-      idValue = Math.floor(Math.random() * 10000) + 5; 
-    }
-    // Podrías validar que no exista un sensor con ese ID, etc.
-    sensors.push({id: idValue, name: name});
+    // Llamar a endpoint /create_sensor, por ejemplo:
+    /*
+    fetch("/create_sensor", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({name: name, description: "N/A"})
+    })
+    .then(res => res.json())
+    .then(newSensor => {
+      sensors.push(newSensor);
+      refreshSensorDropdowns();
+    })
+    .catch(err => console.error(err));
+    */
+    // Por ahora, simulamos
+    let newId = Math.floor(Math.random()*1000)+10; 
+    sensors.push({id: newId, name: name, description:""});
     refreshSensorDropdowns();
     $("#sensorModal").modal("hide");
   });
@@ -823,29 +859,39 @@ $(document).ready(function(){
 
     $("#sensorModalLabel").text("Editar Sensor");
     $("#modalSensorName").val(sensor.name);
-    $("#modalSensorId").val(sensor.id);
     $("#sensorModal").modal("show");
 
-    // Al guardar, en lugar de push, haremos update
+    // Al guardar, actualizamos en la BD
     $("#modalSensorForm").off("submit").on("submit", function(e){
       e.preventDefault();
       const newName = $("#modalSensorName").val().trim();
-      const newId = $("#modalSensorId").val().trim();
       if(!newName){
         alert("Por favor, ingrese un nombre de sensor válido.");
         return;
       }
-      // Actualizar
+      // Llamar a endpoint /update_sensor
+      /*
+      fetch("/update_sensor", {
+        method: "PUT",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({id: sensor.id, name: newName})
+      })
+      .then(res => res.json())
+      .then(updated => {
+        sensor.name = updated.name;
+        refreshSensorDropdowns();
+      })
+      .catch(err => console.error(err));
+      */
+      // Simulamos
       sensor.name = newName;
-      sensor.id = newId;
       refreshSensorDropdowns();
       $("#sensorModal").modal("hide");
 
-      // Restaurar el submit original (para no duplicar listeners)
+      // Restaurar el submit original
       $("#modalSensorForm").off("submit");
       $("#modalSensorForm").submit(function(e2){
         e2.preventDefault();
-        // default empty
       });
     });
   });
@@ -854,22 +900,34 @@ $(document).ready(function(){
   $(document).on("click", ".btnDeleteSensor", function(){
     const sensorId = $(this).data("id");
     if(confirm("¿Desea eliminar el sensor con ID "+sensorId+"?")){
+      // Llamar a endpoint /delete_sensor
+      /*
+      fetch("/delete_sensor/"+sensorId, {method: "DELETE"})
+      .then(res => res.json())
+      .then(msg => {
+         sensors = sensors.filter(s => s.id != sensorId);
+         refreshSensorDropdowns();
+      })
+      .catch(err => console.error(err));
+      */
+      // Simulamos
       sensors = sensors.filter(s => s.id != sensorId);
       refreshSensorDropdowns();
     }
   });
 
-  // Handler: Al cambiar sensor en config, cargar sus datos (umbrales, nombre, etc.)
+  // Al cambiar sensor en config, cargar sus datos
   $("#configSensorSelector").change(function(){
     const selectedId = $(this).val();
     const sensor = sensors.find(s => s.id == selectedId);
     if(sensor){
       $("#sensorNameInput").val(sensor.name);
-      // Podrías cargar los umbrales reales si los tienes en un array u objeto
-      $("#threshold2sLower").val("");
-      $("#threshold2sUpper").val("");
-      $("#threshold3sLower").val("");
-      $("#threshold3sUpper").val("");
+      $("#sensorDescriptionInput").val(sensor.description || "");
+      // Podrías cargar los umbrales reales si los tienes en la BD
+      $("#threshold2sLower").val("-2.364295");
+      $("#threshold2sUpper").val("2.180056");
+      $("#threshold3sLower").val("-3.500383");
+      $("#threshold3sUpper").val("3.316144");
     }
   });
 
@@ -879,31 +937,68 @@ $(document).ready(function(){
     const selectedId = $("#configSensorSelector").val();
     const sensor = sensors.find(s => s.id == selectedId);
     if(!sensor) return;
+
     const newName = $("#sensorNameInput").val().trim();
-    if(newName) sensor.name = newName;
-    // Recoger umbrales
+    const newDesc = $("#sensorDescriptionInput").val().trim();
+
+    // Umbrales
     const t2Lower = $("#threshold2sLower").val();
     const t2Upper = $("#threshold2sUpper").val();
     const t3Lower = $("#threshold3sLower").val();
     const t3Upper = $("#threshold3sUpper").val();
-    // Podrías guardar estos umbrales en un objeto asociado al sensor
-    // ...
-    alert("Configuración guardada para el sensor: "+ sensor.name);
+
+    // Actualizar local
+    sensor.name = newName;
+    sensor.description = newDesc;
+
+    // Llamada fetch para actualizar BD
+    /*
+    fetch("/update_sensor_thresholds", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({
+        sensor_id: sensor.id,
+        name: newName,
+        description: newDesc,
+        threshold2_inf: t2Lower,
+        threshold2_sup: t2Upper,
+        threshold3_inf: t3Lower,
+        threshold3_sup: t3Upper
+      })
+    })
+    .then(res => res.json())
+    .then(msg => {
+      alert("Configuración guardada en la BD: " + JSON.stringify(msg));
+    })
+    .catch(err => console.error(err));
+    */
+
+    alert("Configuración guardada (simulada) para el sensor: "+ sensor.name);
     refreshSensorDropdowns();
   });
 
-  // Ejemplo: Botón Check DB
+  // Botón Check DB
   $("#btnCheckDb").click(function(){
-    // Llamada a tu endpoint /check_db
     // fetch("/check_db")...
     $("#dbInfoContainer").removeClass("alert-secondary").addClass("alert-info")
       .html("<i class='fas fa-check-circle mr-1'></i> Conexión exitosa (simulada).");
   });
 
-  // Por defecto, se muestra la sección "homeSection" y se ocultan las demás
+  // Botón Exportar => PDF con la tabla "homeSummaryTable" y alertas
+  $("#btnExportData").click(function(){
+    alert("Simulación de exportar PDF con datos de 'Resumen de Vibraciones' + alertas.");
+    // Podrías usar una librería como jsPDF o Print.js para generar el PDF
+  });
+
+  // Botón Imprimir => PDF de la gráfica #homeSummaryChart y conteo de alertas
+  $("#btnPrintView").click(function(){
+    alert("Simulación de imprimir PDF de la gráfica principal + conteo de alertas.");
+    // Ejemplo: podrías capturar canvas #homeSummaryChart como imagen y luego generarlo en PDF
+  });
+
+  // Por defecto, se muestra la sección "homeSection"
   $(".section").hide();
   $("#homeSection").show().addClass("active");
-
 });
 </script>
 
