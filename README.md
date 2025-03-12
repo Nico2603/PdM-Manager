@@ -131,7 +131,7 @@ Abre `http://127.0.0.1:8000/`
 1. Forkea este repositorio y crea tu rama de características.
 2. Haz cambios o mejoras en la estructura, endpoints, etc.
 3. Envía un **pull request** con una descripción clara de lo que aportas.
-4. También puedes abrir **issues** para sugerir nuevas funcionalidades o reportar bugs
+4. También puedes abrir **issues** para sugerir nuevas funcionalidades o reportar bugs.
 
 ---
 
