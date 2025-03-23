@@ -417,169 +417,51 @@ def simulation_worker(db, file_path: str, interval_seconds: int):
         
         processed = 0
         
-        # Verificar si estamos usando una base de datos real o almacenamiento en memoria
-        from app.database import is_using_database
-        using_db = is_using_database()
-        
-        # Obtener el módulo CRUD adecuado
-        if using_db:
-            from app import crud
-            crud_module = crud
-        else:
-            from app import memory_crud
-            crud_module = memory_crud
-        
         while simulation_running and processed < total_records:
-            if not simulation_running:
-                break
-                
             # Obtener registro actual
-            row = df.iloc[processed]
+            record = df.iloc[processed].to_dict()
             
-            # Verificar que el registro tiene los datos requeridos
-            if all(c in row.index for c in ["x", "y", "z"]) or all(c in row.index for c in ["acceleration_x", "acceleration_y", "acceleration_z"]):
-                # Obtener valores de aceleración
-                x = float(row.get("x", row.get("acceleration_x", 0)))
-                y = float(row.get("y", row.get("acceleration_y", 0)))
-                z = float(row.get("z", row.get("acceleration_z", 0)))
-                
-                # Si se proporciona timestamp, usar ese, de lo contrario usar hora actual
-                timestamp = row.get("timestamp", datetime.now().isoformat())
-                if isinstance(timestamp, str):
-                    # Asegurarse de que el timestamp sea un datetime
-                    try:
-                        timestamp = datetime.fromisoformat(timestamp)
-                    except:
-                        timestamp = datetime.now()
-                
-                # Procesar datos con el modelo
-                processed_data = process_record(db, row.to_dict(), sensor_id=sensor_id)
-                severity = processed_data["severity"]
-                
-                # Crear registro de vibración
-                try:
-                    if using_db:
-                        # Usar DB real
-                        db_record = crud_module.create_vibration_data(
-                            db=db,
-                            sensor_id=sensor_id,
-                            acceleration_x=x,
-                            acceleration_y=y,
-                            acceleration_z=z,
-                            severity=severity,
-                            custom_date=timestamp
-                        )
-                        data_id = db_record.data_id
-                    else:
-                        # Usar almacenamiento en memoria
-                        result = crud_module.create_vibration_data(
-                            sensor_id=sensor_id,
-                            acceleration_x=x,
-                            acceleration_y=y,
-                            acceleration_z=z,
-                            severity=severity,
-                            custom_date=timestamp
-                        )
-                        data_id = result.get("data_id")
-                    
-                    # Verificar si hay alerta
-                    if severity > 0:
-                        # Crear alerta
-                        alert_data = {
-                            "sensor_id": sensor_id,
-                            "timestamp": timestamp,
-                            "vibration_data_id": data_id,
-                            "severity": severity,
-                            "error_type": SEVERITY_MAPPING.get(severity, "Desconocido"),
-                            "acknowledged": False,
-                            "message": f"Alerta automática de nivel {severity}"
-                        }
-                        
-                        if using_db:
-                            # Crear alerta en la BD
-                            alert = models.Alert(**alert_data)
-                            crud_module.create_alert(db, alert)
-                        else:
-                            # Guardar alerta en memoria
-                            crud_module.create_alert(alert_data)
-                        
-                        # Incrementar contadores de alertas
-                        if severity == 1:
-                            simulation_status["alerts_level1"] += 1
-                        elif severity == 2:
-                            simulation_status["alerts_level2"] += 1
-                            # Verificar condición para alerta nivel 3
-                            if check_level3_condition(db, sensor_id):
-                                # Crear alerta nivel 3
-                                alert_level3_data = {
-                                    "sensor_id": sensor_id,
-                                    "timestamp": datetime.now(),
-                                    "vibration_data_id": data_id,
-                                    "severity": 3,
-                                    "error_type": "Acumulación de alertas nivel 2",
-                                    "acknowledged": False,
-                                    "message": "¡ALERTA CRÍTICA! Múltiples alertas nivel 2 detectadas."
-                                }
-                                
-                                if using_db:
-                                    alert_level3 = models.Alert(**alert_level3_data)
-                                    crud_module.create_alert(db, alert_level3)
-                                else:
-                                    crud_module.create_alert(alert_level3_data)
-                                
-                                simulation_status["alerts_level3"] += 1
-                        
-                        simulation_status["alerts_total"] += 1
-                        
-                        # Guardar alerta en registro reciente
-                        alert_with_text = dict(alert_data)
-                        alert_with_text["severity_text"] = SEVERITY_MAPPING.get(severity, "Desconocido")
-                        simulation_status["recent_alerts"].append(alert_with_text)
-                        
-                        # Mantener solo las alertas más recientes
-                        if len(simulation_status["recent_alerts"]) > MAX_RECENT_ALERTS:
-                            simulation_status["recent_alerts"] = simulation_status["recent_alerts"][-MAX_RECENT_ALERTS:]
-                    
-                    # Guardar en registros recientes
-                    record_data = {
-                        "timestamp": timestamp.isoformat() if isinstance(timestamp, datetime) else timestamp,
-                        "sensor_id": sensor_id,
-                        "x": x,
-                        "y": y,
-                        "z": z,
-                        "severity": severity,
-                        "severity_text": SEVERITY_MAPPING.get(severity, "Desconocido")
-                    }
-                    simulation_status["recent_records"].append(record_data)
-                    
-                    # Mantener solo los registros más recientes
-                    if len(simulation_status["recent_records"]) > MAX_RECENT_RECORDS:
-                        simulation_status["recent_records"] = simulation_status["recent_records"][-MAX_RECENT_RECORDS:]
-                    
-                    logger.info(f"Procesado registro {processed+1}/{total_records}, severity={severity}")
-                except Exception as e:
-                    logger.error(f"Error al crear registro de vibración: {e}")
+            # Procesar registro
+            result = process_record(db, record, sensor_id=sensor_id)
             
-            # Actualizar progreso
+            # Actualizar estadísticas
             processed += 1
             simulation_status["processed_records"] = processed
-            simulation_status["progress"] = round((processed / total_records) * 100, 2)
-            simulation_status["last_record"] = datetime.now().isoformat()
+            simulation_status["progress"] = (processed / total_records) * 100
             
-            # Calcular próxima actualización
+            logger.info(f"Procesado registro {processed}/{total_records} - Severidad: {result['severity_text']}")
+            
+            # Terminar si hemos procesado todos los registros
+            if processed >= total_records:
+                logger.info("Simulación completada. Todos los registros procesados.")
+                break
+            
+            # Calcular próxima ejecución
+            next_time = datetime.now() + timedelta(seconds=interval_seconds)
             simulation_status["next_in_seconds"] = interval_seconds
             
-            # Esperar intervalo
-            time.sleep(interval_seconds)
+            # Esperar intervalo (comprobando periódicamente si la simulación debe detenerse)
+            wait_start = time.time()
+            while time.time() - wait_start < interval_seconds:
+                if not simulation_running:
+                    logger.info("Simulación detenida por el usuario.")
+                    break
+                time.sleep(0.1)  # Verificar cada 100 ms
+                simulation_status["next_in_seconds"] = int(interval_seconds - (time.time() - wait_start))
         
-        # Finalizar simulación
-        simulation_running = False
-        simulation_status["running"] = False
-        logger.info(f"Simulación completada. {processed} registros procesados.")
+        # Actualizar estado al finalizar
+        if processed >= total_records:
+            logger.info("Simulación completada exitosamente.")
+        else:
+            logger.info("Simulación detenida antes de completar todos los registros.")
+        
     except Exception as e:
         logger.error(f"Error en simulación: {e}")
+    finally:
+        # Asegurarse de que el estado se actualice cuando el hilo termine
         simulation_running = False
         simulation_status["running"] = False
+        simulation_status["next_in_seconds"] = None
 
 def start_simulation(db, file_path: str, interval_seconds: int = 5) -> Dict[str, Any]:
     """

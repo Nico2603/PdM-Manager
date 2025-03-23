@@ -18,13 +18,8 @@ import csv
 import json
 
 # Importar la configuración de la BD y el modelo de datos
-from app.database import engine, Base, get_db, is_using_database
+from app.database import engine, Base, get_db
 from app import crud, models
-
-# Importar CRUD en memoria para cuando no hay BD
-from app import memory_crud
-
-# Importar funciones de simulación
 from app.simulator import (
     start_simulation,
     stop_simulation,
@@ -91,13 +86,8 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Solo crear las tablas si estamos usando una base de datos real
-try:
-    Base.metadata.create_all(bind=engine)
-    print("Tablas creadas o verificadas en la base de datos.")
-except Exception as e:
-    print(f"No se pudieron crear las tablas: {e}")
-    print("La aplicación continuará en modo memoria.")
+# Crear las tablas en la BD (solo si no existen)
+Base.metadata.create_all(bind=engine)
 
 # Montar la carpeta estática (HTML, CSS, JS)
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -543,114 +533,62 @@ def simulation_status():
 # --- Endpoints para Sensores --- #
 
 @app.get("/api/sensors", response_model=List[Dict[str, Any]])
-def get_sensors_endpoint(db: Session = Depends(get_db)):
+def get_sensors(db: Session = Depends(get_db)):
     """Obtiene la lista de todos los sensores"""
-    try:
-        # Usar el CRUD apropiado según si estamos con BD o en memoria
-        crud_module = get_crud()
-        
-        if is_using_database():
-            sensors = crud_module.get_sensors(db)
-        else:
-            sensors = crud_module.get_sensors()
-            
-        return sensors
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error al obtener sensores: {str(e)}")
+    sensors = crud.get_sensors(db)
+    return sensors
+
+
+@app.post("/api/sensors")
+def add_sensor(name: str = Form(...), description: str = Form(None), db: Session = Depends(get_db)):
+    """Crea un nuevo sensor."""
+    return crud.create_sensor(db, name, description)
+
+
+# --- API: Sensores ---
+
+@app.get("/api/sensors/{sensor_id}", response_model=Dict[str, Any])
+def get_sensor(sensor_id: int, db: Session = Depends(get_db)):
+    """Obtiene un sensor por su ID"""
+    sensor = crud.get_sensor(db, sensor_id)
+    if sensor is None:
+        raise HTTPException(status_code=404, detail="Sensor no encontrado")
+    return sensor
 
 @app.post("/api/sensors", response_model=Dict[str, Any])
-def create_sensor_endpoint(sensor_data: Dict[str, Any], db: Session = Depends(get_db)):
+def create_sensor(sensor_data: Dict[str, Any], db: Session = Depends(get_db)):
     """Crea un nuevo sensor"""
     try:
-        # Usar el CRUD apropiado según si estamos con BD o en memoria
-        crud_module = get_crud()
-        
-        if is_using_database():
-            # Para la BD necesitamos crear un objeto Sensor
-            sensor = models.Sensor(**sensor_data)
-            result = crud_module.create_sensor(db, sensor)
-        else:
-            # Para memoria simplemente pasamos los datos
-            result = crud_module.create_sensor(sensor_data)
-            
-        return result
+        sensor = models.Sensor(**sensor_data)
+        return crud.create_sensor(db, sensor)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Error al crear sensor: {str(e)}")
 
-@app.get("/api/sensors/{sensor_id}", response_model=Dict[str, Any])
-def get_sensor_endpoint(sensor_id: int, db: Session = Depends(get_db)):
-    """Obtiene un sensor por su ID"""
-    try:
-        # Usar el CRUD apropiado según si estamos con BD o en memoria
-        crud_module = get_crud()
-        
-        if is_using_database():
-            sensor = crud_module.get_sensor(db, sensor_id)
-        else:
-            sensor = crud_module.get_sensor(sensor_id)
-            
-        if sensor is None:
-            raise HTTPException(status_code=404, detail="Sensor no encontrado")
-            
-        return sensor
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error al obtener sensor: {str(e)}")
-
 @app.put("/api/sensors/{sensor_id}", response_model=Dict[str, Any])
-def update_sensor_endpoint(
+def update_sensor(
     sensor_id: int,
     sensor_data: Dict[str, Any],
     db: Session = Depends(get_db)
 ):
     """Actualiza un sensor existente"""
-    try:
-        # Usar el CRUD apropiado según si estamos con BD o en memoria
-        crud_module = get_crud()
-        
-        if is_using_database():
-            # Para la BD necesitamos obtener el objeto y actualizarlo
-            sensor = crud_module.get_sensor_by_id(db, sensor_id)
-            if sensor is None:
-                raise HTTPException(status_code=404, detail="Sensor no encontrado")
-                
-            for key, value in sensor_data.items():
-                setattr(sensor, key, value)
-                
-            result = crud_module.update_sensor(db, sensor)
-        else:
-            # Para memoria actualizamos directamente
-            result = crud_module.update_sensor(sensor_id, sensor_data)
-            if result is None:
-                raise HTTPException(status_code=404, detail="Sensor no encontrado")
-                
-        return result
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error al actualizar sensor: {str(e)}")
+    sensor = crud.get_sensor(db, sensor_id)
+    if sensor is None:
+        raise HTTPException(status_code=404, detail="Sensor no encontrado")
+    
+    for key, value in sensor_data.items():
+        setattr(sensor, key, value)
+    
+    return crud.update_sensor(db, sensor)
 
-@app.delete("/api/sensors/{sensor_id}", response_model=Dict[str, Any])
-def delete_sensor_endpoint(sensor_id: int, db: Session = Depends(get_db)):
+@app.delete("/api/sensors/{sensor_id}")
+def delete_sensor(sensor_id: int, db: Session = Depends(get_db)):
     """Elimina un sensor"""
-    try:
-        # Usar el CRUD apropiado según si estamos con BD o en memoria
-        crud_module = get_crud()
-        
-        if is_using_database():
-            success = crud_module.delete_sensor(db, sensor_id)
-        else:
-            success = crud_module.delete_sensor(sensor_id)
-            
-        if not success:
-            raise HTTPException(status_code=404, detail="Sensor no encontrado")
-            
-        return {"message": f"Sensor {sensor_id} eliminado correctamente"}
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error al eliminar sensor: {str(e)}")
+    sensor = crud.get_sensor(db, sensor_id)
+    if sensor is None:
+        raise HTTPException(status_code=404, detail="Sensor no encontrado")
+    
+    crud.delete_sensor(db, sensor_id)
+    return {"message": f"Sensor {sensor_id} eliminado"}
 
 # --- API: Datos de Vibración ---
 
@@ -1172,13 +1110,3 @@ async def api_update_statistical_limit(
         raise HTTPException(status_code=400, detail=result["error"])
     
     return result
-
-# Función auxiliar para operaciones CRUD
-def get_crud():
-    """
-    Retorna el módulo CRUD apropiado según si estamos usando base de datos o memoria.
-    """
-    if is_using_database():
-        return crud
-    else:
-        return memory_crud
