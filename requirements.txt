@@ -1,9 +1,9 @@
 fastapi
 uvicorn
+sqlalchemy
+psycopg2-binary
 pandas
 numpy
 tensorflow
 joblib
-sqlalchemy
-pydantic
-python-multipart
+scikit-learn
