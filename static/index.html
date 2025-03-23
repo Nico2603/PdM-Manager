@@ -3,1004 +3,959 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PdM-Manager | Sistema de Mantenimiento Predictivo</title>
+  <title>PdM-Manager | Dashboard</title>
 
   <!-- Bootstrap CSS -->
-  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
-  <!-- Font Awesome para iconos -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
-  <!-- Estilos propios -->
-  <link rel="stylesheet" href="/static/css/style.css">
-
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css">
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
   <!-- Chart.js -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <!-- Moment.js para manejo de fechas -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.css">
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="css/dashboard.css">
 </head>
 <body>
-
-<div class="container-fluid">
-  <div class="row">
-
-    <!-- Navbar lateral -->
-    <nav class="col-md-2 d-none d-md-block bg-light sidebar" style="min-height: 100vh; box-shadow: 2px 0 5px rgba(0,0,0,0.1);">
-      <div class="sidebar-sticky">
-        <div class="text-center my-4">
-          <h4 class="font-weight-bold">PdM-Manager</h4>
-          <p class="text-muted small">v1.0.0</p>
+  <div class="app-container">
+    <!-- Sidebar -->
+    <div class="sidebar">
+      <div class="sidebar-header">
+        <div class="logo-container">
+          <i class="fas fa-cogs logo-icon"></i>
+          <h5 class="logo-text">PdM-Manager</h5>
+        </div>
+        <button class="sidebar-toggle">
+          <i class="fas fa-bars"></i>
+        </button>
         </div>
         
-        <ul class="nav flex-column mt-4">
+      <div class="sidebar-menu">
+        <ul class="nav flex-column">
           <li class="nav-item">
-            <a class="nav-link active" href="#" data-section="homeSection">
-              <i class="fas fa-home mr-2"></i> Inicio
+            <a href="#dashboard" class="nav-link active">
+              <i class="fas fa-tachometer-alt"></i>
+              <span>Dashboard</span>
             </a>
           </li>
           <li class="nav-item">
-            <a class="nav-link" href="#" data-section="chartsSection">
-              <i class="fas fa-chart-line mr-2"></i> Gráficas
+            <a href="#configuracion" class="nav-link">
+              <i class="fas fa-wrench"></i>
+              <span>Configuración</span>
             </a>
           </li>
           <li class="nav-item">
-            <a class="nav-link" href="#" data-section="predictionSection">
-              <i class="fas fa-brain mr-2"></i> Predicción
-            </a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link" href="#" data-section="configSection">
-              <i class="fas fa-cogs mr-2"></i> Configuración
-            </a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link" href="#" data-section="dbSection">
-              <i class="fas fa-database mr-2"></i> Estado BD
+            <a href="#simulacion" class="nav-link">
+              <i class="fas fa-play-circle"></i>
+              <span>Simulación</span>
             </a>
           </li>
         </ul>
-        
-        <hr class="my-4">
-        
-        <div class="px-3 text-center">
-          <div id="sidebarDbStatus" class="px-3 py-2 rounded-lg bg-secondary text-white">
-            <small><i class="fas fa-circle-notch fa-spin mr-1"></i> Conectando...</small>
           </div>
           
-          <div class="mt-4">
-            <button id="btnRefreshData" class="btn btn-sm btn-primary">
-              <i class="fas fa-sync-alt mr-1"></i> Actualizar Datos
+      <div class="sidebar-footer">
+        <div class="system-status">
+          <div class="status-title">Estado del Sistema</div>
+          <div class="status-indicator">
+            <div class="status-dot connected"></div>
+            <div class="status-text">Sistema conectado</div>
+          </div>
+          <div class="text-muted mt-2" style="font-size: 0.8rem;">
+            <i class="far fa-clock mr-1"></i> Última actualización: 
+            <span id="lastUpdateTime">00:00:00</span>
+        </div>
+      </div>
+      </div>
+    </div>
+    
+    <!-- Contenido Principal -->
+    <div class="main-content">
+      <!-- Header -->
+      <div class="content-header">
+        <button class="btn btn-light btn-sm mobile-menu-toggle mr-2 d-lg-none">
+          <i class="fas fa-bars"></i>
+        </button>
+        
+        <nav aria-label="breadcrumb">
+          <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="#dashboard">Inicio</a></li>
+            <li class="breadcrumb-item active">Dashboard</li>
+          </ol>
+        </nav>
+        
+        <div class="header-actions">
+          <button id="refreshDataBtn" class="btn btn-outline-primary btn-sm">
+            <i class="fas fa-sync-alt mr-1"></i> Actualizar
             </button>
           </div>
         </div>
+      
+      <!-- Contenedor de Secciones -->
+      <div class="content-sections">
+        <!-- Dashboard Section -->
+        <div id="dashboard-section" class="content-section active">
+          <div class="section-header">
+            <h2><i class="fas fa-tachometer-alt mr-2 text-primary"></i>Dashboard</h2>
+            <p class="text-muted">Monitoreo en tiempo real de sensores y alertas</p>
       </div>
       
-      <div class="mt-auto text-center mb-3">
-        <small class="text-muted">© 2025 PdM-Manager</small>
-      </div>
-    </nav>
-
-    <!-- Contenido principal -->
-    <main class="col-md-10 ml-sm-auto px-4">
-      
-      <!-- Barra superior con información contextual -->
-      <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-        <h1 id="currentSectionTitle" class="h2">Inicio</h1>
-        <div class="btn-toolbar mb-2 mb-md-0">
-          <div class="btn-group mr-2">
-            <!-- Botón Exportar: genera PDF con datos de resumen y alertas -->
-            <button id="btnExportData" class="btn btn-sm btn-outline-secondary">
-              <i class="fas fa-file-export mr-1"></i> Exportar
-            </button>
-            <!-- Botón Imprimir: genera PDF de la gráfica con conteo de alertas -->
-            <button id="btnPrintView" class="btn btn-sm btn-outline-secondary">
-              <i class="fas fa-print mr-1"></i> Imprimir
-            </button>
-          </div>
-        </div>
-      </div>
-      
-      <!-- Sección: Inicio -->
-      <div id="homeSection" class="section active">
+          <!-- Filtros -->
+          <div class="card filter-card mb-4">
+            <div class="card-body">
+              <h5 class="card-title"><i class="fas fa-filter"></i> Filtros</h5>
         <div class="row">
-          <div class="col-md-12">
-            <div class="jumbotron">
-              <h2>Bienvenido al Sistema de Mantenimiento Predictivo</h2>
-              <p class="lead">Este software le permite monitorear, analizar y predecir el estado de sus máquinas industriales mediante análisis avanzado de vibraciones.</p>
-              <hr>
-              <p>Utilice el menú lateral para navegar por las diferentes funcionalidades del sistema.</p>
+                <div class="col-md-4 mb-3">
+                  <label for="selectMachine">Máquina:</label>
+                  <select id="selectMachine" class="form-control">
+                    <option value="">Todas las máquinas</option>
+                  </select>
             </div>
+                <div class="col-md-4 mb-3">
+                  <label for="selectSensor">Sensor:</label>
+                  <select id="selectSensor" class="form-control">
+                    <option value="">Todos los sensores</option>
+                  </select>
+                </div>
+                <div class="col-md-4 mb-3">
+                  <label for="timeRange">Rango de tiempo:</label>
+                  <select id="timeRange" class="form-control">
+                    <option value="1h">Última hora</option>
+                    <option value="6h">Últimas 6 horas</option>
+                    <option value="24h" selected>Últimas 24 horas</option>
+                    <option value="7d">Últimos 7 días</option>
+                  </select>
+                </div>
+              </div>
           </div>
         </div>
         
-        <!-- Tarjetas de indicadores -->
-        <div class="row">
-          <div class="col-md-3 mb-4">
-            <div class="card border-left-primary h-100">
+          <!-- Tarjetas de Alertas -->
+          <div class="row mb-4">
+            <div class="col-xl-3 col-md-6 mb-3">
+              <div class="alert-card level-1">
               <div class="card-body">
-                <div class="row no-gutters align-items-center">
-                  <div class="col mr-2">
-                    <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Sensores Activos</div>
-                    <div id="activeSensorsCount" class="h5 mb-0 font-weight-bold text-gray-800">--</div>
+                  <div class="alert-icon">
+                    <i class="fas fa-exclamation-circle"></i>
                   </div>
-                  <div class="col-auto">
-                    <i class="fas fa-wifi fa-2x text-gray-300"></i>
+                  <div class="alert-info">
+                    <h2 class="alert-count" id="level1Count">0</h2>
+                    <p class="alert-label">Alertas Nivel 1</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="col-xl-3 col-md-6 mb-3">
+              <div class="alert-card level-2">
+              <div class="card-body">
+                  <div class="alert-icon">
+                    <i class="fas fa-exclamation-triangle"></i>
+                  </div>
+                  <div class="alert-info">
+                    <h2 class="alert-count" id="level2Count">0</h2>
+                    <p class="alert-label">Alertas Nivel 2</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="col-xl-3 col-md-6 mb-3">
+              <div class="alert-card level-3">
+                <div class="card-body">
+                  <div class="alert-icon">
+                    <i class="fas fa-radiation-alt"></i>
+          </div>
+                  <div class="alert-info">
+                    <h2 class="alert-count" id="level3Count">0</h2>
+                    <p class="alert-label">Alertas Nivel 3</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="col-xl-3 col-md-6 mb-3">
+              <div class="alert-card total">
+              <div class="card-body">
+                  <div class="alert-icon">
+                    <i class="fas fa-bell"></i>
+                  </div>
+                  <div class="alert-info">
+                    <h2 class="alert-count" id="totalCount">0</h2>
+                    <p class="alert-label">Total Alertas</p>
                   </div>
                 </div>
               </div>
             </div>
           </div>
 
-          <div class="col-md-3 mb-4">
-            <div class="card border-left-success h-100">
-              <div class="card-body">
-                <div class="row no-gutters align-items-center">
-                  <div class="col mr-2">
-                    <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Estado Normal</div>
-                    <div id="normalStateCount" class="h5 mb-0 font-weight-bold text-gray-800">--</div>
+          <!-- Gráfico de Vibraciones -->
+          <div class="row mb-4">
+            <div class="col-lg-8 mb-3">
+              <div class="card chart-card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                  <h5><i class="fas fa-chart-line"></i> Tendencia de Vibraciones</h5>
+                  <div class="btn-group btn-group-sm">
+                    <button class="btn btn-outline-secondary" id="zoomResetBtn">
+                      <i class="fas fa-sync-alt"></i>
+                    </button>
                   </div>
-                  <div class="col-auto">
-                    <i class="fas fa-check-circle fa-2x text-gray-300"></i>
                   </div>
+                <div class="card-body">
+                  <div class="chart-container">
+                    <canvas id="vibrationChart"></canvas>
                 </div>
+                  <div class="threshold-controls mt-3">
+                    <div class="custom-control custom-switch mr-3">
+                      <input type="checkbox" class="custom-control-input" id="showMean" checked>
+                      <label class="custom-control-label" for="showMean">Media</label>
               </div>
+                    <div class="custom-control custom-switch mr-3">
+                      <input type="checkbox" class="custom-control-input" id="show1Sigma" checked>
+                      <label class="custom-control-label" for="show1Sigma">1σ</label>
             </div>
+                    <div class="custom-control custom-switch mr-3">
+                      <input type="checkbox" class="custom-control-input" id="show2Sigma" checked>
+                      <label class="custom-control-label" for="show2Sigma">2σ</label>
           </div>
-
-          <div class="col-md-3 mb-4">
-            <div class="card border-left-warning h-100">
-              <div class="card-body">
-                <div class="row no-gutters align-items-center">
-                  <div class="col mr-2">
-                    <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Atención Requerida</div>
-                    <div id="warningStateCount" class="h5 mb-0 font-weight-bold text-gray-800">--</div>
-                  </div>
-                  <div class="col-auto">
-                    <i class="fas fa-exclamation-triangle fa-2x text-gray-300"></i>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="col-md-3 mb-4">
-            <div class="card border-left-danger h-100">
-              <div class="card-body">
-                <div class="row no-gutters align-items-center">
-                  <div class="col mr-2">
-                    <div class="text-xs font-weight-bold text-danger text-uppercase mb-1">Estado Crítico</div>
-                    <div id="criticalStateCount" class="h5 mb-0 font-weight-bold text-gray-800">--</div>
-                  </div>
-                  <div class="col-auto">
-                    <i class="fas fa-times-circle fa-2x text-gray-300"></i>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+                    <div class="custom-control custom-switch">
+                      <input type="checkbox" class="custom-control-input" id="show3Sigma" checked>
+                      <label class="custom-control-label" for="show3Sigma">3σ</label>
         </div>
-        
-        <!-- Gráfica resumen y alertas recientes -->
-        <div class="row">
-          <div class="col-md-8 mb-4">
-            <div class="card shadow mb-4">
-              <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
-                <h6 class="m-0 font-weight-bold text-primary">Resumen de Vibraciones (Últimas 24h)</h6>
-                <div class="dropdown no-arrow">
-                  <a class="dropdown-toggle" href="#" role="button" id="dropdownMenuLink" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                    <i class="fas fa-ellipsis-v fa-sm fa-fw text-gray-400"></i>
-                  </a>
-                  <div class="dropdown-menu dropdown-menu-right shadow animated--fade-in" aria-labelledby="dropdownMenuLink">
-                    <div class="dropdown-header">Opciones:</div>
-                    <a class="dropdown-item" href="#"><i class="fas fa-download fa-sm mr-2"></i> Descargar CSV</a>
-                    <a class="dropdown-item" href="#"><i class="fas fa-expand fa-sm mr-2"></i> Ver Completo</a>
-                    <div class="dropdown-divider"></div>
-                    <a class="dropdown-item" href="#"><i class="fas fa-sync-alt fa-sm mr-2"></i> Actualizar</a>
                   </div>
                 </div>
               </div>
-              <div class="card-body">
-                <!-- Gráfica principal de la página de inicio -->
-                <div class="chart-area">
-                  <canvas id="homeSummaryChart" style="height: 300px;"></canvas>
                 </div>
-                <!-- Tabla/resumen de datos numéricos (simulada) -->
-                <div class="table-responsive mt-3">
-                  <table class="table table-bordered" id="homeSummaryTable">
+            <div class="col-lg-4 mb-3">
+              <div class="card chart-card h-100">
+                <div class="card-header">
+                  <h5><i class="fas fa-bell"></i> Alertas Recientes</h5>
+                </div>
+                <div class="card-body p-0">
+                  <div class="table-responsive">
+                    <table class="table table-hover mb-0">
                     <thead>
                       <tr>
-                        <th>Fecha/Hora</th>
-                        <th>Promedio Vibración</th>
-                        <th>Alertas</th>
+                          <th>Nivel</th>
+                          <th>Sensor</th>
+                          <th>Tiempo</th>
                       </tr>
                     </thead>
-                    <tbody>
-                      <!-- Se llenará dinámicamente con JS -->
+                      <tbody id="recentAlertsTable">
+                        <tr>
+                          <td colspan="3" class="text-center py-3">
+                            <span class="text-muted">No hay alertas recientes</span>
+                          </td>
+                        </tr>
                     </tbody>
                   </table>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
           
-          <div class="col-md-4 mb-4">
-            <div class="card shadow">
-              <div class="card-header py-3">
-                <h6 class="m-0 font-weight-bold text-primary">Alertas Recientes</h6>
+          <!-- Datos Recientes -->
+          <div class="row">
+            <div class="col-12">
+              <div class="card chart-card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                  <h5><i class="fas fa-table"></i> Datos Recientes</h5>
+                  <button class="btn btn-sm btn-outline-primary" id="exportDataBtn">
+                    <i class="fas fa-download mr-1"></i> Exportar
+                  </button>
               </div>
-              <div class="card-body">
-                <div id="recentAlertsContainer">
-                  <div class="text-center py-4">
-                    <div class="spinner-border text-primary" role="status">
-                      <span class="sr-only">Cargando...</span>
+                <div class="card-body p-0">
+                  <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                      <thead>
+                        <tr>
+                          <th>Fecha/Hora</th>
+                          <th>Máquina</th>
+                          <th>Sensor</th>
+                          <th>Valor X</th>
+                          <th>Valor Y</th>
+                          <th>Valor Z</th>
+                          <th>Estado</th>
+                        </tr>
+                      </thead>
+                      <tbody id="recentDataTable">
+                        <tr>
+                          <td colspan="7" class="text-center py-3">
+                            <span class="text-muted">Cargando datos...</span>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
-      </div> <!-- Fin homeSection -->
-      
-      <!-- Sección: Gráficas -->
-      <div id="chartsSection" class="section" style="display: none;">
-        <div class="card shadow mb-4">
-          <div class="card-header py-3">
-            <h6 class="m-0 font-weight-bold text-primary">Visualización Avanzada de Vibraciones</h6>
+        
+        <!-- Configuración Section -->
+        <div id="configuracion-section" class="content-section">
+          <div class="section-header">
+            <h2><i class="fas fa-wrench mr-2 text-primary"></i>Configuración</h2>
+            <p class="text-muted">Configuración de máquinas, sensores y modelos de predicción</p>
           </div>
-          <div class="card-body">
-            <form id="formParams" class="mb-4">
+          
               <div class="row">
-                <div class="col-md-3">
-                  <div class="form-group">
-                    <label>Sensor:</label>
-                    <select name="sensor_id" class="form-control" id="sensorSelector">
-                      <!-- Se llenará dinámicamente con JS -->
+            <div class="col-lg-5 mb-4">
+              <!-- Panel de Máquinas -->
+              <div class="card chart-card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                  <h5><i class="fas fa-industry"></i> Máquinas</h5>
+                  <button class="btn btn-sm btn-primary" data-toggle="modal" data-target="#addMachineModal">
+                    <i class="fas fa-plus mr-1"></i> Añadir
+                  </button>
+                  </div>
+                <div class="card-body p-0">
+                  <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                      <thead>
+                        <tr>
+                          <th>Nombre</th>
+                          <th>Tipo</th>
+                          <th>Sensores</th>
+                          <th>Acciones</th>
+                        </tr>
+                      </thead>
+                      <tbody id="machinesTable">
+                        <tr>
+                          <td colspan="4" class="text-center py-3">
+                            <span class="text-muted">Cargando máquinas...</span>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                </div>
+                  </div>
+                  </div>
+                </div>
+                
+            <div class="col-lg-7 mb-4">
+              <!-- Panel de Sensores -->
+              <div class="card chart-card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                  <h5><i class="fas fa-microchip"></i> Sensores</h5>
+                  <div>
+                    <select id="filterMachine" class="form-control form-control-sm mr-2 d-inline-block" style="width: auto;">
+                      <option value="">Todas las máquinas</option>
                     </select>
-                  </div>
-                </div>
-                
-                <div class="col-md-3">
-                  <div class="form-group">
-                    <label>Fecha inicio:</label>
-                    <input type="date" name="start_date" class="form-control">
-                  </div>
-                </div>
-                
-                <div class="col-md-3">
-                  <div class="form-group">
-                    <label>Fecha fin:</label>
-                    <input type="date" name="end_date" class="form-control">
-                  </div>
-                </div>
-                
-                <div class="col-md-3">
-                  <div class="form-group">
-                    <label>&nbsp;</label>
-                    <button type="submit" class="btn btn-primary btn-block">
-                      <i class="fas fa-search mr-1"></i> Consultar
+                    <button class="btn btn-sm btn-primary" data-toggle="modal" data-target="#addSensorModal">
+                      <i class="fas fa-plus mr-1"></i> Añadir
                     </button>
                   </div>
                 </div>
+                <div class="card-body p-0">
+                  <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                      <thead>
+                        <tr>
+                          <th>Nombre</th>
+                          <th>Máquina</th>
+                          <th>Tipo</th>
+                          <th>Ubicación</th>
+                          <th>Modelo</th>
+                          <th>Acciones</th>
+                        </tr>
+                      </thead>
+                      <tbody id="sensorsTable">
+                        <tr>
+                          <td colspan="6" class="text-center py-3">
+                            <span class="text-muted">Cargando sensores...</span>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+                  </div>
+                </div>
               </div>
               
               <div class="row">
-                <div class="col-md-12">
-                  <div class="custom-control custom-switch custom-control-inline">
-                    <input type="checkbox" class="custom-control-input" id="showXAxis" checked>
-                    <label class="custom-control-label" for="showXAxis">Eje X</label>
+            <div class="col-lg-6 mb-4">
+              <!-- Panel de Detalles del Sensor -->
+              <div class="card chart-card">
+                <div class="card-header">
+                  <h5><i class="fas fa-info-circle"></i> Detalles del Sensor</h5>
                   </div>
-                  <div class="custom-control custom-switch custom-control-inline">
-                    <input type="checkbox" class="custom-control-input" id="showYAxis" checked>
-                    <label class="custom-control-label" for="showYAxis">Eje Y</label>
+                <div class="card-body">
+                  <div id="sensorDetailsPlaceholder" class="text-center py-4">
+                    <i class="fas fa-microchip text-muted" style="font-size: 3rem;"></i>
+                    <p class="mt-3 text-muted">Seleccione un sensor para ver sus detalles</p>
                   </div>
-                  <div class="custom-control custom-switch custom-control-inline">
-                    <input type="checkbox" class="custom-control-input" id="showZAxis" checked>
-                    <label class="custom-control-label" for="showZAxis">Eje Z</label>
+                  <div id="sensorDetails" class="d-none">
+                    <form id="sensorConfigForm">
+                      <div class="form-group row">
+                        <label class="col-sm-4 col-form-label">ID del Sensor:</label>
+                        <div class="col-sm-8">
+                          <input type="text" class="form-control-plaintext" id="sensorDetailId" readonly>
                   </div>
-                  <div class="custom-control custom-switch custom-control-inline">
-                    <input type="checkbox" class="custom-control-input" id="showAverage">
-                    <label class="custom-control-label" for="showAverage">Promedio</label>
                   </div>
-                  <div class="custom-control custom-switch custom-control-inline">
-                    <input type="checkbox" class="custom-control-input" id="showThresholds">
-                    <label class="custom-control-label" for="showThresholds">Umbrales</label>
+                      <div class="form-group row">
+                        <label class="col-sm-4 col-form-label">Máquina:</label>
+                        <div class="col-sm-8">
+                          <select class="form-control" id="sensorDetailMachine">
+                            <option value="">Seleccionar máquina...</option>
+                          </select>
                   </div>
                 </div>
+                      <div class="form-group row">
+                        <label class="col-sm-4 col-form-label">Nombre:</label>
+                        <div class="col-sm-8">
+                          <input type="text" class="form-control" id="sensorDetailName">
+                        </div>
+                      </div>
+                      <div class="form-group row">
+                        <label class="col-sm-4 col-form-label">Ubicación:</label>
+                        <div class="col-sm-8">
+                          <input type="text" class="form-control" id="sensorDetailLocation">
+                        </div>
+                      </div>
+                      <div class="form-group row">
+                        <label class="col-sm-4 col-form-label">Descripción:</label>
+                        <div class="col-sm-8">
+                          <textarea class="form-control" id="sensorDetailDescription" rows="3"></textarea>
+                        </div>
+                      </div>
+                      <div class="text-right">
+                        <button type="button" class="btn btn-primary" id="saveSensorConfigBtn">
+                          <i class="fas fa-save mr-1"></i> Guardar Configuración
+                        </button>
               </div>
             </form>
-            
-            <div class="chart-container" style="position: relative; height:450px;">
-              <canvas id="chartVibracion"></canvas>
             </div>
-            
-            <div class="row mt-4">
-              <div class="col-md-4">
-                <div class="card bg-light">
-                  <div class="card-body">
-                    <h5 class="card-title">Estadísticas Eje X</h5>
-                    <ul class="list-group list-group-flush">
-                      <li class="list-group-item d-flex justify-content-between align-items-center">
-                        Media
-                        <span id="xAxisMean" class="badge badge-primary badge-pill">--</span>
-                      </li>
-                      <li class="list-group-item d-flex justify-content-between align-items-center">
-                        Máximo
-                        <span id="xAxisMax" class="badge badge-primary badge-pill">--</span>
-                      </li>
-                      <li class="list-group-item d-flex justify-content-between align-items-center">
-                        Mínimo
-                        <span id="xAxisMin" class="badge badge-primary badge-pill">--</span>
-                      </li>
-                    </ul>
                   </div>
                 </div>
               </div>
               
-              <div class="col-md-4">
-                <div class="card bg-light">
-                  <div class="card-body">
-                    <h5 class="card-title">Estadísticas Eje Y</h5>
-                    <ul class="list-group list-group-flush">
-                      <li class="list-group-item d-flex justify-content-between align-items-center">
-                        Media
-                        <span id="yAxisMean" class="badge badge-primary badge-pill">--</span>
-                      </li>
-                      <li class="list-group-item d-flex justify-content-between align-items-center">
-                        Máximo
-                        <span id="yAxisMax" class="badge badge-primary badge-pill">--</span>
-                      </li>
-                      <li class="list-group-item d-flex justify-content-between align-items-center">
-                        Mínimo
-                        <span id="yAxisMin" class="badge badge-primary badge-pill">--</span>
-                      </li>
-                    </ul>
+            <div class="col-lg-6 mb-4">
+              <!-- Panel de Modelos y Asociación -->
+              <div class="card chart-card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                  <h5><i class="fas fa-brain"></i> Modelo Asignado</h5>
+                  <div>
+                    <button class="btn btn-sm btn-outline-primary mr-2" data-toggle="modal" data-target="#addModelModal">
+                      <i class="fas fa-plus mr-1"></i> Nuevo Modelo
+                    </button>
+                    <button class="btn btn-sm btn-outline-info" data-toggle="modal" data-target="#addScalerModal">
+                      <i class="fas fa-plus mr-1"></i> Nuevo Scaler
+                    </button>
                   </div>
                 </div>
-              </div>
-              
-              <div class="col-md-4">
-                <div class="card bg-light">
                   <div class="card-body">
-                    <h5 class="card-title">Estadísticas Eje Z</h5>
-                    <ul class="list-group list-group-flush">
-                      <li class="list-group-item d-flex justify-content-between align-items-center">
-                        Media
-                        <span id="zAxisMean" class="badge badge-primary badge-pill">--</span>
-                      </li>
-                      <li class="list-group-item d-flex justify-content-between align-items-center">
-                        Máximo
-                        <span id="zAxisMax" class="badge badge-primary badge-pill">--</span>
-                      </li>
-                      <li class="list-group-item d-flex justify-content-between align-items-center">
-                        Mínimo
-                        <span id="zAxisMin" class="badge badge-primary badge-pill">--</span>
-                      </li>
-                    </ul>
+                  <div id="modelDetailsPlaceholder" class="text-center py-4">
+                    <i class="fas fa-brain text-muted" style="font-size: 3rem;"></i>
+                    <p class="mt-3 text-muted">Seleccione un sensor para ver el modelo asignado</p>
                   </div>
+                  <div id="modelDetails" class="d-none">
+                    <div id="noModelAssigned" class="alert alert-warning">
+                      <i class="fas fa-exclamation-triangle mr-2"></i>
+                      No hay un modelo asignado a este sensor
+                </div>
+                    <form id="assignModelForm">
+                      <div class="form-group">
+                        <label for="selectModel">Modelo:</label>
+                        <select class="form-control" id="selectModel">
+                          <option value="">Seleccionar modelo...</option>
+                        </select>
+              </div>
+                      <div class="form-group">
+                        <label for="selectScaler">Scaler:</label>
+                        <select class="form-control" id="selectScaler">
+                          <option value="">Seleccionar scaler...</option>
+                        </select>
+                      </div>
+                      <div class="text-right">
+                        <button type="button" class="btn btn-primary" id="assignModelBtn">
+                          <i class="fas fa-link mr-1"></i> Asignar Modelo
+                        </button>
+                      </div>
+                    </form>
+                    
+                    <div id="currentModelInfo" class="mt-4 d-none">
+                      <h6 class="border-bottom pb-2">Modelo Actualmente Asignado</h6>
+                      <div class="row">
+                        <div class="col-sm-4 font-weight-bold">Modelo:</div>
+                        <div class="col-sm-8" id="currentModelName">-</div>
+                  </div>
+                      <div class="row mt-2">
+                        <div class="col-sm-4 font-weight-bold">Tipo:</div>
+                        <div class="col-sm-8" id="currentModelType">-</div>
+                </div>
+                      <div class="row mt-2">
+                        <div class="col-sm-4 font-weight-bold">Scaler:</div>
+                        <div class="col-sm-8" id="currentScalerName">-</div>
+              </div>
+                      <div class="row mt-2">
+                        <div class="col-sm-4 font-weight-bold">Precisión:</div>
+                        <div class="col-sm-8" id="currentModelAccuracy">-</div>
+            </div>
+                      <div class="row mt-2">
+                        <div class="col-sm-4 font-weight-bold">Fecha Asignación:</div>
+                        <div class="col-sm-8" id="currentModelDate">-</div>
+          </div>
+                      <div class="text-right mt-3">
+                        <button type="button" class="btn btn-sm btn-danger" id="removeModelBtn">
+                          <i class="fas fa-unlink mr-1"></i> Desasignar
+                        </button>
+        </div>
+          </div>
                 </div>
               </div>
+            </div>
             </div>
           </div>
         </div>
         
-        <!-- Gráfico de espectro FFT -->
-        <div class="card shadow mb-4">
-          <div class="card-header py-3">
-            <h6 class="m-0 font-weight-bold text-primary">Análisis Espectral (FFT)</h6>
-          </div>
-          <div class="card-body">
-            <div class="row mb-3">
-              <div class="col-md-12">
-                <div class="alert alert-info">
-                  <i class="fas fa-info-circle mr-1"></i> El análisis espectral permite identificar frecuencias dominantes en las vibraciones que pueden indicar problemas específicos.
-                </div>
-              </div>
-            </div>
-            
-            <div class="chart-container" style="position: relative; height:350px;">
-              <canvas id="chartFFT"></canvas>
-            </div>
-          </div>
-        </div>
+        <!-- Simulación Section -->
+        <div id="simulacion-section" class="content-section">
+          <div class="section-header">
+            <h2><i class="fas fa-play-circle mr-2 text-primary"></i>Simulación</h2>
+            <p class="text-muted">Simulación de datos para pruebas y demostraciones</p>
       </div>
 
-      <!-- Sección: Predicción -->
-      <div id="predictionSection" class="section" style="display: none;">
         <div class="row">
-          <div class="col-lg-8">
-            <div class="card shadow mb-4">
-              <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
-                <h6 class="m-0 font-weight-bold text-primary">Predicción de Estado</h6>
-                <div class="dropdown no-arrow">
-                  <a class="dropdown-toggle" href="#" role="button" id="predictionDropdownMenuLink" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                    <i class="fas fa-ellipsis-v fa-sm fa-fw text-gray-400"></i>
-                  </a>
-                  <div class="dropdown-menu dropdown-menu-right shadow animated--fade-in" aria-labelledby="predictionDropdownMenuLink">
-                    <div class="dropdown-header">Opciones:</div>
-                    <a class="dropdown-item" href="#"><i class="fas fa-file-pdf fa-sm mr-2"></i> Exportar PDF</a>
-                    <a class="dropdown-item" href="#"><i class="fas fa-cog fa-sm mr-2"></i> Configurar Modelo</a>
+            <div class="col-lg-5 mb-4">
+              <!-- Panel de Archivos CSV -->
+              <div class="card chart-card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                  <h5><i class="fas fa-file-csv"></i> Archivos CSV</h5>
+                  <button class="btn btn-sm btn-primary" id="uploadCsvBtn">
+                    <i class="fas fa-upload mr-1"></i> Subir CSV
+                  </button>
                   </div>
+                <div class="card-body">
+                  <input type="file" id="csvFileInput" accept=".csv" style="display: none;">
+                  <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                      <thead>
+                        <tr>
+                          <th>Nombre</th>
+                          <th>Tamaño</th>
+                          <th>Registros</th>
+                          <th>Acciones</th>
+                        </tr>
+                      </thead>
+                      <tbody id="csvFilesTable">
+                        <tr>
+                          <td colspan="4" class="text-center py-3">
+                            <span class="text-muted">Cargando archivos...</span>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
                 </div>
               </div>
-              <div class="card-body">
-                <form id="predictForm">
-                  <div class="row">
-                    <div class="col-md-6">
-                      <div class="form-group">
-                        <label>Sensor:</label>
-                        <select name="sensor_id" class="form-control" id="predictionSensorSelector">
-                          <!-- Se llenará dinámicamente -->
-                        </select>
-                      </div>
-                    </div>
-                    
-                    <div class="col-md-6">
-                      <div class="form-group">
-                        <label>Modelo:</label>
-                        <select name="model_type" class="form-control" id="modelTypeSelector">
-                          <!-- Se llenará dinámicamente con la lista de .h5 en la carpeta Modelo -->
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div class="row">
-                    <div class="col-md-6">
-                      <div class="form-group">
-                        <label>Fecha inicio:</label>
-                        <input type="date" name="start_date" class="form-control">
-                      </div>
-                    </div>
-                    
-                    <div class="col-md-6">
-                      <div class="form-group">
-                        <label>Fecha fin:</label>
-                        <input type="date" name="end_date" class="form-control">
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div class="row">
-                    <div class="col-md-12">
-                      <button type="submit" class="btn btn-success btn-block">
-                        <i class="fas fa-brain mr-2"></i> Ejecutar Predicción
-                      </button>
-                    </div>
-                  </div>
-                </form>
-                
-                <div id="predictionLoader" class="text-center my-4" style="display:none;">
-                  <div class="spinner-border text-primary" role="status">
-                    <span class="sr-only">Procesando...</span>
-                  </div>
-                  <p class="mt-2">Analizando datos y ejecutando modelo...</p>
-                </div>
-                
-                <div id="predictionResult" class="mt-4" style="display:none;">
-                  <div class="row">
-                    <div class="col-md-6">
-                      <div class="text-center">
-                        <div id="predictionGauge" style="height: 200px;"></div>
-                      </div>
-                    </div>
-                    
-                    <div class="col-md-6">
-                      <div class="row">
-                        <div class="col-12">
-                          <div class="card">
-                            <div class="card-body">
-                              <h5 class="card-title">Resultado Predicción</h5>
-                              <div id="predictionClassResult" class="alert alert-info">
-                                <span class="font-weight-bold">Estado:</span> <span id="predictedStateText">Pendiente</span>
-                              </div>
-                              <p class="mb-0">
-                                <span class="font-weight-bold">Confianza:</span> <span id="predictionConfidence">--</span>
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                      
-                      <div class="row mt-3">
-                        <div class="col-12">
-                          <div class="card">
-                            <div class="card-body">
-                              <h5 class="card-title">Recomendación</h5>
-                              <p id="predictionRecommendation" class="mb-0">Para obtener una recomendación, ejecute primero la predicción.</p>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div class="row mt-4">
-                    <div class="col-md-12">
-                      <h5>Características Importantes</h5>
-                      <div class="chart-container" style="position: relative; height:250px;">
-                        <canvas id="featureImportanceChart"></canvas>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-          
-          <div class="col-lg-4">
-            <div class="card shadow mb-4">
-              <div class="card-header py-3">
-                <h6 class="m-0 font-weight-bold text-primary">Predicciones Recientes</h6>
-              </div>
-              <div class="card-body">
-                <div id="recentPredictionsContainer">
-                  <!-- Se cargan predicciones vía JS -->
-                </div>
               </div>
             </div>
             
-            <div class="card shadow mb-4">
-              <div class="card-header py-3">
-                <h6 class="m-0 font-weight-bold text-primary">Rendimiento del Modelo</h6>
-              </div>
+            <div class="col-lg-7 mb-4">
+              <!-- Panel de Configuración de Simulación -->
+              <div class="card chart-card">
+                <div class="card-header">
+                  <h5><i class="fas fa-cogs"></i> Configuración de Simulación</h5>
+                </div>
               <div class="card-body">
-                <div class="row">
-                  <div class="col-6 text-center mb-3">
-                    <h6>Precisión</h6>
-                    <div class="h3 mb-0 text-primary" id="modelAccuracy">--</div>
+                  <form id="simulationConfigForm">
+                    <div class="form-group row">
+                      <label class="col-sm-4 col-form-label">Archivo CSV:</label>
+                      <div class="col-sm-8">
+                        <select class="form-control" id="selectCsvFile" required>
+                          <option value="">Seleccionar archivo...</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div class="form-group row">
+                      <label class="col-sm-4 col-form-label">Sensor:</label>
+                      <div class="col-sm-8">
+                        <select class="form-control" id="simSelectSensor" required>
+                          <option value="">Seleccionar sensor...</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div class="form-group row">
+                      <label class="col-sm-4 col-form-label">Intervalo (ms):</label>
+                      <div class="col-sm-8">
+                        <input type="number" class="form-control" id="simInterval" min="100" value="1000" required>
+                        <small class="form-text text-muted">Tiempo entre registros (milisegundos)</small>
                   </div>
-                  <div class="col-6 text-center mb-3">
-                    <h6>Recall</h6>
-                    <div class="h3 mb-0 text-primary" id="modelRecall">--</div>
+                      </div>
+                    <div class="form-group row">
+                      <div class="col-sm-4"></div>
+                      <div class="col-sm-8">
+                        <div class="custom-control custom-switch">
+                          <input type="checkbox" class="custom-control-input" id="loopSimulation">
+                          <label class="custom-control-label" for="loopSimulation">Repetir al finalizar</label>
+                    </div>
+                      </div>
+                    </div>
+                    <div class="text-right">
+                      <button type="button" class="btn btn-success" id="startSimBtn" disabled>
+                        <i class="fas fa-play mr-1"></i> Iniciar Simulación
+                      </button>
+                      <button type="button" class="btn btn-danger" id="stopSimBtn" disabled>
+                        <i class="fas fa-stop mr-1"></i> Detener
+                      </button>
+                    </div>
+                  </form>
+                </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div class="row">
+            <div class="col-12 mb-4">
+              <!-- Panel de Estado de Simulación -->
+              <div class="card chart-card">
+                <div class="card-header">
+                  <h5><i class="fas fa-chart-bar"></i> Estado de la Simulación</h5>
+                    </div>
+                <div class="card-body">
+                  <div id="simulationStatusPlaceholder" class="text-center py-4">
+                    <i class="fas fa-play-circle text-muted" style="font-size: 3rem;"></i>
+                    <p class="mt-3 text-muted">No hay simulación en curso</p>
+                  </div>
+                  
+                  <div id="simulationStatus" class="d-none">
+                    <div class="row mb-4">
+                      <div class="col-md-3 mb-3">
+                        <div class="card bg-light">
+                          <div class="card-body text-center py-3">
+                            <h6 class="text-muted mb-2">Archivo</h6>
+                            <h5 id="simStatusFile" class="mb-0">-</h5>
                   </div>
                 </div>
-                
-                <div class="row">
-                  <div class="col-6 text-center mb-3">
-                    <h6>F1-Score</h6>
-                    <div class="h3 mb-0 text-primary" id="modelF1Score">--</div>
+                      </div>
+                      <div class="col-md-3 mb-3">
+                        <div class="card bg-light">
+                          <div class="card-body text-center py-3">
+                            <h6 class="text-muted mb-2">Sensor</h6>
+                            <h5 id="simStatusSensor" class="mb-0">-</h5>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="col-md-3 mb-3">
+                        <div class="card bg-light">
+                          <div class="card-body text-center py-3">
+                            <h6 class="text-muted mb-2">Intervalo</h6>
+                            <h5 id="simStatusInterval" class="mb-0">-</h5>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="col-md-3 mb-3">
+                        <div class="card bg-light">
+                          <div class="card-body text-center py-3">
+                            <h6 class="text-muted mb-2">Estado</h6>
+                            <h5 id="simStatusState" class="mb-0">-</h5>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                    <div class="col-md-6">
+                        <h6>Progreso</h6>
+                        <div class="progress" style="height: 20px;">
+                          <div id="simProgressBar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
+                              </div>
+                        <div class="d-flex justify-content-between mt-1">
+                          <small><span id="simCurrentRecord">0</span> registros procesados</small>
+                          <small>Total: <span id="simTotalRecords">0</span> registros</small>
+                            </div>
+                          </div>
+                      <div class="col-md-6">
+                        <h6>Tiempo</h6>
+                        <div class="row">
+                          <div class="col-6">
+                            <div class="card bg-light">
+                              <div class="card-body text-center py-2">
+                                <small class="text-muted">Transcurrido</small>
+                                <h5 id="simElapsedTime" class="mb-0">00:00:00</h5>
+                        </div>
+                      </div>
+                          </div>
+                          <div class="col-6">
+                            <div class="card bg-light">
+                              <div class="card-body text-center py-2">
+                                <small class="text-muted">Restante</small>
+                                <h5 id="simRemainingTime" class="mb-0">00:00:00</h5>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  <div class="col-6 text-center mb-3">
-                    <h6>Último Entrenamiento</h6>
-                    <div class="h6 mb-0 text-muted" id="modelLastTrainDate">--</div>
+                  
+                    <div class="row">
+                      <div class="col-md-4">
+                        <div class="card border-warning">
+                          <div class="card-body text-center py-3">
+                            <h6 class="text-muted mb-2">Alertas Nivel 1</h6>
+                            <h3 id="simAlerts1" class="text-warning mb-0">0</h3>
+                      </div>
+                    </div>
                   </div>
-                </div>
-                
-                <hr>
-                
-                <h6 class="font-weight-bold">Matriz de Confusión</h6>
-                <div class="text-center">
-                  <canvas id="confusionMatrixChart" height="200"></canvas>
+                      <div class="col-md-4">
+                        <div class="card border-danger">
+                          <div class="card-body text-center py-3">
+                            <h6 class="text-muted mb-2">Alertas Nivel 2</h6>
+                            <h3 id="simAlerts2" class="text-danger mb-0">0</h3>
                 </div>
               </div>
             </div>
+                      <div class="col-md-4">
+                        <div class="card border-danger">
+                          <div class="card-body text-center py-3" style="background-color: rgba(220, 53, 69, 0.05);">
+                            <h6 class="text-muted mb-2">Alertas Nivel 3</h6>
+                            <h3 id="simAlerts3" class="text-danger mb-0">0</h3>
           </div>
-        </div>
-      </div> <!-- Fin predictionSection -->
-      
-      <!-- Sección: Configuración -->
-      <div id="configSection" class="section" style="display: none;">
-        <div class="row">
-          <div class="col-lg-6">
-            <div class="card shadow mb-4">
-              <div class="card-header py-3">
-                <h6 class="m-0 font-weight-bold text-primary">Configuración de Sensores</h6>
               </div>
-              <div class="card-body">
-                <div class="row mb-3">
-                  <div class="col-md-8">
-                    <label for="configSensorSelector">Seleccione un sensor:</label>
-                    <div class="input-group">
-                      <select id="configSensorSelector" class="form-control">
-                        <!-- Se llenará dinámicamente con JS -->
-                      </select>
-                    </div>
+                </div>
+              </div>
+            </div>
+              </div>
                   </div>
-                  <div class="col-md-4 d-flex align-items-end">
-                    <button class="btn btn-primary btn-block" type="button" id="btnAddSensor">
-                      <i class="fas fa-plus"></i> Nuevo
-                    </button>
+                  </div>
+                </div>
+                  </div>
+      </div>
                   </div>
                 </div>
                 
-                <hr>
-                
-                <form id="sensorThresholdForm">
-                  <div class="row">
-                    <div class="col-md-12 mb-2">
-                      <label>Nombre del Sensor:</label>
-                      <input type="text" class="form-control" id="sensorNameInput" placeholder="Escriba el nombre del sensor...">
+  <!-- Modales -->
+  
+  <!-- Modal de Confirmación -->
+  <div class="modal fade" id="confirmModal" tabindex="-1" role="dialog" aria-labelledby="confirmModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="confirmModalLabel">Confirmar acción</h5>
+          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+          </button>
+                </div>
+        <div class="modal-body" id="confirmModalBody">
+          ¿Está seguro que desea continuar con esta acción?
+              </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+          <button type="button" class="btn btn-primary" id="confirmModalBtn">Confirmar</button>
+            </div>
+          </div>
+        </div>
+  </div>
+  
+  <!-- Modal para añadir una máquina nueva -->
+  <div class="modal fade" id="addMachineModal" tabindex="-1" aria-labelledby="addMachineModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="addMachineModalLabel">Añadir Nueva Máquina</h5>
+          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+          </button>
+              </div>
+        <div class="modal-body">
+          <form id="addMachineForm">
+            <div class="form-group">
+              <label for="machineName">Nombre de la Máquina</label>
+              <input type="text" class="form-control" id="machineName" required>
+            </div>
+            <div class="form-group">
+              <label for="machineType">Tipo de Máquina</label>
+              <select class="form-control" id="machineType" required>
+                <option value="">Seleccionar tipo...</option>
+                <option value="motor">Motor</option>
+                <option value="pump">Bomba</option>
+                <option value="fan">Ventilador</option>
+                <option value="compressor">Compresor</option>
+                <option value="generator">Generador</option>
+                <option value="other">Otro</option>
+                      </select>
                     </div>
-                    <div class="col-md-12 mb-2">
-                      <label>Descripción del Sensor:</label>
-                      <textarea class="form-control" id="sensorDescriptionInput" rows="2" placeholder="Describa brevemente el sensor..."></textarea>
+            <div class="form-group">
+              <label for="machineLocation">Ubicación</label>
+              <input type="text" class="form-control" id="machineLocation" required>
+                  </div>
+            <div class="form-group">
+              <label for="machineDescription">Descripción</label>
+              <textarea class="form-control" id="machineDescription" rows="3"></textarea>
+                  </div>
+          </form>
+                </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+          <button type="button" class="btn btn-primary" id="saveMachineBtn">Guardar</button>
+                    </div>
                     </div>
                   </div>
-                  <hr>
-                  <h5>Umbrales ±2σ y ±3σ (Solo visuales)</h5>
-                  <div class="row">
-                    <div class="col-md-6 mb-2">
-                      <label>±2σ (Inferior):</label>
-                      <input type="number" class="form-control" id="threshold2sLower" placeholder="-2.364295">
                     </div>
-                    <div class="col-md-6 mb-2">
-                      <label>±2σ (Superior):</label>
-                      <input type="number" class="form-control" id="threshold2sUpper" placeholder="2.180056">
+  
+  <!-- Modal para añadir un sensor nuevo -->
+  <div class="modal fade" id="addSensorModal" tabindex="-1" aria-labelledby="addSensorModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="addSensorModalLabel">Añadir Nuevo Sensor</h5>
+          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+          </button>
                     </div>
+        <div class="modal-body">
+          <form id="addSensorForm">
+            <div class="form-group">
+              <label for="sensorMachine">Máquina</label>
+              <select class="form-control" id="sensorMachine" required>
+                <option value="">Seleccionar máquina...</option>
+              </select>
                   </div>
-                  <div class="row">
-                    <div class="col-md-6 mb-2">
-                      <label>±3σ (Inferior):</label>
-                      <input type="number" class="form-control" id="threshold3sLower" placeholder="-3.500383">
+            <div class="form-group">
+              <label for="sensorName">Nombre del Sensor</label>
+              <input type="text" class="form-control" id="sensorName" required>
                     </div>
-                    <div class="col-md-6 mb-2">
-                      <label>±3σ (Superior):</label>
-                      <input type="number" class="form-control" id="threshold3sUpper" placeholder="3.316144">
+            <div class="form-group">
+              <label for="sensorType">Tipo de Sensor</label>
+              <select class="form-control" id="sensorType" required>
+                <option value="">Seleccionar tipo...</option>
+                <option value="vibration">Vibración</option>
+                <option value="temperature">Temperatura</option>
+                <option value="pressure">Presión</option>
+                <option value="flow">Flujo</option>
+                <option value="other">Otro</option>
+              </select>
                     </div>
+            <div class="form-group">
+              <label for="sensorLocation">Ubicación en la Máquina</label>
+              <input type="text" class="form-control" id="sensorLocation" required>
                   </div>
-                  <button class="btn btn-success btn-block mt-3" type="submit">
-                    <i class="fas fa-save mr-1"></i> Guardar Configuración
-                  </button>
+            <div class="form-group">
+              <label for="sensorDescription">Descripción</label>
+              <textarea class="form-control" id="sensorDescription" rows="3"></textarea>
+            </div>
                 </form>
-                
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+          <button type="button" class="btn btn-primary" id="saveSensorBtn">Guardar</button>
+        </div>
               </div>
             </div>
           </div>
           
-          <div class="col-lg-6">
-            <div class="card shadow mb-4">
-              <div class="card-header py-3">
-                <h6 class="m-0 font-weight-bold text-primary">Lista de Sensores Configurados</h6>
+  <!-- Modal para añadir un modelo nuevo -->
+  <div class="modal fade" id="addModelModal" tabindex="-1" aria-labelledby="addModelModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="addModelModalLabel">Añadir Nuevo Modelo</h5>
+          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+          </button>
               </div>
-              <div class="card-body">
-                <table class="table table-bordered" id="sensorsTable">
-                  <thead>
-                    <tr>
-                      <th>ID</th>
-                      <th>Nombre</th>
-                      <th>Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <!-- Se llena dinámicamente con JS -->
-                  </tbody>
-                </table>
+        <div class="modal-body">
+          <form id="addModelForm">
+            <div class="form-group">
+              <label for="modelName">Nombre del Modelo</label>
+              <input type="text" class="form-control" id="modelName" required>
               </div>
+            <div class="form-group">
+              <label for="modelType">Tipo de Modelo</label>
+              <select class="form-control" id="modelType" required>
+                <option value="">Seleccionar tipo...</option>
+                <option value="anomaly_detection">Detección de Anomalías</option>
+                <option value="classification">Clasificación</option>
+                <option value="regression">Regresión</option>
+                <option value="other">Otro</option>
+              </select>
             </div>
+            <div class="form-group">
+              <label for="modelFile">Archivo del Modelo</label>
+              <div class="custom-file">
+                <input type="file" class="custom-file-input" id="modelFile" required>
+                <label class="custom-file-label" for="modelFile">Elegir archivo...</label>
+          </div>
+              <small class="form-text text-muted">Formatos soportados: .pkl, .h5, .joblib</small>
+        </div>
+            <div class="form-group">
+              <label for="modelDescription">Descripción</label>
+              <textarea class="form-control" id="modelDescription" rows="3"></textarea>
+          </div>
+          </form>
+            </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+          <button type="button" class="btn btn-primary" id="saveModelBtn">Guardar</button>
           </div>
         </div>
-      </div> <!-- Fin configSection -->
-
-      <!-- Sección: Estado BD -->
-      <div id="dbSection" class="section" style="display: none;">
-        <div class="card shadow mb-4">
-          <div class="card-header py-3">
-            <h6 class="m-0 font-weight-bold text-primary">Estado de la Base de Datos</h6>
-          </div>
-          <div class="card-body">
-            <p>Aquí se puede mostrar información sobre la conexión, versión de PostgreSQL, tablas creadas, cantidad de registros, etc.</p>
-            <button id="btnCheckDb" class="btn btn-info">
-              <i class="fas fa-database mr-1"></i> Verificar Conexión
-            </button>
-            <hr>
-            <div id="dbInfoContainer" class="mt-3 alert alert-secondary">
-              <p class="mb-0">Resultado de la verificación de la BD aparecerá aquí.</p>
-            </div>
-          </div>
-        </div>
-      </div> <!-- Fin dbSection -->
-
-    </main>
   </div>
 </div>
 
-<!-- MODAL PARA CREAR/EDITAR SENSORES -->
-<div class="modal fade" id="sensorModal" tabindex="-1" role="dialog" aria-labelledby="sensorModalLabel" aria-hidden="true">
-  <div class="modal-dialog" role="document">
-    <form id="modalSensorForm" class="modal-content">
+  <!-- Modal para añadir un scaler nuevo -->
+  <div class="modal fade" id="addScalerModal" tabindex="-1" aria-labelledby="addScalerModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title" id="sensorModalLabel">Nuevo Sensor</h5>
-        <button type="button" class="close" data-dismiss="modal" aria-label="Cerrar">
+          <h5 class="modal-title" id="addScalerModalLabel">Añadir Nuevo Scaler</h5>
+          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
           <span aria-hidden="true">&times;</span>
         </button>
       </div>
       <div class="modal-body">
-        
+          <form id="addScalerForm">
         <div class="form-group">
-          <label for="modalSensorName">Nombre del Sensor:</label>
-          <input type="text" class="form-control" id="modalSensorName" placeholder="Ej: Motor Principal">
+              <label for="scalerName">Nombre del Scaler</label>
+              <input type="text" class="form-control" id="scalerName" required>
         </div>
-        
-        <!-- ID no editable (lo maneja la BD), por lo tanto no lo solicitamos -->
-        <p class="text-muted small">El ID del sensor se asigna automáticamente desde la base de datos.</p>
-        
+            <div class="form-group">
+              <label for="scalerType">Tipo de Scaler</label>
+              <select class="form-control" id="scalerType" required>
+                <option value="">Seleccionar tipo...</option>
+                <option value="standard">StandardScaler</option>
+                <option value="minmax">MinMaxScaler</option>
+                <option value="robust">RobustScaler</option>
+                <option value="other">Otro</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="scalerFile">Archivo del Scaler</label>
+              <div class="custom-file">
+                <input type="file" class="custom-file-input" id="scalerFile" required>
+                <label class="custom-file-label" for="scalerFile">Elegir archivo...</label>
+              </div>
+              <small class="form-text text-muted">Formatos soportados: .pkl, .joblib</small>
+            </div>
+            <div class="form-group">
+              <label for="scalerDescription">Descripción</label>
+              <textarea class="form-control" id="scalerDescription" rows="3"></textarea>
+            </div>
+          </form>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
-        <button type="submit" class="btn btn-primary">Guardar</button>
+          <button type="button" class="btn btn-primary" id="saveScalerBtn">Guardar</button>
       </div>
-    </form>
+      </div>
   </div>
 </div>
 
-<!-- jQuery, Bootstrap JS -->
-<script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/js/bootstrap.min.js"></script>
-
-<script>
-/*
-  Lógica JavaScript para:
-   - Manejar la navegación SPA.
-   - Llenar lista de sensores y tabla de configuración desde "la BD" (simulado).
-   - Crear/editar sensor (llamando a endpoints).
-   - Guardar umbrales (fetch("/update_sensor_thresholds")).
-   - Llenar la lista de modelos .h5 en la carpeta "Modelo" (simulado).
-   - Generar PDF (Exportar e Imprimir) con datos o gráfica (simulado).
-*/
-
-$(document).ready(function(){
-
-  // --- SPA Navigation ---
-  $("a.nav-link").click(function(e){
-    e.preventDefault();
-    const sectionId = $(this).data("section");
-    
-    // Cambiar título principal
-    const linkText = $(this).text().trim();
-    $("#currentSectionTitle").text(linkText);
-
-    // Ocultar secciones
-    $(".section").hide().removeClass("active");
-    // Mostrar la sección seleccionada
-    $("#" + sectionId).show().addClass("active");
-    
-    // Actualizar link activo
-    $("a.nav-link").removeClass("active");
-    $(this).addClass("active");
-  });
-
-  // Sensores simulados (esto se traería con fetch("/sensors"))
-  let sensors = [
-    {id: 1, name: "Sensor 1", description: "Sensor en el motor principal"},
-    {id: 2, name: "Compresor", description: "Mide vibraciones del compresor"},
-    {id: 3, name: "Bomba Hidráulica", description: "Ubicada en planta B"},
-  ];
-
-  // Modelos simulados en la carpeta "Modelo"
-  let availableModels = [
-    "modeloRNN_multiclase_optimizado.h5",
-    "modeloSVM_anomaly.h5",
-    "modeloEnsemble_v2.h5"
-  ];
-
-  // Rellenar el <select> de modelos en la sección Predicción
-  availableModels.forEach(m => {
-    $("#modelTypeSelector").append(`<option value="${m}">${m}</option>`);
-  });
-
-  function refreshSensorDropdowns(){
-    // chartsSection sensorSelector
-    $("#sensorSelector").empty();
-    sensors.forEach(s => {
-      $("#sensorSelector").append(`<option value="${s.id}">${s.name}</option>`);
-    });
-
-    // predictionSection sensor
-    $("#predictionSensorSelector").empty();
-    sensors.forEach(s => {
-      $("#predictionSensorSelector").append(`<option value="${s.id}">${s.name}</option>`);
-    });
-
-    // configSection sensor
-    $("#configSensorSelector").empty();
-    sensors.forEach(s => {
-      $("#configSensorSelector").append(`<option value="${s.id}">${s.name}</option>`);
-    });
-
-    // Tabla de sensores
-    const tbody = $("#sensorsTable tbody");
-    tbody.empty();
-    sensors.forEach(s => {
-      tbody.append(`
-        <tr>
-          <td>${s.id}</td>
-          <td>${s.name}</td>
-          <td>
-            <button class="btn btn-sm btn-warning btnEditSensor" data-id="${s.id}"><i class="fas fa-edit"></i></button>
-            <button class="btn btn-sm btn-danger btnDeleteSensor" data-id="${s.id}"><i class="fas fa-trash"></i></button>
-          </td>
-        </tr>
-      `);
-    });
-  }
-
-  refreshSensorDropdowns();
-
-  // Handler: Crear nuevo sensor
-  $("#btnAddSensor").click(function(){
-    $("#sensorModalLabel").text("Nuevo Sensor");
-    $("#modalSensorName").val("");
-    $("#sensorModal").modal("show");
-  });
-
-  // Handler: Guardar sensor desde modal
-  $("#modalSensorForm").submit(function(e){
-    e.preventDefault();
-    const name = $("#modalSensorName").val().trim();
-    if(!name){
-      alert("Por favor, ingrese el nombre del sensor.");
-      return;
-    }
-    // Llamar a endpoint /create_sensor, por ejemplo:
-    /*
-    fetch("/create_sensor", {
-      method: "POST",
-      headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({name: name, description: "N/A"})
-    })
-    .then(res => res.json())
-    .then(newSensor => {
-      sensors.push(newSensor);
-      refreshSensorDropdowns();
-    })
-    .catch(err => console.error(err));
-    */
-    // Por ahora, simulamos
-    let newId = Math.floor(Math.random()*1000)+10; 
-    sensors.push({id: newId, name: name, description:""});
-    refreshSensorDropdowns();
-    $("#sensorModal").modal("hide");
-  });
-
-  // Handler: Editar sensor (cuando se hace clic en el botón Editar en la tabla)
-  $(document).on("click", ".btnEditSensor", function(){
-    const sensorId = $(this).data("id");
-    const sensor = sensors.find(s => s.id == sensorId);
-    if(!sensor) return;
-
-    $("#sensorModalLabel").text("Editar Sensor");
-    $("#modalSensorName").val(sensor.name);
-    $("#sensorModal").modal("show");
-
-    // Al guardar, actualizamos en la BD
-    $("#modalSensorForm").off("submit").on("submit", function(e){
-      e.preventDefault();
-      const newName = $("#modalSensorName").val().trim();
-      if(!newName){
-        alert("Por favor, ingrese un nombre de sensor válido.");
-        return;
-      }
-      // Llamar a endpoint /update_sensor
-      /*
-      fetch("/update_sensor", {
-        method: "PUT",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({id: sensor.id, name: newName})
-      })
-      .then(res => res.json())
-      .then(updated => {
-        sensor.name = updated.name;
-        refreshSensorDropdowns();
-      })
-      .catch(err => console.error(err));
-      */
-      // Simulamos
-      sensor.name = newName;
-      refreshSensorDropdowns();
-      $("#sensorModal").modal("hide");
-
-      // Restaurar el submit original
-      $("#modalSensorForm").off("submit");
-      $("#modalSensorForm").submit(function(e2){
-        e2.preventDefault();
-      });
-    });
-  });
-
-  // Handler: Eliminar sensor
-  $(document).on("click", ".btnDeleteSensor", function(){
-    const sensorId = $(this).data("id");
-    if(confirm("¿Desea eliminar el sensor con ID "+sensorId+"?")){
-      // Llamar a endpoint /delete_sensor
-      /*
-      fetch("/delete_sensor/"+sensorId, {method: "DELETE"})
-      .then(res => res.json())
-      .then(msg => {
-         sensors = sensors.filter(s => s.id != sensorId);
-         refreshSensorDropdowns();
-      })
-      .catch(err => console.error(err));
-      */
-      // Simulamos
-      sensors = sensors.filter(s => s.id != sensorId);
-      refreshSensorDropdowns();
-    }
-  });
-
-  // Al cambiar sensor en config, cargar sus datos
-  $("#configSensorSelector").change(function(){
-    const selectedId = $(this).val();
-    const sensor = sensors.find(s => s.id == selectedId);
-    if(sensor){
-      $("#sensorNameInput").val(sensor.name);
-      $("#sensorDescriptionInput").val(sensor.description || "");
-      // Podrías cargar los umbrales reales si los tienes en la BD
-      $("#threshold2sLower").val("-2.364295");
-      $("#threshold2sUpper").val("2.180056");
-      $("#threshold3sLower").val("-3.500383");
-      $("#threshold3sUpper").val("3.316144");
-    }
-  });
-
-  // Guardar configuración de umbrales
-  $("#sensorThresholdForm").submit(function(e){
-    e.preventDefault();
-    const selectedId = $("#configSensorSelector").val();
-    const sensor = sensors.find(s => s.id == selectedId);
-    if(!sensor) return;
-
-    const newName = $("#sensorNameInput").val().trim();
-    const newDesc = $("#sensorDescriptionInput").val().trim();
-
-    // Umbrales
-    const t2Lower = $("#threshold2sLower").val();
-    const t2Upper = $("#threshold2sUpper").val();
-    const t3Lower = $("#threshold3sLower").val();
-    const t3Upper = $("#threshold3sUpper").val();
-
-    // Actualizar local
-    sensor.name = newName;
-    sensor.description = newDesc;
-
-    // Llamada fetch para actualizar BD
-    /*
-    fetch("/update_sensor_thresholds", {
-      method: "POST",
-      headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({
-        sensor_id: sensor.id,
-        name: newName,
-        description: newDesc,
-        threshold2_inf: t2Lower,
-        threshold2_sup: t2Upper,
-        threshold3_inf: t3Lower,
-        threshold3_sup: t3Upper
-      })
-    })
-    .then(res => res.json())
-    .then(msg => {
-      alert("Configuración guardada en la BD: " + JSON.stringify(msg));
-    })
-    .catch(err => console.error(err));
-    */
-
-    alert("Configuración guardada (simulada) para el sensor: "+ sensor.name);
-    refreshSensorDropdowns();
-  });
-
-  // Botón Check DB
-  $("#btnCheckDb").click(function(){
-    // fetch("/check_db")...
-    $("#dbInfoContainer").removeClass("alert-secondary").addClass("alert-info")
-      .html("<i class='fas fa-check-circle mr-1'></i> Conexión exitosa (simulada).");
-  });
-
-  // Botón Exportar => PDF con la tabla "homeSummaryTable" y alertas
-  $("#btnExportData").click(function(){
-    alert("Simulación de exportar PDF con datos de 'Resumen de Vibraciones' + alertas.");
-    // Podrías usar una librería como jsPDF o Print.js para generar el PDF
-  });
-
-  // Botón Imprimir => PDF de la gráfica #homeSummaryChart y conteo de alertas
-  $("#btnPrintView").click(function(){
-    alert("Simulación de imprimir PDF de la gráfica principal + conteo de alertas.");
-    // Ejemplo: podrías capturar canvas #homeSummaryChart como imagen y luego generarlo en PDF
-  });
-
-  // Por defecto, se muestra la sección "homeSection"
-  $(".section").hide();
-  $("#homeSection").show().addClass("active");
-});
-</script>
-
+  <!-- Loading Overlay -->
+  <div id="loadingOverlay" class="loading-overlay">
+    <div class="spinner-container">
+      <div class="spinner-border text-light mb-2" role="status" style="width: 3rem; height: 3rem;">
+        <span class="sr-only">Cargando...</span>
+      </div>
+      <div id="loadingText" class="text-light">Procesando...</div>
+    </div>
+  </div>
+  
+  <!-- Scripts -->
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/moment@2.29.4/moment.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@1.2.1/dist/chartjs-plugin-zoom.min.js"></script>
+  <script src="js/navigation.js"></script>
+  <script src="js/dashboard.js"></script>
 </body>
 </html>
