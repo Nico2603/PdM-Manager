@@ -5,14 +5,24 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PdM-Manager | Dashboard</title>
 
+  <!-- Preconect para carga rápida de fuentes -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  
+  <!-- Inter font -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  
   <!-- Bootstrap CSS -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  
   <!-- Font Awesome -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+  
   <!-- Chart.js -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.css">
+  <link href="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.min.css" rel="stylesheet">
+  
   <!-- Custom CSS -->
-  <link rel="stylesheet" href="css/dashboard.css">
+  <link href="css/dashboard.css" rel="stylesheet">
 </head>
 <body>
   <div class="app-container">
@@ -37,15 +47,15 @@
             </a>
           </li>
           <li class="nav-item">
-            <a href="#configuracion" class="nav-link">
-              <i class="fas fa-wrench"></i>
-              <span>Configuración</span>
+            <a href="#historicos" class="nav-link">
+              <i class="fas fa-history"></i>
+              <span>Históricos</span>
             </a>
           </li>
           <li class="nav-item">
-            <a href="#simulacion" class="nav-link">
-              <i class="fas fa-play-circle"></i>
-              <span>Simulación</span>
+            <a href="#configuracion" class="nav-link">
+              <i class="fas fa-wrench"></i>
+              <span>Configuración</span>
             </a>
           </li>
         </ul>
@@ -288,6 +298,122 @@
             </div>
           </div>
         
+        <!-- Sección de Históricos -->
+        <div id="historicos-section" class="content-section">
+          <div class="section-header">
+            <h2><i class="fas fa-history mr-2 text-primary"></i>Históricos</h2>
+            <p class="text-muted">Consulta y filtrado de históricos de vibración</p>
+          </div>
+          
+          <!-- Filtros de Históricos -->
+          <div class="card filter-card mb-4">
+            <div class="card-body">
+              <h5 class="card-title"><i class="fas fa-filter"></i> Filtros Avanzados</h5>
+              <form id="historicoFilterForm">
+                <div class="row">
+                  <div class="col-md-3 mb-3">
+                    <label for="histMachine">Máquina:</label>
+                    <select id="histMachine" class="form-control">
+                      <option value="">Todas las máquinas</option>
+                    </select>
+                  </div>
+                  <div class="col-md-3 mb-3">
+                    <label for="histSensor">Sensor:</label>
+                    <select id="histSensor" class="form-control">
+                      <option value="">Todos los sensores</option>
+                    </select>
+                  </div>
+                  <div class="col-md-3 mb-3">
+                    <label for="histStartDate">Fecha Inicio:</label>
+                    <input type="date" id="histStartDate" class="form-control">
+                  </div>
+                  <div class="col-md-3 mb-3">
+                    <label for="histEndDate">Fecha Fin:</label>
+                    <input type="date" id="histEndDate" class="form-control">
+                  </div>
+                </div>
+                <div class="row">
+                  <div class="col-md-3 mb-3">
+                    <label for="histSeverity">Severidad:</label>
+                    <select id="histSeverity" class="form-control">
+                      <option value="">Todas las severidades</option>
+                      <option value="0">Normal</option>
+                      <option value="1">Nivel 1</option>
+                      <option value="2">Nivel 2</option>
+                      <option value="3">Nivel 3</option>
+                    </select>
+                  </div>
+                  <div class="col-md-3 mb-3">
+                    <label for="histLimit">Límite:</label>
+                    <select id="histLimit" class="form-control">
+                      <option value="100">100 registros</option>
+                      <option value="500">500 registros</option>
+                      <option value="1000">1000 registros</option>
+                      <option value="5000">5000 registros</option>
+                    </select>
+                  </div>
+                  <div class="col-md-6 mb-3 d-flex align-items-end">
+                    <button type="button" class="btn btn-primary mr-2" id="searchHistoricosBtn">
+                      <i class="fas fa-search mr-1"></i> Buscar
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary mr-2" id="exportHistoricosBtn">
+                      <i class="fas fa-download mr-1"></i> Exportar
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary" id="resetHistoricosBtn">
+                      <i class="fas fa-undo mr-1"></i> Resetear
+                    </button>
+                  </div>
+                </div>
+              </form>
+            </div>
+          </div>
+          
+          <!-- Resultados de Históricos -->
+          <div class="card chart-card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+              <h5><i class="fas fa-table"></i> Resultados</h5>
+              <span class="badge badge-primary" id="historicosCount">0 registros</span>
+            </div>
+            <div class="card-body p-0">
+              <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                  <thead>
+                    <tr>
+                      <th>Fecha/Hora</th>
+                      <th>Sensor</th>
+                      <th>Máquina</th>
+                      <th>Valor X</th>
+                      <th>Valor Y</th>
+                      <th>Valor Z</th>
+                      <th>Magnitud</th>
+                      <th>Severidad</th>
+                    </tr>
+                  </thead>
+                  <tbody id="historicosTable">
+                    <tr>
+                      <td colspan="8" class="text-center py-3">
+                        <span class="text-muted">Use los filtros para buscar datos históricos</span>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Gráfico de Históricos -->
+          <div class="card chart-card mt-4">
+            <div class="card-header">
+              <h5><i class="fas fa-chart-line"></i> Representación Gráfica</h5>
+            </div>
+            <div class="card-body">
+              <div class="chart-container">
+                <canvas id="historicoChart"></canvas>
+              </div>
+            </div>
+          </div>
+        </div>
+        
         <!-- Configuración Section -->
         <div id="configuracion-section" class="content-section">
           <div class="section-header">
@@ -506,221 +632,114 @@
           </div>
         </div>
         
-        <!-- Simulación Section -->
-        <div id="simulacion-section" class="content-section">
-          <div class="section-header">
-            <h2><i class="fas fa-play-circle mr-2 text-primary"></i>Simulación</h2>
-            <p class="text-muted">Simulación de datos para pruebas y demostraciones</p>
-      </div>
-
-        <div class="row">
-            <div class="col-lg-5 mb-4">
-              <!-- Panel de Archivos CSV -->
-              <div class="card chart-card">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                  <h5><i class="fas fa-file-csv"></i> Archivos CSV</h5>
-                  <button class="btn btn-sm btn-primary" id="uploadCsvBtn">
-                    <i class="fas fa-upload mr-1"></i> Subir CSV
-                  </button>
-                  </div>
-                <div class="card-body">
-                  <input type="file" id="csvFileInput" accept=".csv" style="display: none;">
-                  <div class="table-responsive">
-                    <table class="table table-hover mb-0">
-                      <thead>
-                        <tr>
-                          <th>Nombre</th>
-                          <th>Tamaño</th>
-                          <th>Registros</th>
-                          <th>Acciones</th>
-                        </tr>
-                      </thead>
-                      <tbody id="csvFilesTable">
-                        <tr>
-                          <td colspan="4" class="text-center py-3">
-                            <span class="text-muted">Cargando archivos...</span>
-                          </td>
-                        </tr>
-                      </tbody>
-                    </table>
-                </div>
-              </div>
-              </div>
-            </div>
-            
-            <div class="col-lg-7 mb-4">
-              <!-- Panel de Configuración de Simulación -->
-              <div class="card chart-card">
-                <div class="card-header">
-                  <h5><i class="fas fa-cogs"></i> Configuración de Simulación</h5>
-                </div>
-              <div class="card-body">
-                  <form id="simulationConfigForm">
-                    <div class="form-group row">
-                      <label class="col-sm-4 col-form-label">Archivo CSV:</label>
-                      <div class="col-sm-8">
-                        <select class="form-control" id="selectCsvFile" required>
-                          <option value="">Seleccionar archivo...</option>
-                        </select>
-                      </div>
-                    </div>
-                    <div class="form-group row">
-                      <label class="col-sm-4 col-form-label">Sensor:</label>
-                      <div class="col-sm-8">
-                        <select class="form-control" id="simSelectSensor" required>
-                          <option value="">Seleccionar sensor...</option>
-                        </select>
-                      </div>
-                    </div>
-                    <div class="form-group row">
-                      <label class="col-sm-4 col-form-label">Intervalo (ms):</label>
-                      <div class="col-sm-8">
-                        <input type="number" class="form-control" id="simInterval" min="100" value="1000" required>
-                        <small class="form-text text-muted">Tiempo entre registros (milisegundos)</small>
-                  </div>
-                      </div>
-                    <div class="form-group row">
-                      <div class="col-sm-4"></div>
-                      <div class="col-sm-8">
-                        <div class="custom-control custom-switch">
-                          <input type="checkbox" class="custom-control-input" id="loopSimulation">
-                          <label class="custom-control-label" for="loopSimulation">Repetir al finalizar</label>
-                    </div>
-                      </div>
-                    </div>
-                    <div class="text-right">
-                      <button type="button" class="btn btn-success" id="startSimBtn" disabled>
-                        <i class="fas fa-play mr-1"></i> Iniciar Simulación
-                      </button>
-                      <button type="button" class="btn btn-danger" id="stopSimBtn" disabled>
-                        <i class="fas fa-stop mr-1"></i> Detener
-                      </button>
-                    </div>
-                  </form>
-                </div>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div class="row">
-            <div class="col-12 mb-4">
-              <!-- Panel de Estado de Simulación -->
-              <div class="card chart-card">
-                <div class="card-header">
-                  <h5><i class="fas fa-chart-bar"></i> Estado de la Simulación</h5>
-                    </div>
-                <div class="card-body">
-                  <div id="simulationStatusPlaceholder" class="text-center py-4">
-                    <i class="fas fa-play-circle text-muted" style="font-size: 3rem;"></i>
-                    <p class="mt-3 text-muted">No hay simulación en curso</p>
-                  </div>
-                  
-                  <div id="simulationStatus" class="d-none">
-                    <div class="row mb-4">
-                      <div class="col-md-3 mb-3">
-                        <div class="card bg-light">
-                          <div class="card-body text-center py-3">
-                            <h6 class="text-muted mb-2">Archivo</h6>
-                            <h5 id="simStatusFile" class="mb-0">-</h5>
-                  </div>
-                </div>
-                      </div>
-                      <div class="col-md-3 mb-3">
-                        <div class="card bg-light">
-                          <div class="card-body text-center py-3">
-                            <h6 class="text-muted mb-2">Sensor</h6>
-                            <h5 id="simStatusSensor" class="mb-0">-</h5>
-                          </div>
-                        </div>
-                      </div>
-                      <div class="col-md-3 mb-3">
-                        <div class="card bg-light">
-                          <div class="card-body text-center py-3">
-                            <h6 class="text-muted mb-2">Intervalo</h6>
-                            <h5 id="simStatusInterval" class="mb-0">-</h5>
-                          </div>
-                        </div>
-                      </div>
-                      <div class="col-md-3 mb-3">
-                        <div class="card bg-light">
-                          <div class="card-body text-center py-3">
-                            <h6 class="text-muted mb-2">Estado</h6>
-                            <h5 id="simStatusState" class="mb-0">-</h5>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div class="row mb-3">
-                    <div class="col-md-6">
-                        <h6>Progreso</h6>
-                        <div class="progress" style="height: 20px;">
-                          <div id="simProgressBar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
-                              </div>
-                        <div class="d-flex justify-content-between mt-1">
-                          <small><span id="simCurrentRecord">0</span> registros procesados</small>
-                          <small>Total: <span id="simTotalRecords">0</span> registros</small>
-                            </div>
-                          </div>
-                      <div class="col-md-6">
-                        <h6>Tiempo</h6>
-                        <div class="row">
-                          <div class="col-6">
-                            <div class="card bg-light">
-                              <div class="card-body text-center py-2">
-                                <small class="text-muted">Transcurrido</small>
-                                <h5 id="simElapsedTime" class="mb-0">00:00:00</h5>
-                        </div>
-                      </div>
-                          </div>
-                          <div class="col-6">
-                            <div class="card bg-light">
-                              <div class="card-body text-center py-2">
-                                <small class="text-muted">Restante</small>
-                                <h5 id="simRemainingTime" class="mb-0">00:00:00</h5>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  
-                    <div class="row">
-                      <div class="col-md-4">
-                        <div class="card border-warning">
-                          <div class="card-body text-center py-3">
-                            <h6 class="text-muted mb-2">Alertas Nivel 1</h6>
-                            <h3 id="simAlerts1" class="text-warning mb-0">0</h3>
-                      </div>
-                    </div>
-                  </div>
-                      <div class="col-md-4">
-                        <div class="card border-danger">
-                          <div class="card-body text-center py-3">
-                            <h6 class="text-muted mb-2">Alertas Nivel 2</h6>
-                            <h3 id="simAlerts2" class="text-danger mb-0">0</h3>
-                </div>
-              </div>
-            </div>
-                      <div class="col-md-4">
-                        <div class="card border-danger">
-                          <div class="card-body text-center py-3" style="background-color: rgba(220, 53, 69, 0.05);">
-                            <h6 class="text-muted mb-2">Alertas Nivel 3</h6>
-                            <h3 id="simAlerts3" class="text-danger mb-0">0</h3>
+        <!-- Configuración de Parámetros Estadísticos -->
+        <div class="card chart-card mt-4">
+          <div class="card-header">
+            <h5><i class="fas fa-cogs"></i> Parámetros Estadísticos</h5>
           </div>
-              </div>
-                </div>
-              </div>
-            </div>
-              </div>
+          <div class="card-body">
+            <form id="statisticalLimitsForm">
+              <div class="row">
+                <div class="col-md-4">
+                  <h6 class="border-bottom pb-2">Eje X</h6>
+                  <div class="form-group row">
+                    <label class="col-sm-6 col-form-label">2σ Inferior:</label>
+                    <div class="col-sm-6">
+                      <input type="number" step="0.01" class="form-control" id="x2SigmaLower">
+                    </div>
                   </div>
+                  <div class="form-group row">
+                    <label class="col-sm-6 col-form-label">2σ Superior:</label>
+                    <div class="col-sm-6">
+                      <input type="number" step="0.01" class="form-control" id="x2SigmaUpper">
+                    </div>
                   </div>
-                </div>
+                  <div class="form-group row">
+                    <label class="col-sm-6 col-form-label">3σ Inferior:</label>
+                    <div class="col-sm-6">
+                      <input type="number" step="0.01" class="form-control" id="x3SigmaLower">
+                    </div>
                   </div>
-      </div>
+                  <div class="form-group row">
+                    <label class="col-sm-6 col-form-label">3σ Superior:</label>
+                    <div class="col-sm-6">
+                      <input type="number" step="0.01" class="form-control" id="x3SigmaUpper">
+                    </div>
                   </div>
                 </div>
                 
+                <div class="col-md-4">
+                  <h6 class="border-bottom pb-2">Eje Y</h6>
+                  <div class="form-group row">
+                    <label class="col-sm-6 col-form-label">2σ Inferior:</label>
+                    <div class="col-sm-6">
+                      <input type="number" step="0.01" class="form-control" id="y2SigmaLower">
+                    </div>
+                  </div>
+                  <div class="form-group row">
+                    <label class="col-sm-6 col-form-label">2σ Superior:</label>
+                    <div class="col-sm-6">
+                      <input type="number" step="0.01" class="form-control" id="y2SigmaUpper">
+                    </div>
+                  </div>
+                  <div class="form-group row">
+                    <label class="col-sm-6 col-form-label">3σ Inferior:</label>
+                    <div class="col-sm-6">
+                      <input type="number" step="0.01" class="form-control" id="y3SigmaLower">
+                    </div>
+                  </div>
+                  <div class="form-group row">
+                    <label class="col-sm-6 col-form-label">3σ Superior:</label>
+                    <div class="col-sm-6">
+                      <input type="number" step="0.01" class="form-control" id="y3SigmaUpper">
+                    </div>
+                  </div>
+                </div>
+                
+                <div class="col-md-4">
+                  <h6 class="border-bottom pb-2">Eje Z</h6>
+                  <div class="form-group row">
+                    <label class="col-sm-6 col-form-label">2σ Inferior:</label>
+                    <div class="col-sm-6">
+                      <input type="number" step="0.01" class="form-control" id="z2SigmaLower">
+                    </div>
+                  </div>
+                  <div class="form-group row">
+                    <label class="col-sm-6 col-form-label">2σ Superior:</label>
+                    <div class="col-sm-6">
+                      <input type="number" step="0.01" class="form-control" id="z2SigmaUpper">
+                    </div>
+                  </div>
+                  <div class="form-group row">
+                    <label class="col-sm-6 col-form-label">3σ Inferior:</label>
+                    <div class="col-sm-6">
+                      <input type="number" step="0.01" class="form-control" id="z3SigmaLower">
+                    </div>
+                  </div>
+                  <div class="form-group row">
+                    <label class="col-sm-6 col-form-label">3σ Superior:</label>
+                    <div class="col-sm-6">
+                      <input type="number" step="0.01" class="form-control" id="z3SigmaUpper">
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <div class="text-right mt-3">
+                <button type="button" class="btn btn-secondary" id="resetLimitsBtn">
+                  <i class="fas fa-undo mr-1"></i> Valores por Defecto
+                </button>
+                <button type="button" class="btn btn-primary" id="saveLimitsBtn">
+                  <i class="fas fa-save mr-1"></i> Guardar Límites
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
   <!-- Modales -->
   
   <!-- Modal de Confirmación -->
@@ -948,13 +967,12 @@
   </div>
   
   <!-- Scripts -->
-  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/moment@2.29.4/moment.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@1.2.1/dist/chartjs-plugin-zoom.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
   <script src="js/navigation.js"></script>
   <script src="js/dashboard.js"></script>
 </body>

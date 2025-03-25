@@ -59,15 +59,22 @@ def create_vibration_data(
     acceleration_y: float,
     acceleration_z: float,
     severity: int = 0,
+    magnitude: float = None,
     custom_date: datetime = None
 ) -> VibrationData:
     """Crea un nuevo registro de datos de vibración"""
+    # Calcular la magnitud si no se proporciona
+    if magnitude is None:
+        import numpy as np
+        magnitude = np.sqrt(acceleration_x**2 + acceleration_y**2 + acceleration_z**2)
+        
     db_data = VibrationData(
         sensor_id=sensor_id,
         acceleration_x=acceleration_x,
         acceleration_y=acceleration_y,
         acceleration_z=acceleration_z,
-        severity=severity
+        severity=severity,
+        magnitude=magnitude
     )
     
     if custom_date:
@@ -156,7 +163,7 @@ def get_machines(db: Session, skip: int = 0, limit: int = 100) -> List[Machine]:
 
 def get_machine_by_id(db: Session, machine_id: int) -> Optional[Machine]:
     """Obtiene una máquina por su ID"""
-    return db.query(Machine).filter(Machine.id == machine_id).first()
+    return db.query(Machine).filter(Machine.machine_id == machine_id).first()
 
 def get_machines_with_status(db: Session, skip: int = 0, limit: int = 100) -> List[Dict[str, Any]]:
     """Obtiene las máquinas con información de estado"""
@@ -165,8 +172,8 @@ def get_machines_with_status(db: Session, skip: int = 0, limit: int = 100) -> Li
     
     for machine in machines:
         # Obtener sensores asociados
-        sensors = db.query(Sensor).filter(Sensor.machine_id == machine.id).all()
-        sensor_ids = [s.id for s in sensors]
+        sensors = db.query(Sensor).filter(Sensor.machine_id == machine.machine_id).all()
+        sensor_ids = [s.sensor_id for s in sensors]
         
         # Contar alertas no reconocidas por nivel de severidad
         level1_count = 0
@@ -204,7 +211,7 @@ def get_machines_with_status(db: Session, skip: int = 0, limit: int = 100) -> Li
         
         # Crear objeto de respuesta
         machine_info = {
-            "id": machine.id,
+            "id": machine.machine_id,
             "name": machine.name,
             "status": machine.status or status,
             "model_id": machine.model_id,
@@ -250,7 +257,7 @@ def get_models(db: Session, skip: int = 0, limit: int = 100) -> List[Model]:
 
 def get_model_by_id(db: Session, model_id: int) -> Optional[Model]:
     """Obtiene un modelo por su ID"""
-    return db.query(Model).filter(Model.id == model_id).first()
+    return db.query(Model).filter(Model.model_id == model_id).first()
 
 def create_model(db: Session, model: Model) -> Model:
     """Crea un nuevo modelo"""
@@ -278,23 +285,22 @@ def delete_model(db: Session, model_id: int) -> bool:
 
 def get_alert(db: Session, alert_id: int) -> Optional[Alert]:
     """Obtiene una alerta por su ID"""
-    return db.query(Alert).filter(Alert.id == alert_id).first()
+    return db.query(Alert).filter(Alert.log_id == alert_id).first()
 
 def get_alert_counts(db: Session, sensor_id: Optional[int] = None) -> Dict[str, int]:
     """Obtiene el conteo de alertas por nivel de severidad"""
-    query = db.query(Alert)
+    query = db.query(Alert).filter(Alert.acknowledged == False)
     
-    if sensor_id:
+    if sensor_id is not None:
         query = query.filter(Alert.sensor_id == sensor_id)
     
     level1_count = query.filter(Alert.severity == 1).count()
     level2_count = query.filter(Alert.severity == 2).count()
     level3_count = query.filter(Alert.severity == 3).count()
-    total_count = query.count()
     
     return {
         "level1": level1_count,
         "level2": level2_count,
         "level3": level3_count,
-        "total": total_count
+        "total": level1_count + level2_count + level3_count
     }

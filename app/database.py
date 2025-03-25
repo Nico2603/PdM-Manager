@@ -4,6 +4,7 @@ import os
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
+from urllib.parse import quote_plus
 
 """
 Módulo de configuración de la base de datos.
@@ -12,10 +13,20 @@ Lee la variable de entorno 'DATABASE_URL' para obtener la URL de conexión a Pos
 Si no está presente, usa un valor por defecto (útil para pruebas locales).
 """
 
+# Usuario y contraseña seguros para la conexión
+DB_USER = os.getenv("DB_USER", "postgres")
+DB_PASSWORD = os.getenv("DB_PASSWORD", "password")
+DB_HOST = os.getenv("DB_HOST", "localhost")
+DB_PORT = os.getenv("DB_PORT", "5432")
+DB_NAME = os.getenv("DB_NAME", "PdM")
+
+# Codificar con quote_plus para evitar problemas con caracteres especiales
+ENCODED_PASSWORD = quote_plus(DB_PASSWORD)
+
 # URL de conexión a PostgreSQL (ejemplo: "postgresql://usuario:contraseña@host:puerto/nombre_bd")
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
-    "postgresql://root:VRVuGa8Acji8WwOKOC98NDEZ1vFfElIA@dpg-cv2dlsd2ng1s738p1ncg-a/servomonitor_xglp"
+    f"postgresql://{DB_USER}:{ENCODED_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 )
 
 # Crear el engine con la URL de conexión
