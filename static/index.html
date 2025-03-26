@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PdM-Manager | Dashboard</title>
 
+  <!-- Favicon -->
+  <link rel="icon" href="/static/img/favicon.svg" type="image/svg+xml">
+  
   <!-- Preconect para carga rápida de fuentes -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -22,7 +25,7 @@
   <link href="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.min.css" rel="stylesheet">
   
   <!-- Custom CSS -->
-  <link href="css/dashboard.css" rel="stylesheet">
+  <link href="/static/css/dashboard.css" rel="stylesheet">
 </head>
 <body>
   <div class="app-container">
@@ -33,9 +36,6 @@
           <i class="fas fa-cogs logo-icon"></i>
           <h5 class="logo-text">PdM-Manager</h5>
         </div>
-        <button class="sidebar-toggle">
-          <i class="fas fa-bars"></i>
-        </button>
         </div>
         
       <div class="sidebar-menu">
@@ -47,16 +47,16 @@
             </a>
           </li>
           <li class="nav-item">
-            <a href="#historicos" class="nav-link">
-              <i class="fas fa-history"></i>
-              <span>Históricos</span>
-            </a>
-          </li>
-          <li class="nav-item">
             <a href="#configuracion" class="nav-link">
               <i class="fas fa-wrench"></i>
               <span>Configuración</span>
             </a>
+          </li>
+          <li class="nav-item">
+            <button id="refreshDataBtn" class="btn btn-primary w-100 d-flex align-items-center justify-content-start px-3 py-2 mt-3">
+              <i class="fas fa-sync-alt mr-2"></i>
+              <span>Actualizar Datos</span>
+            </button>
           </li>
         </ul>
           </div>
@@ -90,12 +90,6 @@
             <li class="breadcrumb-item active">Dashboard</li>
           </ol>
         </nav>
-        
-        <div class="header-actions">
-          <button id="refreshDataBtn" class="btn btn-outline-primary btn-sm">
-            <i class="fas fa-sync-alt mr-1"></i> Actualizar
-            </button>
-          </div>
         </div>
       
       <!-- Contenedor de Secciones -->
@@ -107,36 +101,6 @@
             <p class="text-muted">Monitoreo en tiempo real de sensores y alertas</p>
       </div>
       
-          <!-- Filtros -->
-          <div class="card filter-card mb-4">
-            <div class="card-body">
-              <h5 class="card-title"><i class="fas fa-filter"></i> Filtros</h5>
-        <div class="row">
-                <div class="col-md-4 mb-3">
-                  <label for="selectMachine">Máquina:</label>
-                  <select id="selectMachine" class="form-control">
-                    <option value="">Todas las máquinas</option>
-                  </select>
-            </div>
-                <div class="col-md-4 mb-3">
-                  <label for="selectSensor">Sensor:</label>
-                  <select id="selectSensor" class="form-control">
-                    <option value="">Todos los sensores</option>
-                  </select>
-                </div>
-                <div class="col-md-4 mb-3">
-                  <label for="timeRange">Rango de tiempo:</label>
-                  <select id="timeRange" class="form-control">
-                    <option value="1h">Última hora</option>
-                    <option value="6h">Últimas 6 horas</option>
-                    <option value="24h" selected>Últimas 24 horas</option>
-                    <option value="7d">Últimos 7 días</option>
-                  </select>
-                </div>
-              </div>
-          </div>
-        </div>
-        
           <!-- Tarjetas de Alertas -->
           <div class="row mb-4">
             <div class="col-xl-3 col-md-6 mb-3">
@@ -193,9 +157,67 @@
             </div>
           </div>
 
-          <!-- Gráfico de Vibraciones -->
+          <!-- Gráfico de Vibraciones con Filtros laterales -->
           <div class="row mb-4">
-            <div class="col-lg-8 mb-3">
+            <div class="col-lg-3 mb-3">
+              <div class="card filter-card h-100">
+                <div class="card-header">
+                  <h5><i class="fas fa-filter"></i> Filtros</h5>
+                </div>
+                <div class="card-body">
+                  <div class="form-group mb-3">
+                    <label for="selectMachine">Máquina:</label>
+                    <select id="selectMachine" class="form-control">
+                      <option value="">Todas las máquinas</option>
+                    </select>
+                  </div>
+                  <div class="form-group mb-3">
+                    <label for="selectSensor">Sensor:</label>
+                    <select id="selectSensor" class="form-control">
+                      <option value="">Todos los sensores</option>
+                    </select>
+                  </div>
+                  <div class="form-group mb-3">
+                    <label for="timeRange">Rango de tiempo:</label>
+                    <select id="timeRange" class="form-control">
+                      <option value="1h">Última hora</option>
+                      <option value="6h">Últimas 6 horas</option>
+                      <option value="24h" selected>Últimas 24 horas</option>
+                      <option value="7d">Últimos 7 días</option>
+                    </select>
+                  </div>
+                  
+                  <div class="mt-4">
+                    <h6 class="mb-2"><i class="fas fa-chart-line"></i> Visualización</h6>
+                    <div class="threshold-controls">
+                      <div class="custom-control custom-switch mb-2">
+                        <input type="checkbox" class="custom-control-input" id="showMean" checked>
+                        <label class="custom-control-label" for="showMean">Media</label>
+                      </div>
+                      <div class="custom-control custom-switch mb-2">
+                        <input type="checkbox" class="custom-control-input" id="show1Sigma" checked>
+                        <label class="custom-control-label" for="show1Sigma">1σ</label>
+                      </div>
+                      <div class="custom-control custom-switch mb-2">
+                        <input type="checkbox" class="custom-control-input" id="show2Sigma" checked>
+                        <label class="custom-control-label" for="show2Sigma">2σ</label>
+                      </div>
+                      <div class="custom-control custom-switch mb-2">
+                        <input type="checkbox" class="custom-control-input" id="show3Sigma" checked>
+                        <label class="custom-control-label" for="show3Sigma">3σ</label>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div class="mt-4">
+                    <button class="btn btn-sm btn-outline-primary" id="exportDataBtn">
+                      <i class="fas fa-download mr-1"></i> Exportar Datos
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="col-lg-9 mb-3">
               <div class="card chart-card">
                 <div class="card-header d-flex justify-content-between align-items-center">
                   <h5><i class="fas fa-chart-line"></i> Tendencia de Vibraciones</h5>
@@ -204,32 +226,18 @@
                       <i class="fas fa-sync-alt"></i>
                     </button>
                   </div>
-                  </div>
+                </div>
                 <div class="card-body">
                   <div class="chart-container">
                     <canvas id="vibrationChart"></canvas>
-                </div>
-                  <div class="threshold-controls mt-3">
-                    <div class="custom-control custom-switch mr-3">
-                      <input type="checkbox" class="custom-control-input" id="showMean" checked>
-                      <label class="custom-control-label" for="showMean">Media</label>
-              </div>
-                    <div class="custom-control custom-switch mr-3">
-                      <input type="checkbox" class="custom-control-input" id="show1Sigma" checked>
-                      <label class="custom-control-label" for="show1Sigma">1σ</label>
-            </div>
-                    <div class="custom-control custom-switch mr-3">
-                      <input type="checkbox" class="custom-control-input" id="show2Sigma" checked>
-                      <label class="custom-control-label" for="show2Sigma">2σ</label>
-          </div>
-                    <div class="custom-control custom-switch">
-                      <input type="checkbox" class="custom-control-input" id="show3Sigma" checked>
-                      <label class="custom-control-label" for="show3Sigma">3σ</label>
-        </div>
                   </div>
                 </div>
               </div>
-                </div>
+            </div>
+          </div>
+          
+          <!-- Alertas Recientes y Datos -->
+          <div class="row">
             <div class="col-lg-4 mb-3">
               <div class="card chart-card h-100">
                 <div class="card-header">
@@ -238,37 +246,31 @@
                 <div class="card-body p-0">
                   <div class="table-responsive">
                     <table class="table table-hover mb-0">
-                    <thead>
-                      <tr>
+                      <thead>
+                        <tr>
                           <th>Nivel</th>
                           <th>Sensor</th>
                           <th>Tiempo</th>
-                      </tr>
-                    </thead>
+                        </tr>
+                      </thead>
                       <tbody id="recentAlertsTable">
                         <tr>
                           <td colspan="3" class="text-center py-3">
                             <span class="text-muted">No hay alertas recientes</span>
                           </td>
                         </tr>
-                    </tbody>
-                  </table>
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               </div>
             </div>
-          </div>
-          
-          <!-- Datos Recientes -->
-          <div class="row">
-            <div class="col-12">
+            
+            <div class="col-lg-8">
               <div class="card chart-card">
                 <div class="card-header d-flex justify-content-between align-items-center">
                   <h5><i class="fas fa-table"></i> Datos Recientes</h5>
-                  <button class="btn btn-sm btn-outline-primary" id="exportDataBtn">
-                    <i class="fas fa-download mr-1"></i> Exportar
-                  </button>
-              </div>
+                </div>
                 <div class="card-body p-0">
                   <div class="table-responsive">
                     <table class="table table-hover mb-0">
@@ -291,128 +293,113 @@
                         </tr>
                       </tbody>
                     </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Parámetros Estadísticos -->
+          <div class="row mt-4">
+            <div class="col-12">
+              <div class="card chart-card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                  <h5><i class="fas fa-chart-bar"></i> Parámetros Estadísticos</h5>
+                  <button class="btn btn-sm btn-outline-primary" id="adjustLimitsBtn">
+                    <i class="fas fa-sliders-h mr-1"></i> Ajustar Límites
+                  </button>
+                </div>
+                <div class="card-body">
+                  <div class="row">
+                    <!-- Eje X -->
+                    <div class="col-md-4">
+                      <h6 class="border-bottom pb-2 text-primary">Aceleración Eje X</h6>
+                      <div class="row">
+                        <div class="col-6">
+                          <div class="stat-item mb-3">
+                            <div class="stat-label">2σ Inferior:</div>
+                            <div class="stat-value" id="x2SigmaLowerDisplay">-2.364295</div>
+                          </div>
+                          <div class="stat-item mb-3">
+                            <div class="stat-label">2σ Superior:</div>
+                            <div class="stat-value" id="x2SigmaUpperDisplay">2.180056</div>
+                          </div>
+                        </div>
+                        <div class="col-6">
+                          <div class="stat-item mb-3">
+                            <div class="stat-label">3σ Inferior:</div>
+                            <div class="stat-value" id="x3SigmaLowerDisplay">-3.500383</div>
+                          </div>
+                          <div class="stat-item mb-3">
+                            <div class="stat-label">3σ Superior:</div>
+                            <div class="stat-value" id="x3SigmaUpperDisplay">3.316144</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <!-- Eje Y -->
+                    <div class="col-md-4">
+                      <h6 class="border-bottom pb-2 text-primary">Aceleración Eje Y</h6>
+                      <div class="row">
+                        <div class="col-6">
+                          <div class="stat-item mb-3">
+                            <div class="stat-label">2σ Inferior:</div>
+                            <div class="stat-value" id="y2SigmaLowerDisplay">7.177221</div>
+                          </div>
+                          <div class="stat-item mb-3">
+                            <div class="stat-label">2σ Superior:</div>
+                            <div class="stat-value" id="y2SigmaUpperDisplay">12.088666</div>
+                          </div>
+                        </div>
+                        <div class="col-6">
+                          <div class="stat-item mb-3">
+                            <div class="stat-label">3σ Inferior:</div>
+                            <div class="stat-value" id="y3SigmaLowerDisplay">5.949359</div>
+                          </div>
+                          <div class="stat-item mb-3">
+                            <div class="stat-label">3σ Superior:</div>
+                            <div class="stat-value" id="y3SigmaUpperDisplay">13.316528</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <!-- Eje Z -->
+                    <div class="col-md-4">
+                      <h6 class="border-bottom pb-2 text-primary">Aceleración Eje Z</h6>
+                      <div class="row">
+                        <div class="col-6">
+                          <div class="stat-item mb-3">
+                            <div class="stat-label">2σ Inferior:</div>
+                            <div class="stat-value" id="z2SigmaLowerDisplay">-2.389107</div>
+                          </div>
+                          <div class="stat-item mb-3">
+                            <div class="stat-label">2σ Superior:</div>
+                            <div class="stat-value" id="z2SigmaUpperDisplay">1.106510</div>
+                          </div>
+                        </div>
+                        <div class="col-6">
+                          <div class="stat-item mb-3">
+                            <div class="stat-label">3σ Inferior:</div>
+                            <div class="stat-value" id="z3SigmaLowerDisplay">-3.263011</div>
+                          </div>
+                          <div class="stat-item mb-3">
+                            <div class="stat-label">3σ Superior:</div>
+                            <div class="stat-value" id="z3SigmaUpperDisplay">1.980414</div>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
           </div>
+        </div>
         
         <!-- Sección de Históricos -->
-        <div id="historicos-section" class="content-section">
-          <div class="section-header">
-            <h2><i class="fas fa-history mr-2 text-primary"></i>Históricos</h2>
-            <p class="text-muted">Consulta y filtrado de históricos de vibración</p>
-          </div>
-          
-          <!-- Filtros de Históricos -->
-          <div class="card filter-card mb-4">
-            <div class="card-body">
-              <h5 class="card-title"><i class="fas fa-filter"></i> Filtros Avanzados</h5>
-              <form id="historicoFilterForm">
-                <div class="row">
-                  <div class="col-md-3 mb-3">
-                    <label for="histMachine">Máquina:</label>
-                    <select id="histMachine" class="form-control">
-                      <option value="">Todas las máquinas</option>
-                    </select>
-                  </div>
-                  <div class="col-md-3 mb-3">
-                    <label for="histSensor">Sensor:</label>
-                    <select id="histSensor" class="form-control">
-                      <option value="">Todos los sensores</option>
-                    </select>
-                  </div>
-                  <div class="col-md-3 mb-3">
-                    <label for="histStartDate">Fecha Inicio:</label>
-                    <input type="date" id="histStartDate" class="form-control">
-                  </div>
-                  <div class="col-md-3 mb-3">
-                    <label for="histEndDate">Fecha Fin:</label>
-                    <input type="date" id="histEndDate" class="form-control">
-                  </div>
-                </div>
-                <div class="row">
-                  <div class="col-md-3 mb-3">
-                    <label for="histSeverity">Severidad:</label>
-                    <select id="histSeverity" class="form-control">
-                      <option value="">Todas las severidades</option>
-                      <option value="0">Normal</option>
-                      <option value="1">Nivel 1</option>
-                      <option value="2">Nivel 2</option>
-                      <option value="3">Nivel 3</option>
-                    </select>
-                  </div>
-                  <div class="col-md-3 mb-3">
-                    <label for="histLimit">Límite:</label>
-                    <select id="histLimit" class="form-control">
-                      <option value="100">100 registros</option>
-                      <option value="500">500 registros</option>
-                      <option value="1000">1000 registros</option>
-                      <option value="5000">5000 registros</option>
-                    </select>
-                  </div>
-                  <div class="col-md-6 mb-3 d-flex align-items-end">
-                    <button type="button" class="btn btn-primary mr-2" id="searchHistoricosBtn">
-                      <i class="fas fa-search mr-1"></i> Buscar
-                    </button>
-                    <button type="button" class="btn btn-outline-secondary mr-2" id="exportHistoricosBtn">
-                      <i class="fas fa-download mr-1"></i> Exportar
-                    </button>
-                    <button type="button" class="btn btn-outline-secondary" id="resetHistoricosBtn">
-                      <i class="fas fa-undo mr-1"></i> Resetear
-                    </button>
-                  </div>
-                </div>
-              </form>
-            </div>
-          </div>
-          
-          <!-- Resultados de Históricos -->
-          <div class="card chart-card">
-            <div class="card-header d-flex justify-content-between align-items-center">
-              <h5><i class="fas fa-table"></i> Resultados</h5>
-              <span class="badge badge-primary" id="historicosCount">0 registros</span>
-            </div>
-            <div class="card-body p-0">
-              <div class="table-responsive">
-                <table class="table table-hover mb-0">
-                  <thead>
-                    <tr>
-                      <th>Fecha/Hora</th>
-                      <th>Sensor</th>
-                      <th>Máquina</th>
-                      <th>Valor X</th>
-                      <th>Valor Y</th>
-                      <th>Valor Z</th>
-                      <th>Magnitud</th>
-                      <th>Severidad</th>
-                    </tr>
-                  </thead>
-                  <tbody id="historicosTable">
-                    <tr>
-                      <td colspan="8" class="text-center py-3">
-                        <span class="text-muted">Use los filtros para buscar datos históricos</span>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-          
-          <!-- Gráfico de Históricos -->
-          <div class="card chart-card mt-4">
-            <div class="card-header">
-              <h5><i class="fas fa-chart-line"></i> Representación Gráfica</h5>
-            </div>
-            <div class="card-body">
-              <div class="chart-container">
-                <canvas id="historicoChart"></canvas>
-              </div>
-            </div>
-          </div>
-        </div>
+        <!-- Esta sección ha sido eliminada y sus funcionalidades integradas al dashboard -->
         
         <!-- Configuración Section -->
         <div id="configuracion-section" class="content-section">
@@ -765,7 +752,7 @@
   
   <!-- Modal para añadir una máquina nueva -->
   <div class="modal fade" id="addMachineModal" tabindex="-1" aria-labelledby="addMachineModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-lg">
       <div class="modal-content">
         <div class="modal-header">
           <h5 class="modal-title" id="addMachineModalLabel">Añadir Nueva Máquina</h5>
@@ -775,30 +762,48 @@
               </div>
         <div class="modal-body">
           <form id="addMachineForm">
-            <div class="form-group">
-              <label for="machineName">Nombre de la Máquina</label>
-              <input type="text" class="form-control" id="machineName" required>
+            <div class="row">
+              <div class="col-md-6">
+                <div class="form-group">
+                  <label for="machineName">Nombre de la Máquina</label>
+                  <input type="text" class="form-control" id="machineName" required>
+                </div>
+                <div class="form-group">
+                  <label for="machineType">Tipo de Máquina</label>
+                  <select class="form-control" id="machineType" required>
+                    <option value="">Seleccionar tipo...</option>
+                    <option value="motor">Motor</option>
+                    <option value="pump">Bomba</option>
+                    <option value="fan">Ventilador</option>
+                    <option value="compressor">Compresor</option>
+                    <option value="generator">Generador</option>
+                    <option value="other">Otro</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label for="machineLocation">Ubicación</label>
+                  <input type="text" class="form-control" id="machineLocation" required>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="form-group">
+                  <label for="machineSensor">Asignar Sensor</label>
+                  <select class="form-control" id="machineSensor" required>
+                    <option value="">Seleccionar sensor...</option>
+                    <!-- Se poblarán los sensores disponibles dinámicamente -->
+                  </select>
+                  <small class="form-text text-muted">Seleccione un sensor para asignar a esta máquina</small>
+                </div>
+                <div class="form-group">
+                  <label for="machineDescription">Descripción</label>
+                  <textarea class="form-control" id="machineDescription" rows="4"></textarea>
+                </div>
+              </div>
             </div>
-            <div class="form-group">
-              <label for="machineType">Tipo de Máquina</label>
-              <select class="form-control" id="machineType" required>
-                <option value="">Seleccionar tipo...</option>
-                <option value="motor">Motor</option>
-                <option value="pump">Bomba</option>
-                <option value="fan">Ventilador</option>
-                <option value="compressor">Compresor</option>
-                <option value="generator">Generador</option>
-                <option value="other">Otro</option>
-                      </select>
-                    </div>
-            <div class="form-group">
-              <label for="machineLocation">Ubicación</label>
-              <input type="text" class="form-control" id="machineLocation" required>
-                  </div>
-            <div class="form-group">
-              <label for="machineDescription">Descripción</label>
-              <textarea class="form-control" id="machineDescription" rows="3"></textarea>
-                  </div>
+            <div class="alert alert-info mt-3">
+              <i class="fas fa-info-circle mr-2"></i>
+              <strong>Nota:</strong> Primero debe crear un sensor antes de poder asignarlo a una máquina.
+            </div>
           </form>
                 </div>
         <div class="modal-footer">
@@ -811,7 +816,7 @@
   
   <!-- Modal para añadir un sensor nuevo -->
   <div class="modal fade" id="addSensorModal" tabindex="-1" aria-labelledby="addSensorModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-lg">
       <div class="modal-content">
         <div class="modal-header">
           <h5 class="modal-title" id="addSensorModalLabel">Añadir Nuevo Sensor</h5>
@@ -821,34 +826,45 @@
                     </div>
         <div class="modal-body">
           <form id="addSensorForm">
-            <div class="form-group">
-              <label for="sensorMachine">Máquina</label>
-              <select class="form-control" id="sensorMachine" required>
-                <option value="">Seleccionar máquina...</option>
-              </select>
-                  </div>
-            <div class="form-group">
-              <label for="sensorName">Nombre del Sensor</label>
-              <input type="text" class="form-control" id="sensorName" required>
-                    </div>
-            <div class="form-group">
-              <label for="sensorType">Tipo de Sensor</label>
-              <select class="form-control" id="sensorType" required>
-                <option value="">Seleccionar tipo...</option>
-                <option value="vibration">Vibración</option>
-                <option value="temperature">Temperatura</option>
-                <option value="pressure">Presión</option>
-                <option value="flow">Flujo</option>
-                <option value="other">Otro</option>
-              </select>
-                    </div>
-            <div class="form-group">
-              <label for="sensorLocation">Ubicación en la Máquina</label>
-              <input type="text" class="form-control" id="sensorLocation" required>
-                  </div>
-            <div class="form-group">
-              <label for="sensorDescription">Descripción</label>
-              <textarea class="form-control" id="sensorDescription" rows="3"></textarea>
+            <div class="row">
+              <div class="col-md-6">
+                <div class="form-group">
+                  <label for="sensorName">Nombre del Sensor</label>
+                  <input type="text" class="form-control" id="sensorName" required>
+                </div>
+                <div class="form-group">
+                  <label for="sensorType">Tipo de Sensor</label>
+                  <select class="form-control" id="sensorType" required>
+                    <option value="">Seleccionar tipo...</option>
+                    <option value="vibration">Vibración</option>
+                    <option value="temperature">Temperatura</option>
+                    <option value="pressure">Presión</option>
+                    <option value="flow">Flujo</option>
+                    <option value="other">Otro</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label for="sensorSampleRate">Frecuencia de Muestreo (Hz)</label>
+                  <input type="number" class="form-control" id="sensorSampleRate" min="1" value="100">
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="form-group">
+                  <label for="sensorModel">Modelo de ML Asociado</label>
+                  <select class="form-control" id="sensorModel">
+                    <option value="">Ninguno (opcional)</option>
+                    <!-- Se poblarán los modelos disponibles dinámicamente -->
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label for="sensorLocation">Ubicación</label>
+                  <input type="text" class="form-control" id="sensorLocation" required>
+                </div>
+                <div class="form-group">
+                  <label for="sensorDescription">Descripción</label>
+                  <textarea class="form-control" id="sensorDescription" rows="3"></textarea>
+                </div>
+              </div>
             </div>
                 </form>
         </div>
@@ -862,7 +878,7 @@
           
   <!-- Modal para añadir un modelo nuevo -->
   <div class="modal fade" id="addModelModal" tabindex="-1" aria-labelledby="addModelModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-lg">
       <div class="modal-content">
         <div class="modal-header">
           <h5 class="modal-title" id="addModelModalLabel">Añadir Nuevo Modelo</h5>
@@ -872,32 +888,50 @@
               </div>
         <div class="modal-body">
           <form id="addModelForm">
-            <div class="form-group">
-              <label for="modelName">Nombre del Modelo</label>
-              <input type="text" class="form-control" id="modelName" required>
+            <div class="row">
+              <div class="col-md-6">
+                <div class="form-group">
+                  <label for="modelName">Nombre del Modelo</label>
+                  <input type="text" class="form-control" id="modelName" required>
+                </div>
+                <div class="form-group">
+                  <label for="modelType">Tipo de Modelo</label>
+                  <select class="form-control" id="modelType" required>
+                    <option value="">Seleccionar tipo...</option>
+                    <option value="anomaly_detection">Detección de Anomalías</option>
+                    <option value="classification">Clasificación</option>
+                    <option value="regression">Regresión</option>
+                    <option value="other">Otro</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label for="modelFile">Archivo del Modelo (.h5)</label>
+                  <div class="custom-file">
+                    <input type="file" class="custom-file-input" id="modelFile" required>
+                    <label class="custom-file-label" for="modelFile">Elegir archivo...</label>
+                  </div>
+                  <small class="form-text text-muted">Formato soportado: .h5</small>
+                </div>
               </div>
-            <div class="form-group">
-              <label for="modelType">Tipo de Modelo</label>
-              <select class="form-control" id="modelType" required>
-                <option value="">Seleccionar tipo...</option>
-                <option value="anomaly_detection">Detección de Anomalías</option>
-                <option value="classification">Clasificación</option>
-                <option value="regression">Regresión</option>
-                <option value="other">Otro</option>
-              </select>
+              <div class="col-md-6">
+                <div class="form-group">
+                  <label for="modelRoute">Ruta del Modelo (route_h5)</label>
+                  <input type="text" class="form-control" id="modelRoute" placeholder="models/my_model.h5" required>
+                  <small class="form-text text-muted">Ruta donde se almacenará el modelo</small>
+                </div>
+                <div class="form-group">
+                  <label for="modelScaler">Scaler Asociado (opcional)</label>
+                  <select class="form-control" id="modelScaler">
+                    <option value="">Ninguno</option>
+                    <!-- Se poblarán los scalers disponibles dinámicamente -->
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label for="modelDescription">Descripción</label>
+                  <textarea class="form-control" id="modelDescription" rows="3"></textarea>
+                </div>
+              </div>
             </div>
-            <div class="form-group">
-              <label for="modelFile">Archivo del Modelo</label>
-              <div class="custom-file">
-                <input type="file" class="custom-file-input" id="modelFile" required>
-                <label class="custom-file-label" for="modelFile">Elegir archivo...</label>
-          </div>
-              <small class="form-text text-muted">Formatos soportados: .pkl, .h5, .joblib</small>
-        </div>
-            <div class="form-group">
-              <label for="modelDescription">Descripción</label>
-              <textarea class="form-control" id="modelDescription" rows="3"></textarea>
-          </div>
           </form>
             </div>
         <div class="modal-footer">
@@ -956,6 +990,121 @@
   </div>
 </div>
 
+  <!-- Modal para ajustar límites estadísticos -->
+  <div class="modal fade" id="adjustLimitsModal" tabindex="-1" aria-labelledby="adjustLimitsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="adjustLimitsModalLabel">Ajustar Límites Estadísticos</h5>
+          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+          </button>
+        </div>
+        <div class="modal-body">
+          <form id="adjustLimitsForm">
+            <div class="row">
+              <!-- Eje X -->
+              <div class="col-md-4">
+                <h6 class="border-bottom pb-2">Eje X</h6>
+                <div class="form-group row">
+                  <label class="col-sm-6 col-form-label">2σ Inferior:</label>
+                  <div class="col-sm-6">
+                    <input type="number" step="0.000001" class="form-control" id="x2SigmaLower">
+                  </div>
+                </div>
+                <div class="form-group row">
+                  <label class="col-sm-6 col-form-label">2σ Superior:</label>
+                  <div class="col-sm-6">
+                    <input type="number" step="0.000001" class="form-control" id="x2SigmaUpper">
+                  </div>
+                </div>
+                <div class="form-group row">
+                  <label class="col-sm-6 col-form-label">3σ Inferior:</label>
+                  <div class="col-sm-6">
+                    <input type="number" step="0.000001" class="form-control" id="x3SigmaLower">
+                  </div>
+                </div>
+                <div class="form-group row">
+                  <label class="col-sm-6 col-form-label">3σ Superior:</label>
+                  <div class="col-sm-6">
+                    <input type="number" step="0.000001" class="form-control" id="x3SigmaUpper">
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Eje Y -->
+              <div class="col-md-4">
+                <h6 class="border-bottom pb-2">Eje Y</h6>
+                <div class="form-group row">
+                  <label class="col-sm-6 col-form-label">2σ Inferior:</label>
+                  <div class="col-sm-6">
+                    <input type="number" step="0.000001" class="form-control" id="y2SigmaLower">
+                  </div>
+                </div>
+                <div class="form-group row">
+                  <label class="col-sm-6 col-form-label">2σ Superior:</label>
+                  <div class="col-sm-6">
+                    <input type="number" step="0.000001" class="form-control" id="y2SigmaUpper">
+                  </div>
+                </div>
+                <div class="form-group row">
+                  <label class="col-sm-6 col-form-label">3σ Inferior:</label>
+                  <div class="col-sm-6">
+                    <input type="number" step="0.000001" class="form-control" id="y3SigmaLower">
+                  </div>
+                </div>
+                <div class="form-group row">
+                  <label class="col-sm-6 col-form-label">3σ Superior:</label>
+                  <div class="col-sm-6">
+                    <input type="number" step="0.000001" class="form-control" id="y3SigmaUpper">
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Eje Z -->
+              <div class="col-md-4">
+                <h6 class="border-bottom pb-2">Eje Z</h6>
+                <div class="form-group row">
+                  <label class="col-sm-6 col-form-label">2σ Inferior:</label>
+                  <div class="col-sm-6">
+                    <input type="number" step="0.000001" class="form-control" id="z2SigmaLower">
+                  </div>
+                </div>
+                <div class="form-group row">
+                  <label class="col-sm-6 col-form-label">2σ Superior:</label>
+                  <div class="col-sm-6">
+                    <input type="number" step="0.000001" class="form-control" id="z2SigmaUpper">
+                  </div>
+                </div>
+                <div class="form-group row">
+                  <label class="col-sm-6 col-form-label">3σ Inferior:</label>
+                  <div class="col-sm-6">
+                    <input type="number" step="0.000001" class="form-control" id="z3SigmaLower">
+                  </div>
+                </div>
+                <div class="form-group row">
+                  <label class="col-sm-6 col-form-label">3σ Superior:</label>
+                  <div class="col-sm-6">
+                    <input type="number" step="0.000001" class="form-control" id="z3SigmaUpper">
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div class="text-right mt-3">
+              <button type="button" class="btn btn-secondary" id="resetLimitsBtn">
+                <i class="fas fa-undo mr-1"></i> Valores por Defecto
+              </button>
+              <button type="button" class="btn btn-primary" id="saveLimitsBtn">
+                <i class="fas fa-save mr-1"></i> Guardar Límites
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+  
   <!-- Loading Overlay -->
   <div id="loadingOverlay" class="loading-overlay">
     <div class="spinner-container">
@@ -973,7 +1122,8 @@
   <script src="https://cdn.jsdelivr.net/npm/moment@2.29.4/moment.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
-  <script src="js/navigation.js"></script>
-  <script src="js/dashboard.js"></script>
+  <script src="/static/js/navigation.js"></script>
+  <script src="/static/js/dashboard.js"></script>
+  <script src="/static/js/forms.js"></script>
 </body>
 </html>

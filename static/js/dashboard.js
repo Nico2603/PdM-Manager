@@ -22,13 +22,19 @@ let simulationProgress = {
     startTime: null
 };
 
-// Estadísticas para límites
+// Estadísticas para límites (valores por defecto)
 let stats = {
     mean: { x: 0, y: 0, z: 0 },
     stdDev: { x: 1, y: 1, z: 1 },
     sigma1: { upper: { x: 0, y: 0, z: 0 }, lower: { x: 0, y: 0, z: 0 } },
-    sigma2: { upper: { x: 0, y: 0, z: 0 }, lower: { x: 0, y: 0, z: 0 } },
-    sigma3: { upper: { x: 0, y: 0, z: 0 }, lower: { x: 0, y: 0, z: 0 } }
+    sigma2: { 
+        upper: { x: 2.180056, y: 12.088666, z: 1.106510 }, 
+        lower: { x: -2.364295, y: 7.177221, z: -2.389107 } 
+    },
+    sigma3: { 
+        upper: { x: 3.316144, y: 13.316528, z: 1.980414 }, 
+        lower: { x: -3.500383, y: 5.949359, z: -3.263011 } 
+    }
 };
 
 // Selecciones actuales
@@ -58,9 +64,84 @@ document.addEventListener('DOMContentLoaded', function() {
     // Verificar estado de simulación
     checkSimulationStatus();
     
+    // Inicializar valores estadísticos por defecto
+    initializeStatLimits();
+    
     // Actualizar datos cada 10 segundos
     setInterval(updateDashboardData, 10000);
 });
+
+/**
+ * Inicializa los valores estadísticos por defecto
+ */
+function initializeStatLimits() {
+    // Valores por defecto de sigma2 y sigma3
+    const defaultLimits = {
+        sigma2: {
+            lower: { x: -2.364295, y: 7.177221, z: -2.389107 },
+            upper: { x: 2.180056, y: 12.088666, z: 1.106510 }
+        },
+        sigma3: {
+            lower: { x: -3.500383, y: 5.949359, z: -3.263011 },
+            upper: { x: 3.316144, y: 13.316528, z: 1.980414 }
+        }
+    };
+    
+    // Aplicar valores a los elementos en la interfaz
+    updateStatDisplayValue('x2SigmaLowerDisplay', defaultLimits.sigma2.lower.x);
+    updateStatDisplayValue('x2SigmaUpperDisplay', defaultLimits.sigma2.upper.x);
+    updateStatDisplayValue('x3SigmaLowerDisplay', defaultLimits.sigma3.lower.x);
+    updateStatDisplayValue('x3SigmaUpperDisplay', defaultLimits.sigma3.upper.x);
+    
+    updateStatDisplayValue('y2SigmaLowerDisplay', defaultLimits.sigma2.lower.y);
+    updateStatDisplayValue('y2SigmaUpperDisplay', defaultLimits.sigma2.upper.y);
+    updateStatDisplayValue('y3SigmaLowerDisplay', defaultLimits.sigma3.lower.y);
+    updateStatDisplayValue('y3SigmaUpperDisplay', defaultLimits.sigma3.upper.y);
+    
+    updateStatDisplayValue('z2SigmaLowerDisplay', defaultLimits.sigma2.lower.z);
+    updateStatDisplayValue('z2SigmaUpperDisplay', defaultLimits.sigma2.upper.z);
+    updateStatDisplayValue('z3SigmaLowerDisplay', defaultLimits.sigma3.lower.z);
+    updateStatDisplayValue('z3SigmaUpperDisplay', defaultLimits.sigma3.upper.z);
+    
+    // También actualizar los límites en los campos de entrada del formulario
+    updateFormInputValue('x2SigmaLower', defaultLimits.sigma2.lower.x);
+    updateFormInputValue('x2SigmaUpper', defaultLimits.sigma2.upper.x);
+    updateFormInputValue('x3SigmaLower', defaultLimits.sigma3.lower.x);
+    updateFormInputValue('x3SigmaUpper', defaultLimits.sigma3.upper.x);
+    
+    updateFormInputValue('y2SigmaLower', defaultLimits.sigma2.lower.y);
+    updateFormInputValue('y2SigmaUpper', defaultLimits.sigma2.upper.y);
+    updateFormInputValue('y3SigmaLower', defaultLimits.sigma3.lower.y);
+    updateFormInputValue('y3SigmaUpper', defaultLimits.sigma3.upper.y);
+    
+    updateFormInputValue('z2SigmaLower', defaultLimits.sigma2.lower.z);
+    updateFormInputValue('z2SigmaUpper', defaultLimits.sigma2.upper.z);
+    updateFormInputValue('z3SigmaLower', defaultLimits.sigma3.lower.z);
+    updateFormInputValue('z3SigmaUpper', defaultLimits.sigma3.upper.z);
+    
+    // Actualizar también el gráfico si existe
+    updateChartWithStatLimits();
+}
+
+/**
+ * Actualiza el valor mostrado en la interfaz para un elemento
+ */
+function updateStatDisplayValue(elementId, value) {
+    const element = document.getElementById(elementId);
+    if (element) {
+        element.textContent = value.toFixed(6);
+    }
+}
+
+/**
+ * Actualiza el valor en un input del formulario
+ */
+function updateFormInputValue(elementId, value) {
+    const element = document.getElementById(elementId);
+    if (element) {
+        element.value = value.toFixed(6);
+    }
+}
 
 /**
  * Carga los datos iniciales para el dashboard
@@ -69,8 +150,14 @@ function loadInitialData() {
     // Cargar máquinas disponibles
     loadMachines();
     
-    // Cargar archivos CSV disponibles
-    loadCsvFiles();
+    // Cargar sensores disponibles
+    loadSensors();
+    
+    // Cargar modelos disponibles
+    loadModels();
+    
+    // Cargar scalers disponibles
+    loadScalers();
     
     // Actualizar datos del dashboard
     updateDashboardData();
@@ -214,17 +301,20 @@ function initVibrationChart() {
  * Inicializa los eventos de la interfaz de usuario
  */
 function initUIEvents() {
-    // Eventos para selección de máquina y sensor
+    // Manejo de navegación entre secciones (ya implementado en navigation.js)
+    
+    // Eventos de filtros del dashboard
     const selectMachine = document.getElementById('selectMachine');
+    const selectSensor = document.getElementById('selectSensor');
+    const timeRange = document.getElementById('timeRange');
+    
     if (selectMachine) {
         selectMachine.addEventListener('change', function() {
             selectedMachine = this.value;
-            loadSensors(selectedMachine);
             updateDashboardData();
         });
     }
     
-    const selectSensor = document.getElementById('selectSensor');
     if (selectSensor) {
         selectSensor.addEventListener('change', function() {
             selectedSensor = this.value;
@@ -232,603 +322,381 @@ function initUIEvents() {
         });
     }
     
-    // Eventos para los botones de simulación
-    const startSimBtn = document.getElementById('startSimBtn');
-    if (startSimBtn) {
-        startSimBtn.addEventListener('click', startSimulation);
-    }
-    
-    const stopSimBtn = document.getElementById('stopSimBtn');
-    if (stopSimBtn) {
-        stopSimBtn.addEventListener('click', stopSimulation);
-    }
-    
-    // Eventos para CSV y configuración de simulación
-    const selectCsvFile = document.getElementById('selectCsvFile');
-    if (selectCsvFile) {
-        selectCsvFile.addEventListener('change', validateSimulationForm);
-    }
-    
-    const simSelectSensor = document.getElementById('simSelectSensor');
-    if (simSelectSensor) {
-        simSelectSensor.addEventListener('change', validateSimulationForm);
-    }
-    
-    // Evento para subir CSV
-    const uploadCsvBtn = document.getElementById('uploadCsvBtn');
-    if (uploadCsvBtn) {
-        uploadCsvBtn.addEventListener('click', function() {
-            // Activar el input file
-            document.getElementById('csvFileInput').click();
-        });
-    }
-    
-    const csvFileInput = document.getElementById('csvFileInput');
-    if (csvFileInput) {
-        csvFileInput.addEventListener('change', function() {
-            if (this.files && this.files[0]) {
-                uploadCsvFile();
-            }
-        });
-    }
-    
-    // Eventos para filtros de tiempo
-    const timeFilterButtons = document.querySelectorAll('.time-filter');
-    timeFilterButtons.forEach(button => {
-        button.addEventListener('click', function() {
-            // Remover clase activa de todos los botones
-            timeFilterButtons.forEach(btn => btn.classList.remove('active'));
-            // Añadir clase activa al botón seleccionado
-            this.classList.add('active');
-            
-            // Actualizar rango de tiempo seleccionado
-            timeRange = this.dataset.range;
-            
-            // Actualizar dashboard
+    if (timeRange) {
+        timeRange.addEventListener('change', function() {
             updateDashboardData();
         });
+    }
+    
+    // Configuración - Eventos de modales
+    setupModalEvents();
+    
+    // Eventos de visualización en el chart
+    const showMean = document.getElementById('showMean');
+    const show1Sigma = document.getElementById('show1Sigma');
+    const show2Sigma = document.getElementById('show2Sigma');
+    const show3Sigma = document.getElementById('show3Sigma');
+    
+    const thresholdControls = [showMean, show1Sigma, show2Sigma, show3Sigma];
+    thresholdControls.forEach(control => {
+        if (control) {
+            control.addEventListener('change', function() {
+                updateChartWithStatLimits();
+            });
+        }
     });
     
-    // Eventos para botones de visualización de límites en gráficos
-    const limitToggleButtons = document.querySelectorAll('.limit-toggle');
-    limitToggleButtons.forEach(checkbox => {
-        checkbox.addEventListener('change', function() {
-            updateChartWithStatLimits();
-        });
-    });
-    
-    // Evento para botón de ajuste de límites estadísticos
+    // Botón de ajustar límites
     const adjustLimitsBtn = document.getElementById('adjustLimitsBtn');
     if (adjustLimitsBtn) {
-        adjustLimitsBtn.addEventListener('click', showAdjustLimitsForm);
+        adjustLimitsBtn.addEventListener('click', showAdjustLimitsModal);
     }
+}
+
+/**
+ * Configurar eventos para los modales
+ */
+function setupModalEvents() {
+    // Botones de guardado
+    const saveMachineBtn = document.getElementById('saveMachineBtn');
+    const saveSensorBtn = document.getElementById('saveSensorBtn');
+    const saveModelBtn = document.getElementById('saveModelBtn');
     
-    // Evento para refrescar automáticamente (cada 30 segundos)
-    if (document.getElementById('autoRefresh').checked) {
-        refreshTimer = setInterval(updateDashboardData, 30000);
+    if (saveMachineBtn) saveMachineBtn.addEventListener('click', saveMachine);
+    if (saveSensorBtn) saveSensorBtn.addEventListener('click', saveSensor);
+    if (saveModelBtn) saveModelBtn.addEventListener('click', saveModel);
+    
+    // Cargar datos al abrir modales
+    $('#addMachineModal').on('show.bs.modal', loadSensorsForMachineSelect);
+    $('#addSensorModal').on('show.bs.modal', loadModelsForSensorSelect);
+    $('#addModelModal').on('show.bs.modal', setupModelForm);
+    
+    // Evento para archivos
+    const modelFile = document.getElementById('modelFile');
+    if (modelFile) {
+        modelFile.addEventListener('change', function() {
+            const fileName = this.files[0] ? this.files[0].name : 'Elegir archivo...';
+            const fileLabel = document.querySelector('[for="modelFile"]');
+            if (fileLabel) fileLabel.textContent = fileName;
+            
+            // Auto-generar ruta
+            const modelRoute = document.getElementById('modelRoute');
+            if (modelRoute && this.files[0]) {
+                modelRoute.value = 'models/' + fileName;
+            }
+        });
     }
+}
+
+/**
+ * Cargar sensores para el select de máquinas
+ */
+function loadSensorsForMachineSelect() {
+    const sensorSelect = document.getElementById('machineSensor');
+    if (!sensorSelect) return;
     
-    document.getElementById('autoRefresh').addEventListener('change', function() {
-        if (this.checked) {
-            refreshTimer = setInterval(updateDashboardData, 30000);
-        } else {
-            clearInterval(refreshTimer);
-        }
+    // Limpiar opciones
+    sensorSelect.innerHTML = '<option value="">Seleccionar sensor...</option>';
+    
+    // Simular carga de sensores
+    showLoadingIndicator('Cargando sensores disponibles...');
+    
+    // Esta simulación se reemplazaría por una llamada al backend
+    setTimeout(() => {
+        hideLoadingToast();
+        
+        // Datos de ejemplo
+        const sensors = [
+            { id: 1, name: 'Sensor Acelerómetro ACC-001', type: 'vibration' },
+            { id: 2, name: 'Sensor Temperatura TEMP-001', type: 'temperature' },
+            { id: 3, name: 'Sensor Acelerómetro ACC-002', type: 'vibration' }
+        ];
+        
+        // Añadir opciones
+        sensors.forEach(sensor => {
+            const option = document.createElement('option');
+            option.value = sensor.id;
+            option.textContent = `${sensor.name} (${getReadableSensorType(sensor.type)})`;
+            sensorSelect.appendChild(option);
+        });
+    }, 800);
+}
+
+/**
+ * Cargar modelos para el select de sensores
+ */
+function loadModelsForSensorSelect() {
+    const modelSelect = document.getElementById('sensorModel');
+    if (!modelSelect) return;
+    
+    // Limpiar opciones
+    modelSelect.innerHTML = '<option value="">Ninguno (opcional)</option>';
+    
+    // Simular carga de modelos
+    showLoadingIndicator('Cargando modelos disponibles...');
+    
+    // Esta simulación se reemplazaría por una llamada al backend
+    setTimeout(() => {
+        hideLoadingToast();
+        
+        // Datos de ejemplo
+        const models = [
+            { id: 1, name: 'Modelo Anomalía Motor', type: 'anomaly_detection' },
+            { id: 2, name: 'Modelo Clasificación Fallo', type: 'classification' }
+        ];
+        
+        // Añadir opciones
+        models.forEach(model => {
+            const option = document.createElement('option');
+            option.value = model.id;
+            option.textContent = `${model.name} (${getReadableModelType(model.type)})`;
+            modelSelect.appendChild(option);
+        });
+    }, 800);
+}
+
+/**
+ * Preparar el formulario de modelo
+ */
+function setupModelForm() {
+    // Resetear campos
+    document.getElementById('modelName').value = '';
+    document.getElementById('modelType').value = '';
+    document.getElementById('modelRoute').value = '';
+    document.getElementById('modelDescription').value = '';
+    
+    // Resetear label de archivo
+    const fileLabel = document.querySelector('[for="modelFile"]');
+    if (fileLabel) fileLabel.textContent = 'Elegir archivo...';
+    
+    // Cargar scalers para el select
+    const scalerSelect = document.getElementById('modelScaler');
+    if (!scalerSelect) return;
+    
+    // Limpiar opciones
+    scalerSelect.innerHTML = '<option value="">Ninguno (opcional)</option>';
+    
+    // Datos de ejemplo
+    const scalers = [
+        { id: 1, name: 'StandardScaler General', type: 'standard' },
+        { id: 2, name: 'MinMaxScaler Vibración', type: 'minmax' }
+    ];
+    
+    // Añadir opciones
+    scalers.forEach(scaler => {
+        const option = document.createElement('option');
+        option.value = scaler.id;
+        option.textContent = `${scaler.name} (${getReadableScalerType(scaler.type)})`;
+        scalerSelect.appendChild(option);
     });
 }
 
 /**
- * Valida el formulario de simulación y actualiza los botones
+ * Mostrar modal para ajustar límites
  */
-function validateSimulationForm() {
-    const csvFile = document.getElementById('selectCsvFile').value;
-    const sensorId = document.getElementById('simSelectSensor').value;
-    const startBtn = document.getElementById('startSimBtn');
+function showAdjustLimitsModal() {
+    // Implementar la lógica para mostrar el modal
+    // Esta función se llamaría desde el botón "Ajustar Límites"
+    console.log('Mostrar modal de ajuste de límites');
     
-    if (startBtn) {
-        startBtn.disabled = !csvFile || !sensorId || simulationRunning;
-    }
+    // Reemplazar con la implementación real
+    alert('Esta funcionalidad será implementada próximamente: Ajuste de límites');
 }
 
 /**
- * Muestra un indicador de carga
+ * Guardar una nueva máquina
  */
-function showLoadingIndicator(message = 'Cargando...') {
-    const loadingOverlay = document.getElementById('loadingOverlay');
-    const loadingText = document.getElementById('loadingText');
+function saveMachine() {
+    // Recoger datos del formulario
+    const name = document.getElementById('machineName').value;
+    const type = document.getElementById('machineType').value;
+    const location = document.getElementById('machineLocation').value;
+    const description = document.getElementById('machineDescription').value;
+    const sensorId = document.getElementById('machineSensor').value;
     
-    if (loadingOverlay && loadingText) {
-        loadingText.textContent = message;
-        loadingOverlay.classList.add('show');
-    }
-}
-
-/**
- * Oculta el indicador de carga
- */
-function hideLoadingToast() {
-    const loadingOverlay = document.getElementById('loadingOverlay');
-    
-    if (loadingOverlay) {
-        loadingOverlay.classList.remove('show');
-    }
-}
-
-/**
- * Actualiza los datos del dashboard
- */
-function updateDashboardData() {
-    // Construir URL con parámetros
-    let url = '/api/dashboard';
-    if (selectedSensor) {
-        url += `?sensor_id=${selectedSensor}`;
+    // Validación
+    if (!name || !type || !location || !sensorId) {
+        showToast('Por favor complete todos los campos requeridos');
+        return;
     }
     
-    // Obtener los datos
-    fetch(url)
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('Error al obtener datos del dashboard');
-            }
-            return response.json();
-        })
-        .then(data => {
-            // Actualizar la hora de la última actualización
-            updateLastUpdateTime();
-            
-            // Actualizar contadores de alertas
-            if (data.alerts_count) {
-                updateAlertCounters(
-                    data.alerts_count.level1 || 0,
-                    data.alerts_count.level2 || 0,
-                    data.alerts_count.level3 || 0
-                );
-            }
-            
-            // Actualizar alertas recientes
-            if (data.recent_alerts) {
-                updateRecentAlerts(data.recent_alerts);
-            }
-            
-            // Actualizar límites estadísticos
-            if (data.stats) {
-                updateStatisticalLimits(data.stats);
-            }
-            
-            // Actualizar datos de vibración para el gráfico
-            if (data.vibration_data) {
-                // Actualizar datos del gráfico
-                chartData = {
-                    timestamps: data.vibration_data.timestamps || [],
-                    x: data.vibration_data.x || [],
-                    y: data.vibration_data.y || [],
-                    z: data.vibration_data.z || [],
-                    status: data.vibration_data.status || []
-                };
-                
-                // Actualizar gráfico
-                updateVibrationChart();
-            }
-            
-            // Actualizar tabla de datos recientes
-            if (data.recent_data) {
-                updateRecentDataTable(data.recent_data);
-            }
-        })
-        .catch(error => {
-            console.error('Error actualizando dashboard:', error);
-            // No mostrar toast para no interrumpir al usuario
-        });
+    // Simular guardado
+    showLoadingIndicator('Guardando máquina...');
+    
+    // Simulación de guardado (reemplazar con llamada real al backend)
+    setTimeout(() => {
+        hideLoadingToast();
+        
+        // Cerrar el modal
+        $('#addMachineModal').modal('hide');
+        
+        // Mostrar mensaje de éxito
+        showToast('Máquina guardada exitosamente');
+        
+        // Recargar lista de máquinas
+        loadMachines();
+    }, 1000);
 }
 
 /**
- * Actualiza la hora de la última actualización
+ * Guardar un nuevo sensor
  */
-function updateLastUpdateTime() {
-    const now = new Date();
-    const timeStr = now.toLocaleTimeString();
-    const lastUpdateTime = document.getElementById('lastUpdateTime');
-    if (lastUpdateTime) {
-        lastUpdateTime.textContent = timeStr;
+function saveSensor() {
+    // Recoger datos del formulario
+    const name = document.getElementById('sensorName').value;
+    const type = document.getElementById('sensorType').value;
+    const location = document.getElementById('sensorLocation').value;
+    const description = document.getElementById('sensorDescription').value;
+    const sampleRate = document.getElementById('sensorSampleRate').value;
+    const modelId = document.getElementById('sensorModel').value;
+    
+    // Validación
+    if (!name || !type || !location) {
+        showToast('Por favor complete todos los campos requeridos');
+        return;
     }
+    
+    // Simular guardado
+    showLoadingIndicator('Guardando sensor...');
+    
+    // Simulación de guardado (reemplazar con llamada real al backend)
+    setTimeout(() => {
+        hideLoadingToast();
+        
+        // Cerrar el modal
+        $('#addSensorModal').modal('hide');
+        
+        // Mostrar mensaje de éxito
+        showToast('Sensor guardado exitosamente');
+        
+        // Recargar lista de sensores
+        loadSensors();
+    }, 1000);
 }
 
 /**
- * Actualiza los contadores de alertas
+ * Guardar un nuevo modelo
  */
-function updateAlertCounters(level1, level2, level3) {
-    // Actualizar contadores
-    document.getElementById('level1Count').textContent = level1;
-    document.getElementById('level2Count').textContent = level2;
-    document.getElementById('level3Count').textContent = level3;
-    document.getElementById('totalCount').textContent = level1 + level2 + level3;
+function saveModel() {
+    // Recoger datos del formulario
+    const name = document.getElementById('modelName').value;
+    const type = document.getElementById('modelType').value;
+    const file = document.getElementById('modelFile').files[0];
+    const route = document.getElementById('modelRoute').value;
+    const description = document.getElementById('modelDescription').value;
+    const scalerId = document.getElementById('modelScaler').value;
     
-    // Animar contadores (opcional)
-    const counters = ['level1Count', 'level2Count', 'level3Count', 'totalCount'];
-    counters.forEach(id => {
-        const element = document.getElementById(id);
-        if (element) {
-            element.classList.add('animated');
-            setTimeout(() => {
-                element.classList.remove('animated');
-            }, 1000);
-        }
-    });
+    // Validación
+    if (!name || !type || !file || !route) {
+        showToast('Por favor complete todos los campos requeridos');
+        return;
+    }
+    
+    // Verificar extensión
+    if (!file.name.endsWith('.h5')) {
+        showToast('El archivo debe tener extensión .h5');
+        return;
+    }
+    
+    // Simular guardado
+    showLoadingIndicator('Guardando modelo...');
+    
+    // Simulación de guardado (reemplazar con llamada real al backend)
+    setTimeout(() => {
+        hideLoadingToast();
+        
+        // Cerrar el modal
+        $('#addModelModal').modal('hide');
+        
+        // Mostrar mensaje de éxito
+        showToast('Modelo guardado exitosamente');
+        
+        // Recargar lista de modelos si es necesario
+        // loadModels();
+    }, 1500);
 }
 
 /**
- * Actualiza el panel de alertas recientes
+ * Obtener descripción legible del tipo de sensor
  */
-function updateRecentAlerts(alerts) {
-    const tableBody = document.getElementById('recentAlertsTable');
-    if (!tableBody) return;
+function getReadableSensorType(type) {
+    const types = {
+        'vibration': 'Vibración',
+        'temperature': 'Temperatura',
+        'pressure': 'Presión',
+        'flow': 'Flujo',
+        'other': 'Otro'
+    };
+    return types[type] || 'Desconocido';
+}
+
+/**
+ * Obtener descripción legible del tipo de modelo
+ */
+function getReadableModelType(type) {
+    const types = {
+        'anomaly_detection': 'Detección de Anomalías',
+        'classification': 'Clasificación',
+        'regression': 'Regresión',
+        'other': 'Otro'
+    };
+    return types[type] || 'Desconocido';
+}
+
+/**
+ * Obtener descripción legible del tipo de scaler
+ */
+function getReadableScalerType(type) {
+    const types = {
+        'standard': 'StandardScaler',
+        'minmax': 'MinMaxScaler',
+        'robust': 'RobustScaler',
+        'other': 'Otro'
+    };
+    return types[type] || 'Desconocido';
+}
+
+/**
+ * Mostrar mensaje toast
+ */
+function showToast(message) {
+    // Implementar si no existe ya
+    console.log('Toast:', message);
     
-    if (alerts && alerts.length > 0) {
-        // Construir filas de la tabla
-        let html = '';
-        alerts.forEach(alert => {
-            // Convertir timestamp a formato legible
-            const date = new Date(alert.timestamp);
-            const timeStr = date.toLocaleTimeString();
-            
-            // Determinar clase CSS según severidad
-            let severityClass = '';
-            let severityIcon = '';
-            
-            switch (alert.severity) {
-                case 1:
-                    severityClass = 'warning';
-                    severityIcon = 'exclamation-circle';
-                    break;
-                case 2:
-                    severityClass = 'danger';
-                    severityIcon = 'exclamation-triangle';
-                    break;
-                case 3:
-                    severityClass = 'danger';
-                    severityIcon = 'radiation-alt';
-                    break;
-                default:
-                    severityClass = 'secondary';
-                    severityIcon = 'info-circle';
-            }
-            
-            html += `
-                <tr>
-                    <td>
-                        <span class="badge badge-${severityClass}">
-                            <i class="fas fa-${severityIcon} mr-1"></i>
-                            ${alert.severity}
-                        </span>
-                    </td>
-                    <td>${alert.sensor_name || 'Sensor ' + alert.sensor_id}</td>
-                    <td>${timeStr}</td>
-                </tr>
-            `;
-        });
-        tableBody.innerHTML = html;
+    // Esta es una implementación básica, se puede reemplazar con la real
+    const toast = document.createElement('div');
+    toast.className = 'toast show';
+    toast.setAttribute('role', 'alert');
+    toast.setAttribute('aria-live', 'assertive');
+    toast.setAttribute('aria-atomic', 'true');
+    toast.innerHTML = `
+        <div class="toast-header">
+            <i class="fas fa-info-circle text-primary mr-2"></i>
+            <strong class="mr-auto">Notificación</strong>
+            <button type="button" class="ml-2 mb-1 close" data-dismiss="toast" aria-label="Close">
+                <span aria-hidden="true">&times;</span>
+            </button>
+        </div>
+        <div class="toast-body">${message}</div>
+    `;
+    
+    // Añadir al DOM
+    const toastContainer = document.querySelector('.toast-container');
+    if (toastContainer) {
+        toastContainer.appendChild(toast);
     } else {
-        // No hay alertas
-        tableBody.innerHTML = `
-            <tr>
-                <td colspan="3" class="text-center py-3">
-                    <span class="text-muted">No hay alertas recientes</span>
-                </td>
-            </tr>
-        `;
-    }
-}
-
-/**
- * Actualiza los límites estadísticos para el gráfico
- */
-function updateStatisticalLimits(statsData) {
-    if (!statsData) return;
-    
-    // Actualizar estadísticas globales
-    stats.mean = statsData.mean || { x: 0, y: 0, z: 0 };
-    stats.stdDev = statsData.std_dev || { x: 1, y: 1, z: 1 };
-    
-    // Si recibimos límites estadísticos predefinidos, usarlos
-    if (statsData.statistical_limits) {
-        const limits = statsData.statistical_limits;
-        
-        // Actualizar los límites sigma2 y sigma3
-        ['x', 'y', 'z'].forEach(axis => {
-            if (limits[axis]) {
-                // Establecer límites sigma2 del backend
-                if (limits[axis].sigma2) {
-                    stats.sigma2.lower[axis] = limits[axis].sigma2.lower;
-                    stats.sigma2.upper[axis] = limits[axis].sigma2.upper;
-                }
-                
-                // Establecer límites sigma3 del backend
-                if (limits[axis].sigma3) {
-                    stats.sigma3.lower[axis] = limits[axis].sigma3.lower;
-                    stats.sigma3.upper[axis] = limits[axis].sigma3.upper;
-                }
-                
-                // Calcular sigma1 como punto medio
-                stats.sigma1.upper[axis] = stats.mean[axis] + stats.stdDev[axis];
-                stats.sigma1.lower[axis] = stats.mean[axis] - stats.stdDev[axis];
-            }
-        });
-    } else {
-        // Calcular límites sigma si no se reciben
-        ['x', 'y', 'z'].forEach(axis => {
-            stats.sigma1.upper[axis] = stats.mean[axis] + stats.stdDev[axis];
-            stats.sigma1.lower[axis] = stats.mean[axis] - stats.stdDev[axis];
-            
-            stats.sigma2.upper[axis] = stats.mean[axis] + (2 * stats.stdDev[axis]);
-            stats.sigma2.lower[axis] = stats.mean[axis] - (2 * stats.stdDev[axis]);
-            
-            stats.sigma3.upper[axis] = stats.mean[axis] + (3 * stats.stdDev[axis]);
-            stats.sigma3.lower[axis] = stats.mean[axis] - (3 * stats.stdDev[axis]);
-        });
+        const newContainer = document.createElement('div');
+        newContainer.className = 'toast-container position-fixed bottom-0 right-0 p-3';
+        newContainer.style.zIndex = '1050';
+        newContainer.appendChild(toast);
+        document.body.appendChild(newContainer);
     }
     
-    // Actualizar gráfico con los nuevos límites
-    updateChartWithStatLimits();
-}
-
-/**
- * Actualiza el gráfico de vibraciones con los datos más recientes
- */
-function updateVibrationChart() {
-    if (!vibrationChart) return;
-    
-    // Convertir timestamps a formato legible
-    const labels = chartData.timestamps.map(ts => {
-        const date = new Date(ts);
-        return date.toLocaleTimeString();
-    });
-    
-    // Actualizar datos del gráfico
-    vibrationChart.data.labels = labels;
-    vibrationChart.data.datasets[0].data = chartData.x;
-    vibrationChart.data.datasets[1].data = chartData.y;
-    vibrationChart.data.datasets[2].data = chartData.z;
-    
-    // Actualizar puntos con colores según severidad
-    vibrationChart.data.datasets.slice(0, 3).forEach((dataset, index) => {
-        const colors = chartData.status.map(status => {
-            return getBackgroundColorForSeverity(status);
-        });
-        
-        dataset.pointBackgroundColor = colors;
-        dataset.pointBorderColor = colors;
-    });
-    
-    // Actualizar límites estadísticos
-    updateChartWithStatLimits();
-    
-    // Actualizar gráfico
-    vibrationChart.update();
-}
-
-/**
- * Actualiza la tabla de datos recientes
- */
-function updateRecentDataTable(data) {
-    const tableBody = document.getElementById('recentDataTable');
-    if (!tableBody) return;
-    
-    if (data && data.length > 0) {
-        // Construir filas de la tabla
-        let html = '';
-        data.forEach(item => {
-            // Convertir timestamp a formato legible
-            const date = new Date(item.timestamp);
-            const timeStr = date.toLocaleTimeString();
-            
-            // Determinar clase CSS según severidad
-            const bgClass = colorBackgroundBySeverity(item.severity);
-            
-            // Formatear valores de aceleración
-            const xValue = parseFloat(item.x).toFixed(2);
-            const yValue = parseFloat(item.y).toFixed(2);
-            const zValue = parseFloat(item.z).toFixed(2);
-            
-            // Determinar textos de estado
-            let statusText = '';
-            let statusClass = '';
-            
-            switch (item.severity) {
-                case 0:
-                    statusText = 'Normal';
-                    statusClass = 'success';
-                    break;
-                case 1:
-                    statusText = 'Nivel 1';
-                    statusClass = 'warning';
-                    break;
-                case 2:
-                    statusText = 'Nivel 2';
-                    statusClass = 'danger';
-                    break;
-                case 3:
-                    statusText = 'Nivel 3';
-                    statusClass = 'danger';
-                    break;
-                default:
-                    statusText = 'Desconocido';
-                    statusClass = 'secondary';
-            }
-            
-            html += `
-                <tr class="${bgClass}">
-                    <td>${timeStr}</td>
-                    <td>${item.machine_name || 'Máquina 1'}</td>
-                    <td>${item.sensor_name || 'Sensor ' + item.sensor_id}</td>
-                    <td>${xValue}</td>
-                    <td>${yValue}</td>
-                    <td>${zValue}</td>
-                    <td>
-                        <span class="badge badge-${statusClass}">
-                            ${statusText}
-                        </span>
-                    </td>
-                </tr>
-            `;
-        });
-        tableBody.innerHTML = html;
-    } else {
-        // No hay datos
-        tableBody.innerHTML = `
-            <tr>
-                <td colspan="7" class="text-center py-3">
-                    <span class="text-muted">No hay datos recientes</span>
-                </td>
-            </tr>
-        `;
-    }
-}
-
-/**
- * Devuelve una clase CSS para el fondo de la fila según la severidad
- */
-function colorBackgroundBySeverity(severity) {
-    switch (severity) {
-        case 1: return 'bg-warning-light';
-        case 2: return 'bg-danger-light';
-        case 3: return 'bg-danger-light';
-        default: return '';
-    }
-}
-
-/**
- * Devuelve el color de fondo para un punto según su severidad
- */
-function getBackgroundColorForSeverity(severity) {
-    switch (severity) {
-        case 0: return '#28a745'; // Verde (normal)
-        case 1: return '#ffc107'; // Amarillo (nivel 1)
-        case 2: return '#ff5722'; // Naranja (nivel 2)
-        case 3: return '#dc3545'; // Rojo (nivel 3)
-        default: return '#6c757d'; // Gris (desconocido)
-    }
-}
-
-/**
- * Actualiza el gráfico con los límites estadísticos
- */
-function updateChartWithStatLimits() {
-    if (!vibrationChart) return;
-    
-    // Limitar a los primeros 3 datasets (x, y, z)
-    vibrationChart.data.datasets = vibrationChart.data.datasets.slice(0, 3);
-    
-    // Añadir líneas de media y límites sigma si están activados
-    const showMean = document.getElementById('showMean').checked;
-    const show1Sigma = document.getElementById('show1Sigma').checked;
-    const show2Sigma = document.getElementById('show2Sigma').checked;
-    const show3Sigma = document.getElementById('show3Sigma').checked;
-    
-    // Datos para las líneas horizontales
-    const labels = vibrationChart.data.labels;
-    const axisColors = ['rgba(255, 99, 132, 0.7)', 'rgba(54, 162, 235, 0.7)', 'rgba(75, 192, 192, 0.7)'];
-    const axisLabels = ['X', 'Y', 'Z'];
-    
-    // Para cada eje (x, y, z)
-    ['x', 'y', 'z'].forEach((axis, axisIndex) => {
-        // Añadir línea de media
-        if (showMean) {
-            vibrationChart.data.datasets.push({
-                label: `Media ${axisLabels[axisIndex]}`,
-                data: Array(labels.length).fill(stats.mean[axis]),
-                borderColor: axisColors[axisIndex],
-                borderWidth: 1,
-                borderDash: [5, 5],
-                pointRadius: 0,
-                fill: false,
-                hidden: false
-            });
-        }
-        
-        // Añadir límites sigma 1
-        if (show1Sigma) {
-            // Límite superior
-            vibrationChart.data.datasets.push({
-                label: `+1σ ${axisLabels[axisIndex]}`,
-                data: Array(labels.length).fill(stats.sigma1.upper[axis]),
-                borderColor: axisColors[axisIndex],
-                borderWidth: 1,
-                borderDash: [2, 2],
-                pointRadius: 0,
-                fill: false,
-                hidden: false
-            });
-            
-            // Límite inferior
-            vibrationChart.data.datasets.push({
-                label: `-1σ ${axisLabels[axisIndex]}`,
-                data: Array(labels.length).fill(stats.sigma1.lower[axis]),
-                borderColor: axisColors[axisIndex],
-                borderWidth: 1,
-                borderDash: [2, 2],
-                pointRadius: 0,
-                fill: false,
-                hidden: false
-            });
-        }
-        
-        // Añadir límites sigma 2
-        if (show2Sigma) {
-            // Límite superior
-            vibrationChart.data.datasets.push({
-                label: `+2σ ${axisLabels[axisIndex]}`,
-                data: Array(labels.length).fill(stats.sigma2.upper[axis]),
-                borderColor: axisColors[axisIndex],
-                borderWidth: 1,
-                borderDash: [4, 2],
-                pointRadius: 0,
-                fill: false,
-                hidden: false
-            });
-            
-            // Límite inferior
-            vibrationChart.data.datasets.push({
-                label: `-2σ ${axisLabels[axisIndex]}`,
-                data: Array(labels.length).fill(stats.sigma2.lower[axis]),
-                borderColor: axisColors[axisIndex],
-                borderWidth: 1,
-                borderDash: [4, 2],
-                pointRadius: 0,
-                fill: false,
-                hidden: false
-            });
-        }
-        
-        // Añadir límites sigma 3
-        if (show3Sigma) {
-            // Límite superior
-            vibrationChart.data.datasets.push({
-                label: `+3σ ${axisLabels[axisIndex]}`,
-                data: Array(labels.length).fill(stats.sigma3.upper[axis]),
-                borderColor: axisColors[axisIndex],
-                borderWidth: 1,
-                borderDash: [6, 2],
-                pointRadius: 0,
-                fill: false,
-                hidden: false
-            });
-            
-            // Límite inferior
-            vibrationChart.data.datasets.push({
-                label: `-3σ ${axisLabels[axisIndex]}`,
-                data: Array(labels.length).fill(stats.sigma3.lower[axis]),
-                borderColor: axisColors[axisIndex],
-                borderWidth: 1,
-                borderDash: [6, 2],
-                pointRadius: 0,
-                fill: false,
-                hidden: false
-            });
-        }
-    });
-    
-    // Actualizar gráfico
-    vibrationChart.update();
+    // Auto ocultar después de 3 segundos
+    setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
 }
 
 /**
@@ -2167,186 +2035,1240 @@ function updateChartWithStatLimits() {
 /**
  * Añade un formulario para ajustar los límites estadísticos
  */
-function showAdjustLimitsForm() {
-    // Crear modal para ajustar límites
-    const modalHtml = `
-        <div class="modal fade" id="adjustLimitsModal" tabindex="-1" role="dialog">
-            <div class="modal-dialog modal-lg" role="document">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title">Ajustar Límites Estadísticos</h5>
-                        <button type="button" class="close" data-dismiss="modal">
-                            <span>&times;</span>
-                        </button>
-                    </div>
-                    <div class="modal-body">
-                        <div class="row">
-                            <div class="col-md-4">
-                                <h6 class="text-center">Eje X</h6>
-                                <div class="form-group">
-                                    <label>Límite Superior 2σ</label>
-                                    <input type="number" step="0.01" class="form-control" id="x-sigma2-upper" value="${stats.sigma2.upper.x.toFixed(4)}">
-                                </div>
-                                <div class="form-group">
-                                    <label>Límite Inferior 2σ</label>
-                                    <input type="number" step="0.01" class="form-control" id="x-sigma2-lower" value="${stats.sigma2.lower.x.toFixed(4)}">
-                                </div>
-                                <div class="form-group">
-                                    <label>Límite Superior 3σ</label>
-                                    <input type="number" step="0.01" class="form-control" id="x-sigma3-upper" value="${stats.sigma3.upper.x.toFixed(4)}">
-                                </div>
-                                <div class="form-group">
-                                    <label>Límite Inferior 3σ</label>
-                                    <input type="number" step="0.01" class="form-control" id="x-sigma3-lower" value="${stats.sigma3.lower.x.toFixed(4)}">
-                                </div>
-                            </div>
-                            <div class="col-md-4">
-                                <h6 class="text-center">Eje Y</h6>
-                                <div class="form-group">
-                                    <label>Límite Superior 2σ</label>
-                                    <input type="number" step="0.01" class="form-control" id="y-sigma2-upper" value="${stats.sigma2.upper.y.toFixed(4)}">
-                                </div>
-                                <div class="form-group">
-                                    <label>Límite Inferior 2σ</label>
-                                    <input type="number" step="0.01" class="form-control" id="y-sigma2-lower" value="${stats.sigma2.lower.y.toFixed(4)}">
-                                </div>
-                                <div class="form-group">
-                                    <label>Límite Superior 3σ</label>
-                                    <input type="number" step="0.01" class="form-control" id="y-sigma3-upper" value="${stats.sigma3.upper.y.toFixed(4)}">
-                                </div>
-                                <div class="form-group">
-                                    <label>Límite Inferior 3σ</label>
-                                    <input type="number" step="0.01" class="form-control" id="y-sigma3-lower" value="${stats.sigma3.lower.y.toFixed(4)}">
-                                </div>
-                            </div>
-                            <div class="col-md-4">
-                                <h6 class="text-center">Eje Z</h6>
-                                <div class="form-group">
-                                    <label>Límite Superior 2σ</label>
-                                    <input type="number" step="0.01" class="form-control" id="z-sigma2-upper" value="${stats.sigma2.upper.z.toFixed(4)}">
-                                </div>
-                                <div class="form-group">
-                                    <label>Límite Inferior 2σ</label>
-                                    <input type="number" step="0.01" class="form-control" id="z-sigma2-lower" value="${stats.sigma2.lower.z.toFixed(4)}">
-                                </div>
-                                <div class="form-group">
-                                    <label>Límite Superior 3σ</label>
-                                    <input type="number" step="0.01" class="form-control" id="z-sigma3-upper" value="${stats.sigma3.upper.z.toFixed(4)}">
-                                </div>
-                                <div class="form-group">
-                                    <label>Límite Inferior 3σ</label>
-                                    <input type="number" step="0.01" class="form-control" id="z-sigma3-lower" value="${stats.sigma3.lower.z.toFixed(4)}">
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
-                        <button type="button" class="btn btn-primary" id="saveLimitsBtn">Guardar Cambios</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
+function showAdjustLimitsModal() {
+    // Implementar la lógica para mostrar el modal
+    // Esta función se llamaría desde el botón "Ajustar Límites"
+    console.log('Mostrar modal de ajuste de límites');
     
-    // Añadir modal al DOM si no existe
-    if (!document.getElementById('adjustLimitsModal')) {
-        document.body.insertAdjacentHTML('beforeend', modalHtml);
-        
-        // Manejar evento de guardar cambios
-        document.getElementById('saveLimitsBtn').addEventListener('click', function() {
-            updateStatisticalLimitsInBackend();
-        });
-    }
-    
-    // Mostrar modal
-    $('#adjustLimitsModal').modal('show');
+    // Reemplazar con la implementación real
+    alert('Esta funcionalidad será implementada próximamente: Ajuste de límites');
 }
 
 /**
- * Actualiza los límites estadísticos en el backend
+ * Guardar los límites estadísticos personalizados desde el formulario
  */
-function updateStatisticalLimitsInBackend() {
-    // Recopilar valores del formulario
-    const limits = {
-        x: {
-            sigma2: {
-                lower: parseFloat(document.getElementById('x-sigma2-lower').value),
-                upper: parseFloat(document.getElementById('x-sigma2-upper').value)
-            },
-            sigma3: {
-                lower: parseFloat(document.getElementById('x-sigma3-lower').value),
-                upper: parseFloat(document.getElementById('x-sigma3-upper').value)
-            }
-        },
-        y: {
-            sigma2: {
-                lower: parseFloat(document.getElementById('y-sigma2-lower').value),
-                upper: parseFloat(document.getElementById('y-sigma2-upper').value)
-            },
-            sigma3: {
-                lower: parseFloat(document.getElementById('y-sigma3-lower').value),
-                upper: parseFloat(document.getElementById('y-sigma3-upper').value)
-            }
-        },
-        z: {
-            sigma2: {
-                lower: parseFloat(document.getElementById('z-sigma2-lower').value),
-                upper: parseFloat(document.getElementById('z-sigma2-upper').value)
-            },
-            sigma3: {
-                lower: parseFloat(document.getElementById('z-sigma3-lower').value),
-                upper: parseFloat(document.getElementById('z-sigma3-upper').value)
+function saveCustomStatLimits() {
+    // Eje X
+    stats.sigma2.lower.x = parseFloat(document.getElementById('x2SigmaLower').value || -2.364295);
+    stats.sigma2.upper.x = parseFloat(document.getElementById('x2SigmaUpper').value || 2.180056);
+    stats.sigma3.lower.x = parseFloat(document.getElementById('x3SigmaLower').value || -3.500383);
+    stats.sigma3.upper.x = parseFloat(document.getElementById('x3SigmaUpper').value || 3.316144);
+    
+    // Eje Y
+    stats.sigma2.lower.y = parseFloat(document.getElementById('y2SigmaLower').value || 7.177221);
+    stats.sigma2.upper.y = parseFloat(document.getElementById('y2SigmaUpper').value || 12.088666);
+    stats.sigma3.lower.y = parseFloat(document.getElementById('y3SigmaLower').value || 5.949359);
+    stats.sigma3.upper.y = parseFloat(document.getElementById('y3SigmaUpper').value || 13.316528);
+    
+    // Eje Z
+    stats.sigma2.lower.z = parseFloat(document.getElementById('z2SigmaLower').value || -2.389107);
+    stats.sigma2.upper.z = parseFloat(document.getElementById('z2SigmaUpper').value || 1.106510);
+    stats.sigma3.lower.z = parseFloat(document.getElementById('z3SigmaLower').value || -3.263011);
+    stats.sigma3.upper.z = parseFloat(document.getElementById('z3SigmaUpper').value || 1.980414);
+    
+    // Enviar al backend (si está disponible)
+    updateStatisticalLimitsInBackend();
+}
+
+/**
+ * Cargar sensores para asignar a una máquina
+ */
+function loadSensorsForMachineAssignment() {
+    // Elemento select donde se cargarán los sensores
+    const sensorSelect = document.getElementById('machineSensor');
+    if (!sensorSelect) return;
+    
+    // Limpiar opciones actuales
+    sensorSelect.innerHTML = '<option value="">Seleccionar sensor...</option>';
+    
+    // Simular carga (se reemplazará con llamada real al backend)
+    setTimeout(() => {
+        // Ejemplo de datos de sensores
+        const sensors = [
+            { id: 1, name: 'Sensor ACC-001' },
+            { id: 2, name: 'Sensor ACC-002' },
+            { id: 3, name: 'Sensor TEMP-001' }
+        ];
+        
+        // Añadir opciones al select
+        sensors.forEach(sensor => {
+            const option = document.createElement('option');
+            option.value = sensor.id;
+            option.textContent = sensor.name;
+            sensorSelect.appendChild(option);
+        });
+    }, 500);
+}
+
+/**
+ * Cargar modelos para asignar a un sensor
+ */
+function loadModelsForSensorAssignment() {
+    // Elemento select donde se cargarán los modelos
+    const modelSelect = document.getElementById('sensorModel');
+    if (!modelSelect) return;
+    
+    // Limpiar opciones actuales
+    modelSelect.innerHTML = '<option value="">Ninguno (opcional)</option>';
+    
+    // Simular carga (se reemplazará con llamada real al backend)
+    setTimeout(() => {
+        // Ejemplo de datos de modelos
+        const models = [
+            { id: 1, name: 'Modelo Anomalía Motor' },
+            { id: 2, name: 'Modelo Predictivo Bombas' },
+            { id: 3, name: 'Modelo Clasificación Fallo' }
+        ];
+        
+        // Añadir opciones al select
+        models.forEach(model => {
+            const option = document.createElement('option');
+            option.value = model.id;
+            option.textContent = model.name;
+            modelSelect.appendChild(option);
+        });
+    }, 500);
+}
+
+/**
+ * Cargar scalers para asignar a un modelo
+ */
+function loadScalersForModelAssignment() {
+    // Elemento select donde se cargarán los scalers
+    const scalerSelect = document.getElementById('modelScaler');
+    if (!scalerSelect) return;
+    
+    // Limpiar opciones actuales
+    scalerSelect.innerHTML = '<option value="">Ninguno</option>';
+    
+    // Simular carga (se reemplazará con llamada real al backend)
+    setTimeout(() => {
+        // Ejemplo de datos de scalers
+        const scalers = [
+            { id: 1, name: 'StandardScaler Motores' },
+            { id: 2, name: 'MinMaxScaler Bombas' },
+            { id: 3, name: 'RobustScaler General' }
+        ];
+        
+        // Añadir opciones al select
+        scalers.forEach(scaler => {
+            const option = document.createElement('option');
+            option.value = scaler.id;
+            option.textContent = scaler.name;
+            scalerSelect.appendChild(option);
+        });
+    }, 500);
+}
+
+/**
+ * Cargar modelos disponibles
+ */
+function loadModels() {
+    // Implementar cuando sea necesario
+    // Se utilizará para poblar la lista de modelos en la sección de configuración
+}
+
+/**
+ * Cargar scalers disponibles
+ */
+function loadScalers() {
+    // Implementar cuando sea necesario
+    // Se utilizará para poblar la lista de scalers en la sección de configuración
+}
+
+/**
+ * Guardar una nueva máquina
+ */
+function saveMachine() {
+    // Recoger datos del formulario
+    const name = document.getElementById('machineName').value;
+    const type = document.getElementById('machineType').value;
+    const location = document.getElementById('machineLocation').value;
+    const description = document.getElementById('machineDescription').value;
+    const sensorId = document.getElementById('machineSensor').value;
+    
+    if (!name || !type || !location || !sensorId) {
+        showToast('Por favor complete todos los campos requeridos');
+        return;
+    }
+    
+    // Mostrar overlay de carga
+    showLoadingIndicator('Guardando máquina...');
+    
+    // Simular petición al backend (se reemplazará con petición real)
+    setTimeout(() => {
+        // Ocultar overlay
+        hideLoadingToast();
+        
+        // Simular éxito
+        showToast('Máquina guardada correctamente');
+        
+        // Cerrar modal
+        const modal = document.getElementById('addMachineModal');
+        if (modal) {
+            const modalInstance = bootstrap.Modal.getInstance(modal);
+            if (modalInstance) {
+                modalInstance.hide();
             }
         }
-    };
+        
+        // Actualizar lista de máquinas
+        loadMachines();
+        
+        // Limpiar formulario
+        document.getElementById('addMachineForm').reset();
+    }, 1000);
+}
+
+/**
+ * Guardar un nuevo sensor
+ */
+function saveSensor() {
+    // Recoger datos del formulario
+    const name = document.getElementById('sensorName').value;
+    const type = document.getElementById('sensorType').value;
+    const location = document.getElementById('sensorLocation').value;
+    const description = document.getElementById('sensorDescription').value;
+    const sampleRate = document.getElementById('sensorSampleRate').value;
+    const modelId = document.getElementById('sensorModel').value;
     
-    // Actualizar estado local
-    for (const axis of ['x', 'y', 'z']) {
-        stats.sigma2.lower[axis] = limits[axis].sigma2.lower;
-        stats.sigma2.upper[axis] = limits[axis].sigma2.upper;
-        stats.sigma3.lower[axis] = limits[axis].sigma3.lower;
-        stats.sigma3.upper[axis] = limits[axis].sigma3.upper;
+    if (!name || !type || !location) {
+        showToast('Por favor complete todos los campos requeridos');
+        return;
     }
     
-    // Actualizar gráfico con nuevos límites
+    // Mostrar overlay de carga
+    showLoadingIndicator('Guardando sensor...');
+    
+    // Simular petición al backend (se reemplazará con petición real)
+    setTimeout(() => {
+        // Ocultar overlay
+        hideLoadingToast();
+        
+        // Simular éxito
+        showToast('Sensor guardado correctamente');
+        
+        // Cerrar modal
+        const modal = document.getElementById('addSensorModal');
+        if (modal) {
+            const modalInstance = bootstrap.Modal.getInstance(modal);
+            if (modalInstance) {
+                modalInstance.hide();
+            }
+        }
+        
+        // Actualizar lista de sensores
+        loadSensors();
+        
+        // Limpiar formulario
+        document.getElementById('addSensorForm').reset();
+    }, 1000);
+}
+
+/**
+ * Guardar un nuevo modelo
+ */
+function saveModel() {
+    // Recoger datos del formulario
+    const name = document.getElementById('modelName').value;
+    const type = document.getElementById('modelType').value;
+    const fileInput = document.getElementById('modelFile');
+    const route = document.getElementById('modelRoute').value;
+    const description = document.getElementById('modelDescription').value;
+    const scalerId = document.getElementById('modelScaler').value;
+    
+    if (!name || !type || !fileInput.files.length || !route) {
+        showToast('Por favor complete todos los campos requeridos');
+        return;
+    }
+    
+    // Comprobar extensión del archivo
+    const fileName = fileInput.files[0].name;
+    if (!fileName.endsWith('.h5')) {
+        showToast('El archivo debe tener extensión .h5');
+        return;
+    }
+    
+    // Mostrar overlay de carga
+    showLoadingIndicator('Guardando modelo...');
+    
+    // Simular petición al backend (se reemplazará con petición real)
+    setTimeout(() => {
+        // Ocultar overlay
+        hideLoadingToast();
+        
+        // Simular éxito
+        showToast('Modelo guardado correctamente');
+        
+        // Cerrar modal
+        const modal = document.getElementById('addModelModal');
+        if (modal) {
+            const modalInstance = bootstrap.Modal.getInstance(modal);
+            if (modalInstance) {
+                modalInstance.hide();
+            }
+        }
+        
+        // Actualizar lista de modelos
+        loadModels();
+        
+        // Limpiar formulario
+        document.getElementById('addModelForm').reset();
+        
+        // Resetear label del file input
+        const fileLabel = document.querySelector('.custom-file-label');
+        if (fileLabel) {
+            fileLabel.textContent = 'Elegir archivo...';
+        }
+    }, 1500);
+}
+
+/**
+ * Valida el formulario de simulación y actualiza los botones
+ */
+function validateSimulationForm() {
+    const csvFile = document.getElementById('selectCsvFile').value;
+    const sensorId = document.getElementById('simSelectSensor').value;
+    const startBtn = document.getElementById('startSimBtn');
+    
+    if (startBtn) {
+        startBtn.disabled = !csvFile || !sensorId || simulationRunning;
+    }
+}
+
+/**
+ * Muestra un indicador de carga
+ */
+function showLoadingIndicator(message = 'Cargando...') {
+    const loadingOverlay = document.getElementById('loadingOverlay');
+    const loadingText = document.getElementById('loadingText');
+    
+    if (loadingOverlay && loadingText) {
+        loadingText.textContent = message;
+        loadingOverlay.classList.add('show');
+    }
+}
+
+/**
+ * Oculta el indicador de carga
+ */
+function hideLoadingToast() {
+    const loadingOverlay = document.getElementById('loadingOverlay');
+    
+    if (loadingOverlay) {
+        loadingOverlay.classList.remove('show');
+    }
+}
+
+/**
+ * Actualiza los datos del dashboard
+ */
+function updateDashboardData() {
+    // Construir URL con parámetros
+    let url = '/api/dashboard';
+    if (selectedSensor) {
+        url += `?sensor_id=${selectedSensor}`;
+    }
+    
+    // Obtener los datos
+    fetch(url)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Error al obtener datos del dashboard');
+            }
+            return response.json();
+        })
+        .then(data => {
+            // Actualizar la hora de la última actualización
+            updateLastUpdateTime();
+            
+            // Actualizar contadores de alertas
+            if (data.alerts_count) {
+                updateAlertCounters(
+                    data.alerts_count.level1 || 0,
+                    data.alerts_count.level2 || 0,
+                    data.alerts_count.level3 || 0
+                );
+            }
+            
+            // Actualizar alertas recientes
+            if (data.recent_alerts) {
+                updateRecentAlerts(data.recent_alerts);
+            }
+            
+            // Actualizar límites estadísticos
+            if (data.stats) {
+                updateStatisticalLimits(data.stats);
+            }
+            
+            // Actualizar datos de vibración para el gráfico
+            if (data.vibration_data) {
+                // Actualizar datos del gráfico
+                chartData = {
+                    timestamps: data.vibration_data.timestamps || [],
+                    x: data.vibration_data.x || [],
+                    y: data.vibration_data.y || [],
+                    z: data.vibration_data.z || [],
+                    status: data.vibration_data.status || []
+                };
+                
+                // Actualizar gráfico
+                updateVibrationChart();
+            }
+            
+            // Actualizar tabla de datos recientes
+            if (data.recent_data) {
+                updateRecentDataTable(data.recent_data);
+            }
+        })
+        .catch(error => {
+            console.error('Error actualizando dashboard:', error);
+            // No mostrar toast para no interrumpir al usuario
+        });
+}
+
+/**
+ * Actualiza la hora de la última actualización
+ */
+function updateLastUpdateTime() {
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString();
+    const lastUpdateTime = document.getElementById('lastUpdateTime');
+    if (lastUpdateTime) {
+        lastUpdateTime.textContent = timeStr;
+    }
+}
+
+/**
+ * Actualiza los contadores de alertas
+ */
+function updateAlertCounters(level1, level2, level3) {
+    // Actualizar contadores
+    document.getElementById('level1Count').textContent = level1;
+    document.getElementById('level2Count').textContent = level2;
+    document.getElementById('level3Count').textContent = level3;
+    document.getElementById('totalCount').textContent = level1 + level2 + level3;
+    
+    // Animar contadores (opcional)
+    const counters = ['level1Count', 'level2Count', 'level3Count', 'totalCount'];
+    counters.forEach(id => {
+        const element = document.getElementById(id);
+        if (element) {
+            element.classList.add('animated');
+            setTimeout(() => {
+                element.classList.remove('animated');
+            }, 1000);
+        }
+    });
+}
+
+/**
+ * Actualiza el panel de alertas recientes
+ */
+function updateRecentAlerts(alerts) {
+    const tableBody = document.getElementById('recentAlertsTable');
+    if (!tableBody) return;
+    
+    if (alerts && alerts.length > 0) {
+        // Construir filas de la tabla
+        let html = '';
+        alerts.forEach(alert => {
+            // Convertir timestamp a formato legible
+            const date = new Date(alert.timestamp);
+            const timeStr = date.toLocaleTimeString();
+            
+            // Determinar clase CSS según severidad
+            let severityClass = '';
+            let severityIcon = '';
+            
+            switch (alert.severity) {
+                case 1:
+                    severityClass = 'warning';
+                    severityIcon = 'exclamation-circle';
+                    break;
+                case 2:
+                    severityClass = 'danger';
+                    severityIcon = 'exclamation-triangle';
+                    break;
+                case 3:
+                    severityClass = 'danger';
+                    severityIcon = 'radiation-alt';
+                    break;
+                default:
+                    severityClass = 'secondary';
+                    severityIcon = 'info-circle';
+            }
+            
+            html += `
+                <tr>
+                    <td>
+                        <span class="badge badge-${severityClass}">
+                            <i class="fas fa-${severityIcon} mr-1"></i>
+                            ${alert.severity}
+                        </span>
+                    </td>
+                    <td>${alert.sensor_name || 'Sensor ' + alert.sensor_id}</td>
+                    <td>${timeStr}</td>
+                </tr>
+            `;
+        });
+        tableBody.innerHTML = html;
+    } else {
+        // No hay alertas
+        tableBody.innerHTML = `
+            <tr>
+                <td colspan="3" class="text-center py-3">
+                    <span class="text-muted">No hay alertas recientes</span>
+                </td>
+            </tr>
+        `;
+    }
+}
+
+/**
+ * Actualiza los límites estadísticos para el gráfico
+ */
+function updateStatisticalLimits(statsData) {
+    if (!statsData) return;
+    
+    // Actualizar estadísticas globales
+    stats.mean = statsData.mean || { x: 0, y: 0, z: 0 };
+    stats.stdDev = statsData.std_dev || { x: 1, y: 1, z: 1 };
+    
+    // Si recibimos límites estadísticos predefinidos, usarlos
+    if (statsData.statistical_limits) {
+        const limits = statsData.statistical_limits;
+        
+        // Actualizar los límites sigma2 y sigma3
+        ['x', 'y', 'z'].forEach(axis => {
+            if (limits[axis]) {
+                // Establecer límites sigma2 del backend
+                if (limits[axis].sigma2) {
+                    stats.sigma2.lower[axis] = limits[axis].sigma2.lower;
+                    stats.sigma2.upper[axis] = limits[axis].sigma2.upper;
+                }
+                
+                // Establecer límites sigma3 del backend
+                if (limits[axis].sigma3) {
+                    stats.sigma3.lower[axis] = limits[axis].sigma3.lower;
+                    stats.sigma3.upper[axis] = limits[axis].sigma3.upper;
+                }
+                
+                // Calcular sigma1 como punto medio
+                stats.sigma1.upper[axis] = stats.mean[axis] + stats.stdDev[axis];
+                stats.sigma1.lower[axis] = stats.mean[axis] - stats.stdDev[axis];
+            }
+        });
+    } else {
+        // Calcular límites sigma si no se reciben
+        ['x', 'y', 'z'].forEach(axis => {
+            stats.sigma1.upper[axis] = stats.mean[axis] + stats.stdDev[axis];
+            stats.sigma1.lower[axis] = stats.mean[axis] - stats.stdDev[axis];
+            
+            stats.sigma2.upper[axis] = stats.mean[axis] + (2 * stats.stdDev[axis]);
+            stats.sigma2.lower[axis] = stats.mean[axis] - (2 * stats.stdDev[axis]);
+            
+            stats.sigma3.upper[axis] = stats.mean[axis] + (3 * stats.stdDev[axis]);
+            stats.sigma3.lower[axis] = stats.mean[axis] - (3 * stats.stdDev[axis]);
+        });
+    }
+    
+    // Actualizar gráfico con los nuevos límites
+    updateChartWithStatLimits();
+}
+
+/**
+ * Actualiza el gráfico de vibraciones con los datos más recientes
+ */
+function updateVibrationChart() {
+    if (!vibrationChart) return;
+    
+    // Convertir timestamps a formato legible
+    const labels = chartData.timestamps.map(ts => {
+        const date = new Date(ts);
+        return date.toLocaleTimeString();
+    });
+    
+    // Actualizar datos del gráfico
+    vibrationChart.data.labels = labels;
+    vibrationChart.data.datasets[0].data = chartData.x;
+    vibrationChart.data.datasets[1].data = chartData.y;
+    vibrationChart.data.datasets[2].data = chartData.z;
+    
+    // Actualizar puntos con colores según severidad
+    vibrationChart.data.datasets.slice(0, 3).forEach((dataset, index) => {
+        const colors = chartData.status.map(status => {
+            return getBackgroundColorForSeverity(status);
+        });
+        
+        dataset.pointBackgroundColor = colors;
+        dataset.pointBorderColor = colors;
+    });
+    
+    // Actualizar límites estadísticos
     updateChartWithStatLimits();
     
-    // Cerrar modal
-    $('#adjustLimitsModal').modal('hide');
+    // Actualizar gráfico
+    vibrationChart.update();
+}
+
+/**
+ * Actualiza la tabla de datos recientes
+ */
+function updateRecentDataTable(data) {
+    const tableBody = document.getElementById('recentDataTable');
+    if (!tableBody) return;
     
-    // Actualizar límites en el backend
-    const updateRequests = [];
-    
-    // Función para crear una promesa de actualización para un límite específico
-    const createUpdateRequest = (axis, sigmaLevel, limitType, value) => {
-        return fetch(`/api/statistical-limits/${axis}/${sigmaLevel}/${limitType}`, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ value }),
-        }).then(response => {
-            if (!response.ok) throw new Error(`Error al actualizar ${axis} ${sigmaLevel} ${limitType}`);
-            return response.json();
+    if (data && data.length > 0) {
+        // Construir filas de la tabla
+        let html = '';
+        data.forEach(item => {
+            // Convertir timestamp a formato legible
+            const date = new Date(item.timestamp);
+            const timeStr = date.toLocaleTimeString();
+            
+            // Determinar clase CSS según severidad
+            const bgClass = colorBackgroundBySeverity(item.severity);
+            
+            // Formatear valores de aceleración
+            const xValue = parseFloat(item.x).toFixed(2);
+            const yValue = parseFloat(item.y).toFixed(2);
+            const zValue = parseFloat(item.z).toFixed(2);
+            
+            // Determinar textos de estado
+            let statusText = '';
+            let statusClass = '';
+            
+            switch (item.severity) {
+                case 0:
+                    statusText = 'Normal';
+                    statusClass = 'success';
+                    break;
+                case 1:
+                    statusText = 'Nivel 1';
+                    statusClass = 'warning';
+                    break;
+                case 2:
+                    statusText = 'Nivel 2';
+                    statusClass = 'danger';
+                    break;
+                case 3:
+                    statusText = 'Nivel 3';
+                    statusClass = 'danger';
+                    break;
+                default:
+                    statusText = 'Desconocido';
+                    statusClass = 'secondary';
+            }
+            
+            html += `
+                <tr class="${bgClass}">
+                    <td>${timeStr}</td>
+                    <td>${item.machine_name || 'Máquina 1'}</td>
+                    <td>${item.sensor_name || 'Sensor ' + item.sensor_id}</td>
+                    <td>${xValue}</td>
+                    <td>${yValue}</td>
+                    <td>${zValue}</td>
+                    <td>
+                        <span class="badge badge-${statusClass}">
+                            ${statusText}
+                        </span>
+                    </td>
+                </tr>
+            `;
         });
-    };
-    
-    // Crear promesas para cada actualización
-    for (const axis of ['x', 'y', 'z']) {
-        updateRequests.push(createUpdateRequest(axis, 'sigma2', 'lower', limits[axis].sigma2.lower));
-        updateRequests.push(createUpdateRequest(axis, 'sigma2', 'upper', limits[axis].sigma2.upper));
-        updateRequests.push(createUpdateRequest(axis, 'sigma3', 'lower', limits[axis].sigma3.lower));
-        updateRequests.push(createUpdateRequest(axis, 'sigma3', 'upper', limits[axis].sigma3.upper));
+        tableBody.innerHTML = html;
+    } else {
+        // No hay datos
+        tableBody.innerHTML = `
+            <tr>
+                <td colspan="7" class="text-center py-3">
+                    <span class="text-muted">No hay datos recientes</span>
+                </td>
+            </tr>
+        `;
     }
+}
+
+/**
+ * Devuelve una clase CSS para el fondo de la fila según la severidad
+ */
+function colorBackgroundBySeverity(severity) {
+    switch (severity) {
+        case 1: return 'bg-warning-light';
+        case 2: return 'bg-danger-light';
+        case 3: return 'bg-danger-light';
+        default: return '';
+    }
+}
+
+/**
+ * Devuelve el color de fondo para un punto según su severidad
+ */
+function getBackgroundColorForSeverity(severity) {
+    switch (severity) {
+        case 0: return '#28a745'; // Verde (normal)
+        case 1: return '#ffc107'; // Amarillo (nivel 1)
+        case 2: return '#ff5722'; // Naranja (nivel 2)
+        case 3: return '#dc3545'; // Rojo (nivel 3)
+        default: return '#6c757d'; // Gris (desconocido)
+    }
+}
+
+/**
+ * Actualiza el gráfico con los límites estadísticos
+ */
+function updateChartWithStatLimits() {
+    if (!vibrationChart) return;
     
-    // Procesar todas las actualizaciones
-    Promise.all(updateRequests)
-        .then(() => {
-            showToast('success', 'Límites estadísticos actualizados correctamente');
+    // Limitar a los primeros 3 datasets (x, y, z)
+    vibrationChart.data.datasets = vibrationChart.data.datasets.slice(0, 3);
+    
+    // Añadir líneas de media y límites sigma si están activados
+    const showMean = document.getElementById('showMean').checked;
+    const show1Sigma = document.getElementById('show1Sigma').checked;
+    const show2Sigma = document.getElementById('show2Sigma').checked;
+    const show3Sigma = document.getElementById('show3Sigma').checked;
+    
+    // Datos para las líneas horizontales
+    const labels = vibrationChart.data.labels;
+    const axisColors = ['rgba(255, 99, 132, 0.7)', 'rgba(54, 162, 235, 0.7)', 'rgba(75, 192, 192, 0.7)'];
+    const axisLabels = ['X', 'Y', 'Z'];
+    
+    // Para cada eje (x, y, z)
+    ['x', 'y', 'z'].forEach((axis, axisIndex) => {
+        // Añadir línea de media
+        if (showMean) {
+            vibrationChart.data.datasets.push({
+                label: `Media ${axisLabels[axisIndex]}`,
+                data: Array(labels.length).fill(stats.mean[axis]),
+                borderColor: axisColors[axisIndex],
+                borderWidth: 1,
+                borderDash: [5, 5],
+                pointRadius: 0,
+                fill: false,
+                hidden: false
+            });
+        }
+        
+        // Añadir límites sigma 1
+        if (show1Sigma) {
+            // Límite superior
+            vibrationChart.data.datasets.push({
+                label: `+1σ ${axisLabels[axisIndex]}`,
+                data: Array(labels.length).fill(stats.sigma1.upper[axis]),
+                borderColor: axisColors[axisIndex],
+                borderWidth: 1,
+                borderDash: [2, 2],
+                pointRadius: 0,
+                fill: false,
+                hidden: false
+            });
+            
+            // Límite inferior
+            vibrationChart.data.datasets.push({
+                label: `-1σ ${axisLabels[axisIndex]}`,
+                data: Array(labels.length).fill(stats.sigma1.lower[axis]),
+                borderColor: axisColors[axisIndex],
+                borderWidth: 1,
+                borderDash: [2, 2],
+                pointRadius: 0,
+                fill: false,
+                hidden: false
+            });
+        }
+        
+        // Añadir límites sigma 2
+        if (show2Sigma) {
+            // Límite superior
+            vibrationChart.data.datasets.push({
+                label: `+2σ ${axisLabels[axisIndex]}`,
+                data: Array(labels.length).fill(stats.sigma2.upper[axis]),
+                borderColor: axisColors[axisIndex],
+                borderWidth: 1,
+                borderDash: [4, 2],
+                pointRadius: 0,
+                fill: false,
+                hidden: false
+            });
+            
+            // Límite inferior
+            vibrationChart.data.datasets.push({
+                label: `-2σ ${axisLabels[axisIndex]}`,
+                data: Array(labels.length).fill(stats.sigma2.lower[axis]),
+                borderColor: axisColors[axisIndex],
+                borderWidth: 1,
+                borderDash: [4, 2],
+                pointRadius: 0,
+                fill: false,
+                hidden: false
+            });
+        }
+        
+        // Añadir límites sigma 3
+        if (show3Sigma) {
+            // Límite superior
+            vibrationChart.data.datasets.push({
+                label: `+3σ ${axisLabels[axisIndex]}`,
+                data: Array(labels.length).fill(stats.sigma3.upper[axis]),
+                borderColor: axisColors[axisIndex],
+                borderWidth: 1,
+                borderDash: [6, 2],
+                pointRadius: 0,
+                fill: false,
+                hidden: false
+            });
+            
+            // Límite inferior
+            vibrationChart.data.datasets.push({
+                label: `-3σ ${axisLabels[axisIndex]}`,
+                data: Array(labels.length).fill(stats.sigma3.lower[axis]),
+                borderColor: axisColors[axisIndex],
+                borderWidth: 1,
+                borderDash: [6, 2],
+                pointRadius: 0,
+                fill: false,
+                hidden: false
+            });
+        }
+    });
+    
+    // Actualizar gráfico
+    vibrationChart.update();
+}
+
+/**
+ * Carga las máquinas disponibles desde el backend
+ */
+function loadMachines() {
+    showLoadingIndicator('Cargando máquinas...');
+    
+    fetch('/api/config/machines')
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Error al cargar máquinas');
+            }
+            return response.json();
+        })
+        .then(data => {
+            hideLoadingToast();
+            
+            // Actualizar el selector principal
+            const selectMachine = document.getElementById('selectMachine');
+            if (selectMachine) {
+                // Guardar selección actual
+                const currentSelection = selectMachine.value;
+                
+                // Limpiar opciones actuales
+                selectMachine.innerHTML = '<option value="">Todas las máquinas</option>';
+                
+                // Añadir cada máquina como opción
+                if (data && data.length > 0) {
+                    data.forEach(machine => {
+                        const option = document.createElement('option');
+                        option.value = machine.id;
+                        option.textContent = machine.name;
+                        
+                        // Añadir clase según estado
+                        if (machine.status) {
+                            option.classList.add(getStatusClass(machine.status));
+                        }
+                        
+                        selectMachine.appendChild(option);
+                    });
+                    
+                    // Restaurar selección si existe
+                    if (currentSelection) {
+                        selectMachine.value = currentSelection;
+                    }
+                    
+                    // Si no hay una máquina seleccionada, seleccionar la primera
+                    if (!selectMachine.value && data.length > 0) {
+                        selectMachine.value = data[0].id;
+                        selectedMachine = data[0].id;
+                    }
+                }
+                
+                // Cargar sensores para la máquina seleccionada
+                loadSensors(selectMachine.value);
+            }
+            
+            // Actualizar el selector de la sección de configuración
+            const filterMachine = document.getElementById('filterMachine');
+            if (filterMachine) {
+                // Guardar selección actual
+                const currentSelection = filterMachine.value;
+                
+                // Limpiar opciones actuales
+                filterMachine.innerHTML = '<option value="">Todas las máquinas</option>';
+                
+                // Añadir cada máquina como opción
+                if (data && data.length > 0) {
+                    data.forEach(machine => {
+                        const option = document.createElement('option');
+                        option.value = machine.id;
+                        option.textContent = machine.name;
+                        filterMachine.appendChild(option);
+                    });
+                    
+                    // Restaurar selección si existe
+                    if (currentSelection) {
+                        filterMachine.value = currentSelection;
+                    }
+                }
+            }
+            
+            // Actualizar el selector de la sección de simulación
+            const sensorMachine = document.getElementById('sensorMachine');
+            if (sensorMachine) {
+                // Guardar selección actual
+                const currentSelection = sensorMachine.value;
+                
+                // Limpiar opciones actuales
+                sensorMachine.innerHTML = '<option value="">Seleccionar máquina...</option>';
+                
+                // Añadir cada máquina como opción
+                if (data && data.length > 0) {
+                    data.forEach(machine => {
+                        const option = document.createElement('option');
+                        option.value = machine.id;
+                        option.textContent = machine.name;
+                        sensorMachine.appendChild(option);
+                    });
+                    
+                    // Restaurar selección si existe
+                    if (currentSelection) {
+                        sensorMachine.value = currentSelection;
+                    }
+                }
+            }
+            
+            // Actualizar tabla de máquinas si existe
+            updateMachinesTable(data);
         })
         .catch(error => {
             console.error('Error:', error);
+            hideLoadingToast();
+            showToast('danger', 'Error al cargar máquinas: ' + error.message);
+            
+            // Si no hay datos, crear una máquina ficticia para simulación
+            const selectMachine = document.getElementById('selectMachine');
+            if (selectMachine) {
+                selectMachine.innerHTML = '';
+                
+                const option = document.createElement('option');
+                option.value = "1";
+                option.textContent = "Máquina 1";
+                selectMachine.appendChild(option);
+                
+                selectedMachine = "1";
+                loadSensors("1");
+            }
+        });
+}
+
+/**
+ * Devuelve la clase CSS correspondiente al estado
+ */
+function getStatusClass(status) {
+    switch (status.toLowerCase()) {
+        case 'normal': return 'text-success';
+        case 'warning': return 'text-warning';
+        case 'danger': return 'text-danger';
+        case 'offline': return 'text-muted';
+        default: return '';
+    }
+}
+
+/**
+ * Actualiza la tabla de máquinas
+ */
+function updateMachinesTable(machines) {
+    const tableBody = document.getElementById('machinesTable');
+    if (!tableBody) return;
+    
+    if (machines && machines.length > 0) {
+        // Construir filas de la tabla
+        let html = '';
+        machines.forEach(machine => {
+            const statusClass = getStatusClass(machine.status || 'normal');
+            
+            html += `
+                <tr>
+                    <td>
+                        <div class="d-flex align-items-center">
+                            <div class="machine-icon mr-2">
+                                <i class="fas fa-industry ${statusClass}"></i>
+                            </div>
+                            <div>
+                                <div class="font-weight-bold">${machine.name}</div>
+                                <small class="text-muted">${machine.type || 'Tipo no especificado'}</small>
+                            </div>
+                        </div>
+                    </td>
+                    <td>${getReadableType(machine.type, 'machine')}</td>
+                    <td>${machine.sensors_count || 0}</td>
+                    <td>
+                        <div class="btn-group btn-group-sm">
+                            <button class="btn btn-outline-primary" onclick="editMachine(${machine.id})">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="btn btn-outline-danger" onclick="confirmDelete('machine', ${machine.id})">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        });
+        tableBody.innerHTML = html;
+    } else {
+        // No hay máquinas
+        tableBody.innerHTML = `
+            <tr>
+                <td colspan="4" class="text-center py-3">
+                    <span class="text-muted">No hay máquinas configuradas</span>
+                </td>
+            </tr>
+        `;
+    }
+}
+
+/**
+ * Carga los sensores para la máquina seleccionada
+ */
+function loadSensors(machineId) {
+    // Si no hay máquina seleccionada, no hacer nada
+    if (!machineId) {
+        // Limpiar los selectores
+        const selectSensor = document.getElementById('selectSensor');
+        if (selectSensor) {
+            selectSensor.innerHTML = '<option value="">Todos los sensores</option>';
+            selectedSensor = '';
+        }
+        
+        const simSelectSensor = document.getElementById('simSelectSensor');
+        if (simSelectSensor) {
+            simSelectSensor.innerHTML = '<option value="">Seleccionar sensor...</option>';
+        }
+        
+        return;
+    }
+    
+    showLoadingIndicator('Cargando sensores...');
+    
+    fetch(`/api/machines/${machineId}/sensors`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Error al cargar sensores');
+            }
+            return response.json();
+        })
+        .then(data => {
+            hideLoadingToast();
+            
+            // Actualizar el selector principal
+            const selectSensor = document.getElementById('selectSensor');
+            if (selectSensor) {
+                // Guardar selección actual
+                const currentSelection = selectSensor.value;
+                
+                // Limpiar opciones actuales
+                selectSensor.innerHTML = '<option value="">Todos los sensores</option>';
+                
+                // Añadir cada sensor como opción
+                if (data && data.length > 0) {
+                    data.forEach(sensor => {
+                        const option = document.createElement('option');
+                        option.value = sensor.id;
+                        option.textContent = sensor.name;
+                        selectSensor.appendChild(option);
+                    });
+                    
+                    // Restaurar selección si existe y pertenece a esta máquina
+                    const sensorExists = data.some(s => s.id === currentSelection);
+                    if (currentSelection && sensorExists) {
+                        selectSensor.value = currentSelection;
+                    } else if (data.length > 0) {
+                        // Seleccionar el primer sensor
+                        selectSensor.value = data[0].id;
+                        selectedSensor = data[0].id;
+                        updateDashboardData();
+                    }
+                }
+            }
+            
+            // Actualizar el selector de simulación
+            const simSelectSensor = document.getElementById('simSelectSensor');
+            if (simSelectSensor) {
+                // Guardar selección actual
+                const currentSelection = simSelectSensor.value;
+                
+                // Limpiar opciones actuales
+                simSelectSensor.innerHTML = '<option value="">Seleccionar sensor...</option>';
+                
+                // Añadir cada sensor como opción
+                if (data && data.length > 0) {
+                    data.forEach(sensor => {
+                        const option = document.createElement('option');
+                        option.value = sensor.id;
+                        option.textContent = sensor.name;
+                        simSelectSensor.appendChild(option);
+                    });
+                    
+                    // Restaurar selección si existe y pertenece a esta máquina
+                    const sensorExists = data.some(s => s.id === currentSelection);
+                    if (currentSelection && sensorExists) {
+                        simSelectSensor.value = currentSelection;
+                    }
+                }
+                
+                // Validar formulario de simulación
+                validateSimulationForm();
+            }
+            
+            // Actualizar tabla de sensores si existe
+            updateSensorsTable(data);
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            hideLoadingToast();
+            showToast('danger', 'Error al cargar sensores: ' + error.message);
+            
+            // Si no hay datos, crear un sensor ficticio para simulación
+            const selectSensor = document.getElementById('selectSensor');
+            if (selectSensor) {
+                selectSensor.innerHTML = '';
+                
+                const option = document.createElement('option');
+                option.value = "1";
+                option.textContent = "Sensor 1";
+                selectSensor.appendChild(option);
+                
+                selectedSensor = "1";
+            }
+            
+            const simSelectSensor = document.getElementById('simSelectSensor');
+            if (simSelectSensor) {
+                simSelectSensor.innerHTML = '';
+                
+                const option = document.createElement('option');
+                option.value = "1";
+                option.textContent = "Sensor 1";
+                simSelectSensor.appendChild(option);
+            }
+        });
+}
+
+/**
+ * Convierte un tipo técnico a un nombre legible
+ */
+function getReadableType(type, category) {
+    if (!type) return 'No especificado';
+    
+    const types = {
+        machine: {
+            'motor': 'Motor',
+            'pump': 'Bomba',
+            'fan': 'Ventilador',
+            'compressor': 'Compresor',
+            'generator': 'Generador',
+            'other': 'Otro'
+        },
+        sensor: {
+            'vibration': 'Vibración',
+            'temperature': 'Temperatura',
+            'pressure': 'Presión',
+            'flow': 'Flujo',
+            'other': 'Otro'
+        },
+        model: {
+            'anomaly_detection': 'Detección de Anomalías',
+            'classification': 'Clasificación',
+            'regression': 'Regresión',
+            'other': 'Otro'
+        },
+        scaler: {
+            'standard': 'StandardScaler',
+            'minmax': 'MinMaxScaler',
+            'robust': 'RobustScaler',
+            'other': 'Otro'
+        }
+    };
+    
+    if (category && types[category] && types[category][type.toLowerCase()]) {
+        return types[category][type.toLowerCase()];
+    }
+    
+    return type; // Devolver el tipo tal cual si no se encuentra
+}
+
+/**
+ * Carga los archivos CSV disponibles
+ */
+function loadCsvFiles() {
+    showLoadingIndicator('Cargando archivos CSV...');
+    
+    fetch('/api/simulation/csv-files')
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Error al cargar los archivos CSV');
+            }
+            return response.json();
+        })
+        .then(data => {
+            hideLoadingToast();
+            if (data.success && data.files) {
+                updateCsvFilesTable(data.files);
+                
+                // Actualizar el selector de archivos CSV
+                const selectCsvFile = document.getElementById('selectCsvFile');
+                if (selectCsvFile) {
+                    // Limpiar opciones actuales
+                    selectCsvFile.innerHTML = '<option value="">Seleccionar archivo...</option>';
+                    
+                    // Añadir cada archivo como opción
+                    data.files.forEach(file => {
+                        const option = document.createElement('option');
+                        option.value = file.name;
+                        option.textContent = `${file.name} (${formatFileSize(file.size)}, ${file.records || 0} registros)`;
+                        selectCsvFile.appendChild(option);
+                    });
+                    
+                    // Si tenemos filtered_dataf.csv, seleccionarlo por defecto
+                    if (data.files.some(file => file.name === 'filtered_dataf.csv')) {
+                        selectCsvFile.value = 'filtered_dataf.csv';
+                    }
+                    
+                    // Validar formulario de simulación
+                    validateSimulationForm();
+                }
+            } else {
+                console.error('Formato de respuesta incorrecto:', data);
+                showToast('warning', 'Error al cargar archivos CSV: formato de respuesta incorrecto');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            hideLoadingToast();
+            showToast('danger', 'Error al cargar archivos CSV: ' + error.message);
+        });
+}
+
+/**
+ * Actualiza la tabla de archivos CSV
+ */
+function updateCsvFilesTable(files) {
+    const tableBody = document.getElementById('csvFilesTable');
+    if (!tableBody) return;
+    
+    if (files && files.length > 0) {
+        // Construir filas de la tabla
+        let html = '';
+        files.forEach(file => {
+            html += `
+                <tr>
+                    <td>${file.name}</td>
             showToast('danger', 'Error al actualizar límites: ' + error.message);
         });
 } 
