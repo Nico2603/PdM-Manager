@@ -68,17 +68,34 @@ const cache = {
 // INICIALIZACIÓN DE LA APLICACIÓN
 // ==========================================================================
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', function() {
+    // Inicializar la interfaz de usuario
     initUI();
-    initAdjustLimitsModal();
-    initChartDownloadButtons();
     
-    // Simulación inicial de carga
-    showLoadingOverlay();
-    setTimeout(() => {
-        hideLoadingOverlay();
-        showToast('Datos cargados correctamente', 'success');
-    }, 1500);
+    // Inicializar la navegación
+    initNavigation();
+    
+    // Inicializar el dashboard por defecto
+    initDashboard();
+    
+    // Inicializar eventos para el botón de actualizar datos
+    const refreshDataBtn = document.getElementById('refreshDataBtn');
+    if (refreshDataBtn) {
+        refreshDataBtn.addEventListener('click', function() {
+            showToast('info', 'Actualizando datos...');
+            updateDashboardData();
+        });
+    }
+    
+    // Manejar el cambio de hash en la URL para la navegación
+    window.addEventListener('hashchange', function() {
+        const hash = window.location.hash.substring(1);
+        if (hash) {
+            navigateTo(hash);
+        }
+    });
+    
+    console.log('Aplicación PdM-Manager inicializada');
 });
 
 /**
@@ -201,6 +218,35 @@ function showSection(sectionId) {
 function initDarkTheme() {
     // El tema oscuro está aplicado por defecto con las variables CSS
     // En caso de querer un toggle en el futuro, se implementaría aquí
+}
+
+/**
+ * Obtiene la página actual basada en la URL o un elemento activo
+ */
+function getCurrentPage() {
+    // Intentar obtener la página desde la URL
+    const path = window.location.pathname;
+    const hash = window.location.hash.substring(1); // Eliminar el # del inicio
+    
+    if (hash === 'configuracion') {
+        return 'configuracion';
+    }
+    
+    if (path.includes('configuracion')) {
+        return 'configuracion';
+    }
+    
+    // Verificar la navegación activa como respaldo
+    const activeLink = document.querySelector('.nav-link.active');
+    if (activeLink) {
+        const page = activeLink.getAttribute('data-page');
+        if (page) {
+            return page;
+        }
+    }
+    
+    // Por defecto, mostrar dashboard
+    return 'dashboard';
 }
 
 /**
@@ -1584,11 +1630,16 @@ function stopSimulationUpdates() {
  * Inicializa la sección de configuración
  */
 function initConfig() {
-    // Inicializar formulario de configuración
-    initConfigForm();
+    console.log('Inicializando sección de configuración');
     
-    // Inicializar listado de configuraciones
-    loadConfigList();
+    // Inicializar la sección de configuración con máquinas y sensores
+    initConfigSection();
+    
+    // Actualizar el breadcrumb para mostrar la sección actual
+    const currentSectionElement = document.getElementById('currentSection');
+    if (currentSectionElement) {
+        currentSectionElement.textContent = 'Configuración';
+    }
 }
 
 /**
@@ -2116,10 +2167,15 @@ function initThemeToggle() {
 
 // Inicialización mejorada de la UI
 function initUI() {
+    // Componentes básicos de la interfaz
     initSidebar();
     initThemeToggle();
     initFilters();
     initTooltips();
+    
+    // Inicializar modales y otros componentes
+    initAdjustLimitsModal();
+    initChartDownloadButtons();
     
     // Actualizar hora de última actualización
     updateLastUpdateTime();
