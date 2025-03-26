@@ -15,7 +15,7 @@ Si no está presente, usa un valor por defecto (útil para pruebas locales).
 
 # Usuario y contraseña seguros para la conexión
 DB_USER = os.getenv("DB_USER", "postgres")
-DB_PASSWORD = os.getenv("DB_PASSWORD", "password")
+DB_PASSWORD = os.getenv("DB_PASSWORD", "pdm123")
 DB_HOST = os.getenv("DB_HOST", "localhost")
 DB_PORT = os.getenv("DB_PORT", "5432")
 DB_NAME = os.getenv("DB_NAME", "PdM")
