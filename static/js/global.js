@@ -211,22 +211,20 @@ function initDarkTheme() {
  * Inicializa componentes específicos según la página actual
  */
 function initPageSpecificComponents() {
-    const activeSectionId = document.querySelector('.content-section.active')?.id;
-    
-    if (!activeSectionId) return;
-    
-    if (activeSectionId === 'dashboardSection') {
-        initDashboard();
-    } else if (activeSectionId === 'configuracionSection') {
-        initConfig();
-    } else if (activeSectionId === 'alertasSection') {
-        initAlerts();
-    } else if (activeSectionId === 'sensoresSection') {
-        initSensors();
-    } else if (activeSectionId === 'modelosSection') {
-        initModels();
-    } else if (activeSectionId === 'ajustesSection') {
-        initSettings();
+    const currentPage = getCurrentPage();
+    switch (currentPage) {
+        case 'dashboard':
+            initDashboard();
+            break;
+        case 'configuracion':
+            initConfig();
+            break;
+        case 'alertas':
+            initAlerts();
+            break;
+        case 'analitica':
+            initModels();
+            break;
     }
 }
 
