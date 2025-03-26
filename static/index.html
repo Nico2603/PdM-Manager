@@ -257,28 +257,52 @@
               
               <div class="stats-grid">
                 <div class="stat-card">
-                  <div class="stat-label"><i class="fas fa-calculator"></i> Media</div>
-                  <div class="stat-value" id="meanValue">0<span class="stat-unit">m/s²</span></div>
+                  <div class="stat-label"><i class="fas fa-level-down-alt"></i> Eje X - Límite 2σ Inferior</div>
+                  <div class="stat-value" id="x2SigmaLowerDisplay">-2.36<span class="stat-unit">m/s²</span></div>
                 </div>
                 <div class="stat-card">
-                  <div class="stat-label"><i class="fas fa-arrows-alt-h"></i> Desviación estándar</div>
-                  <div class="stat-value" id="stdDevValue">0<span class="stat-unit">m/s²</span></div>
+                  <div class="stat-label"><i class="fas fa-level-up-alt"></i> Eje X - Límite 2σ Superior</div>
+                  <div class="stat-value" id="x2SigmaUpperDisplay">2.18<span class="stat-unit">m/s²</span></div>
                 </div>
                 <div class="stat-card">
-                  <div class="stat-label"><i class="fas fa-level-down-alt"></i> Límite inferior 2σ</div>
-                  <div class="stat-value" id="sigma2LowerValue">0<span class="stat-unit">m/s²</span></div>
+                  <div class="stat-label"><i class="fas fa-level-down-alt"></i> Eje X - Límite 3σ Inferior</div>
+                  <div class="stat-value" id="x3SigmaLowerDisplay">-3.50<span class="stat-unit">m/s²</span></div>
                 </div>
                 <div class="stat-card">
-                  <div class="stat-label"><i class="fas fa-level-up-alt"></i> Límite superior 2σ</div>
-                  <div class="stat-value" id="sigma2UpperValue">0<span class="stat-unit">m/s²</span></div>
+                  <div class="stat-label"><i class="fas fa-level-up-alt"></i> Eje X - Límite 3σ Superior</div>
+                  <div class="stat-value" id="x3SigmaUpperDisplay">3.32<span class="stat-unit">m/s²</span></div>
                 </div>
                 <div class="stat-card">
-                  <div class="stat-label"><i class="fas fa-level-down-alt"></i> Límite inferior 3σ</div>
-                  <div class="stat-value" id="sigma3LowerValue">0<span class="stat-unit">m/s²</span></div>
+                  <div class="stat-label"><i class="fas fa-level-down-alt"></i> Eje Y - Límite 2σ Inferior</div>
+                  <div class="stat-value" id="y2SigmaLowerDisplay">7.18<span class="stat-unit">m/s²</span></div>
                 </div>
                 <div class="stat-card">
-                  <div class="stat-label"><i class="fas fa-level-up-alt"></i> Límite superior 3σ</div>
-                  <div class="stat-value" id="sigma3UpperValue">0<span class="stat-unit">m/s²</span></div>
+                  <div class="stat-label"><i class="fas fa-level-up-alt"></i> Eje Y - Límite 2σ Superior</div>
+                  <div class="stat-value" id="y2SigmaUpperDisplay">12.09<span class="stat-unit">m/s²</span></div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-label"><i class="fas fa-level-down-alt"></i> Eje Y - Límite 3σ Inferior</div>
+                  <div class="stat-value" id="y3SigmaLowerDisplay">5.95<span class="stat-unit">m/s²</span></div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-label"><i class="fas fa-level-up-alt"></i> Eje Y - Límite 3σ Superior</div>
+                  <div class="stat-value" id="y3SigmaUpperDisplay">13.32<span class="stat-unit">m/s²</span></div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-label"><i class="fas fa-level-down-alt"></i> Eje Z - Límite 2σ Inferior</div>
+                  <div class="stat-value" id="z2SigmaLowerDisplay">-2.39<span class="stat-unit">m/s²</span></div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-label"><i class="fas fa-level-up-alt"></i> Eje Z - Límite 2σ Superior</div>
+                  <div class="stat-value" id="z2SigmaUpperDisplay">1.11<span class="stat-unit">m/s²</span></div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-label"><i class="fas fa-level-down-alt"></i> Eje Z - Límite 3σ Inferior</div>
+                  <div class="stat-value" id="z3SigmaLowerDisplay">-3.26<span class="stat-unit">m/s²</span></div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-label"><i class="fas fa-level-up-alt"></i> Eje Z - Límite 3σ Superior</div>
+                  <div class="stat-value" id="z3SigmaUpperDisplay">1.98<span class="stat-unit">m/s²</span></div>
                 </div>
               </div>
             </div>
@@ -438,22 +462,63 @@
         </div>
         <div class="modal-body">
           <form id="adjustLimitsForm">
+            <h6 class="form-section-title">Eje X</h6>
             <div class="form-grid">
               <div class="form-group">
-                <label class="form-label">Sigma 2 Inferior:</label>
-                <input type="number" class="form-control" id="sigma2LowerInput" step="0.001">
+                <label class="form-label">X - Límite 2σ Inferior:</label>
+                <input type="number" class="form-control" id="x2SigmaLowerInput" step="0.000001">
               </div>
               <div class="form-group">
-                <label class="form-label">Sigma 2 Superior:</label>
-                <input type="number" class="form-control" id="sigma2UpperInput" step="0.001">
+                <label class="form-label">X - Límite 2σ Superior:</label>
+                <input type="number" class="form-control" id="x2SigmaUpperInput" step="0.000001">
               </div>
               <div class="form-group">
-                <label class="form-label">Sigma 3 Inferior:</label>
-                <input type="number" class="form-control" id="sigma3LowerInput" step="0.001">
+                <label class="form-label">X - Límite 3σ Inferior:</label>
+                <input type="number" class="form-control" id="x3SigmaLowerInput" step="0.000001">
               </div>
               <div class="form-group">
-                <label class="form-label">Sigma 3 Superior:</label>
-                <input type="number" class="form-control" id="sigma3UpperInput" step="0.001">
+                <label class="form-label">X - Límite 3σ Superior:</label>
+                <input type="number" class="form-control" id="x3SigmaUpperInput" step="0.000001">
+              </div>
+            </div>
+            
+            <h6 class="form-section-title">Eje Y</h6>
+            <div class="form-grid">
+              <div class="form-group">
+                <label class="form-label">Y - Límite 2σ Inferior:</label>
+                <input type="number" class="form-control" id="y2SigmaLowerInput" step="0.000001">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Y - Límite 2σ Superior:</label>
+                <input type="number" class="form-control" id="y2SigmaUpperInput" step="0.000001">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Y - Límite 3σ Inferior:</label>
+                <input type="number" class="form-control" id="y3SigmaLowerInput" step="0.000001">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Y - Límite 3σ Superior:</label>
+                <input type="number" class="form-control" id="y3SigmaUpperInput" step="0.000001">
+              </div>
+            </div>
+            
+            <h6 class="form-section-title">Eje Z</h6>
+            <div class="form-grid">
+              <div class="form-group">
+                <label class="form-label">Z - Límite 2σ Inferior:</label>
+                <input type="number" class="form-control" id="z2SigmaLowerInput" step="0.000001">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Z - Límite 2σ Superior:</label>
+                <input type="number" class="form-control" id="z2SigmaUpperInput" step="0.000001">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Z - Límite 3σ Inferior:</label>
+                <input type="number" class="form-control" id="z3SigmaLowerInput" step="0.000001">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Z - Límite 3σ Superior:</label>
+                <input type="number" class="form-control" id="z3SigmaUpperInput" step="0.000001">
               </div>
             </div>
           </form>

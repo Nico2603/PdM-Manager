@@ -24,15 +24,38 @@ let chartData = {
 
 // Estadísticas para límites (valores por defecto)
 let stats = {
-    mean: 0,
-    stdDev: 1,
-    sigma2: { 
-        lower: -2.0, 
-        upper: 2.0 
+    // Límites para el eje X
+    x: {
+        sigma2: {
+            lower: -2.364295,
+            upper: 2.180056
+        },
+        sigma3: {
+            lower: -3.500383,
+            upper: 3.316144
+        }
     },
-    sigma3: { 
-        lower: -3.0, 
-        upper: 3.0 
+    // Límites para el eje Y
+    y: {
+        sigma2: {
+            lower: 7.177221,
+            upper: 12.088666
+        },
+        sigma3: {
+            lower: 5.949359,
+            upper: 13.316528
+        }
+    },
+    // Límites para el eje Z
+    z: {
+        sigma2: {
+            lower: -2.389107,
+            upper: 1.106510
+        },
+        sigma3: {
+            lower: -3.263011,
+            upper: 1.980414
+        }
     }
 };
 
@@ -621,26 +644,30 @@ function initCollapseFilters() {
  * Inicializa los filtros de visualización
  */
 function initVisualFilters() {
-    const meanToggle = document.getElementById('showMeanToggle');
-    const sigmaToggle = document.getElementById('showSigmaToggle');
+    // No necesitamos el checkbox de la media, solo los límites sigma
+    document.getElementById('showMean').checked = false;
+    document.getElementById('showMean').parentNode.style.display = 'none';
     
-    if (meanToggle) {
-        meanToggle.addEventListener('change', function() {
-            showMean = this.checked;
-            updateVibrationChartX();
-            updateVibrationChartY();
-            updateVibrationChartZ();
-        });
-    }
+    document.getElementById('show1Sigma').addEventListener('change', function() {
+        showSigmaLines = this.checked || document.getElementById('show2Sigma').checked || document.getElementById('show3Sigma').checked;
+        updateChartsVisibility();
+    });
     
-    if (sigmaToggle) {
-        sigmaToggle.addEventListener('change', function() {
-            showSigmaLines = this.checked;
-            updateVibrationChartX();
-            updateVibrationChartY();
-            updateVibrationChartZ();
-        });
-    }
+    document.getElementById('show2Sigma').addEventListener('change', function() {
+        showSigmaLines = this.checked || document.getElementById('show1Sigma').checked || document.getElementById('show3Sigma').checked;
+        updateChartsVisibility();
+    });
+    
+    document.getElementById('show3Sigma').addEventListener('change', function() {
+        showSigmaLines = this.checked || document.getElementById('show1Sigma').checked || document.getElementById('show2Sigma').checked;
+        updateChartsVisibility();
+    });
+    
+    // Desactivar la opción de mostrar la media
+    showMean = false;
+    
+    // Actualizar la visualización inicial
+    updateChartsVisibility();
 }
 
 /**
@@ -843,22 +870,22 @@ function updateAlertCounters(alerts) {
  */
 function updateStatisticalDisplayValues() {
     // Actualizar valores para el eje X
-    updateStatDisplayValue('x2SigmaLowerDisplay', stats.sigma2.lower);
-    updateStatDisplayValue('x2SigmaUpperDisplay', stats.sigma2.upper);
-    updateStatDisplayValue('x3SigmaLowerDisplay', stats.sigma3.lower);
-    updateStatDisplayValue('x3SigmaUpperDisplay', stats.sigma3.upper);
+    updateStatDisplayValue('x2SigmaLowerDisplay', stats.x.sigma2.lower);
+    updateStatDisplayValue('x2SigmaUpperDisplay', stats.x.sigma2.upper);
+    updateStatDisplayValue('x3SigmaLowerDisplay', stats.x.sigma3.lower);
+    updateStatDisplayValue('x3SigmaUpperDisplay', stats.x.sigma3.upper);
     
     // Actualizar valores para el eje Y
-    updateStatDisplayValue('y2SigmaLowerDisplay', stats.sigma2.lower);
-    updateStatDisplayValue('y2SigmaUpperDisplay', stats.sigma2.upper);
-    updateStatDisplayValue('y3SigmaLowerDisplay', stats.sigma3.lower);
-    updateStatDisplayValue('y3SigmaUpperDisplay', stats.sigma3.upper);
+    updateStatDisplayValue('y2SigmaLowerDisplay', stats.y.sigma2.lower);
+    updateStatDisplayValue('y2SigmaUpperDisplay', stats.y.sigma2.upper);
+    updateStatDisplayValue('y3SigmaLowerDisplay', stats.y.sigma3.lower);
+    updateStatDisplayValue('y3SigmaUpperDisplay', stats.y.sigma3.upper);
     
     // Actualizar valores para el eje Z
-    updateStatDisplayValue('z2SigmaLowerDisplay', stats.sigma2.lower);
-    updateStatDisplayValue('z2SigmaUpperDisplay', stats.sigma2.upper);
-    updateStatDisplayValue('z3SigmaLowerDisplay', stats.sigma3.lower);
-    updateStatDisplayValue('z3SigmaUpperDisplay', stats.sigma3.upper);
+    updateStatDisplayValue('z2SigmaLowerDisplay', stats.z.sigma2.lower);
+    updateStatDisplayValue('z2SigmaUpperDisplay', stats.z.sigma2.upper);
+    updateStatDisplayValue('z3SigmaLowerDisplay', stats.z.sigma3.lower);
+    updateStatDisplayValue('z3SigmaUpperDisplay', stats.z.sigma3.upper);
 }
 
 /**
@@ -1075,23 +1102,18 @@ function updateAxisChart(chart, axis) {
     chart.data.datasets[0].pointBorderColor = pointBorderColors;
     chart.data.datasets[0].borderColor = borderColors;
     
-    // Actualizar línea de media
-    if (showMean) {
-        const meanValue = stats.mean;
-        chart.data.datasets[1].data = Array(chartData.timestamps.length).fill(meanValue);
-    } else {
-        chart.data.datasets[1].data = [];
-    }
+    // Actualizar línea de media - no mostramos media según los nuevos requisitos
+    chart.data.datasets[1].data = [];
     
     // Actualizar líneas de límites estadísticos
     if (showSigmaLines) {
-        // Límites 2σ
-        chart.data.datasets[2].data = Array(chartData.timestamps.length).fill(stats.sigma2.upper);
-        chart.data.datasets[3].data = Array(chartData.timestamps.length).fill(stats.sigma2.lower);
+        // Límites 2σ para el eje específico
+        chart.data.datasets[2].data = Array(chartData.timestamps.length).fill(stats[axis].sigma2.upper);
+        chart.data.datasets[3].data = Array(chartData.timestamps.length).fill(stats[axis].sigma2.lower);
         
-        // Límites 3σ
-        chart.data.datasets[4].data = Array(chartData.timestamps.length).fill(stats.sigma3.upper);
-        chart.data.datasets[5].data = Array(chartData.timestamps.length).fill(stats.sigma3.lower);
+        // Límites 3σ para el eje específico
+        chart.data.datasets[4].data = Array(chartData.timestamps.length).fill(stats[axis].sigma3.upper);
+        chart.data.datasets[5].data = Array(chartData.timestamps.length).fill(stats[axis].sigma3.lower);
     } else {
         chart.data.datasets[2].data = [];
         chart.data.datasets[3].data = [];
@@ -2331,18 +2353,17 @@ function initSwitches() {
 
 // Actualizar visibilidad de elementos en los gráficos
 function updateChartsVisibility() {
-    const showMean = document.getElementById('showMean').checked;
+    // Mantener la línea de media oculta
+    const showMean = false;
     const show1Sigma = document.getElementById('show1Sigma').checked;
     const show2Sigma = document.getElementById('show2Sigma').checked;
     const show3Sigma = document.getElementById('show3Sigma').checked;
     
-    // Aquí podemos agregar código para actualizar la visibilidad de los elementos en los gráficos
-    // según los switches seleccionados
-    if (window.vibrationChartX) {
-        // Ejemplo para el gráfico X
-        window.vibrationChartX.data.datasets.forEach(dataset => {
+    // Actualizar gráfico X
+    if (vibrationChartX) {
+        vibrationChartX.data.datasets.forEach(dataset => {
             if (dataset.label.includes('Media')) {
-                dataset.hidden = !showMean;
+                dataset.hidden = true; // Siempre ocultar la media
             } else if (dataset.label.includes('1σ')) {
                 dataset.hidden = !show1Sigma;
             } else if (dataset.label.includes('2σ')) {
@@ -2351,18 +2372,39 @@ function updateChartsVisibility() {
                 dataset.hidden = !show3Sigma;
             }
         });
-        window.vibrationChartX.update();
+        vibrationChartX.update();
     }
     
-    // Repetir para los otros gráficos
-    if (window.vibrationChartY) {
-        // Actualizar gráfico Y
-        window.vibrationChartY.update();
+    // Actualizar gráfico Y
+    if (vibrationChartY) {
+        vibrationChartY.data.datasets.forEach(dataset => {
+            if (dataset.label.includes('Media')) {
+                dataset.hidden = true; // Siempre ocultar la media
+            } else if (dataset.label.includes('1σ')) {
+                dataset.hidden = !show1Sigma;
+            } else if (dataset.label.includes('2σ')) {
+                dataset.hidden = !show2Sigma;
+            } else if (dataset.label.includes('3σ')) {
+                dataset.hidden = !show3Sigma;
+            }
+        });
+        vibrationChartY.update();
     }
     
-    if (window.vibrationChartZ) {
-        // Actualizar gráfico Z
-        window.vibrationChartZ.update();
+    // Actualizar gráfico Z
+    if (vibrationChartZ) {
+        vibrationChartZ.data.datasets.forEach(dataset => {
+            if (dataset.label.includes('Media')) {
+                dataset.hidden = true; // Siempre ocultar la media
+            } else if (dataset.label.includes('1σ')) {
+                dataset.hidden = !show1Sigma;
+            } else if (dataset.label.includes('2σ')) {
+                dataset.hidden = !show2Sigma;
+            } else if (dataset.label.includes('3σ')) {
+                dataset.hidden = !show3Sigma;
+            }
+        });
+        vibrationChartZ.update();
     }
 }
 
@@ -2407,66 +2449,104 @@ function initAdjustLimitsModal() {
 
 // Cargar límites actuales en el formulario
 function loadCurrentLimits() {
-    // Aquí obtendríamos los valores actuales de alguna fuente (API, localStorage, etc.)
-    document.getElementById('sigma2LowerInput').value = document.getElementById('sigma2LowerValue').textContent.split('m/s²')[0];
-    document.getElementById('sigma2UpperInput').value = document.getElementById('sigma2UpperValue').textContent.split('m/s²')[0];
-    document.getElementById('sigma3LowerInput').value = document.getElementById('sigma3LowerValue').textContent.split('m/s²')[0];
-    document.getElementById('sigma3UpperInput').value = document.getElementById('sigma3UpperValue').textContent.split('m/s²')[0];
+    // Cargar los límites para el eje X
+    document.getElementById('x2SigmaLowerInput').value = stats.x.sigma2.lower.toFixed(6);
+    document.getElementById('x2SigmaUpperInput').value = stats.x.sigma2.upper.toFixed(6);
+    document.getElementById('x3SigmaLowerInput').value = stats.x.sigma3.lower.toFixed(6);
+    document.getElementById('x3SigmaUpperInput').value = stats.x.sigma3.upper.toFixed(6);
+    
+    // Cargar los límites para el eje Y
+    document.getElementById('y2SigmaLowerInput').value = stats.y.sigma2.lower.toFixed(6);
+    document.getElementById('y2SigmaUpperInput').value = stats.y.sigma2.upper.toFixed(6);
+    document.getElementById('y3SigmaLowerInput').value = stats.y.sigma3.lower.toFixed(6);
+    document.getElementById('y3SigmaUpperInput').value = stats.y.sigma3.upper.toFixed(6);
+    
+    // Cargar los límites para el eje Z
+    document.getElementById('z2SigmaLowerInput').value = stats.z.sigma2.lower.toFixed(6);
+    document.getElementById('z2SigmaUpperInput').value = stats.z.sigma2.upper.toFixed(6);
+    document.getElementById('z3SigmaLowerInput').value = stats.z.sigma3.lower.toFixed(6);
+    document.getElementById('z3SigmaUpperInput').value = stats.z.sigma3.upper.toFixed(6);
 }
 
 // Guardar nuevos límites
 function saveLimits() {
-    // Obtener valores del formulario
-    const sigma2Lower = document.getElementById('sigma2LowerInput').value;
-    const sigma2Upper = document.getElementById('sigma2UpperInput').value;
-    const sigma3Lower = document.getElementById('sigma3LowerInput').value;
-    const sigma3Upper = document.getElementById('sigma3UpperInput').value;
+    // Obtener valores para el eje X
+    const x2SigmaLower = parseFloat(document.getElementById('x2SigmaLowerInput').value);
+    const x2SigmaUpper = parseFloat(document.getElementById('x2SigmaUpperInput').value);
+    const x3SigmaLower = parseFloat(document.getElementById('x3SigmaLowerInput').value);
+    const x3SigmaUpper = parseFloat(document.getElementById('x3SigmaUpperInput').value);
     
-    // Validar que sean valores numéricos
-    if (isNaN(sigma2Lower) || isNaN(sigma2Upper) || isNaN(sigma3Lower) || isNaN(sigma3Upper)) {
-        showToast('Todos los valores deben ser numéricos', 'danger');
+    // Obtener valores para el eje Y
+    const y2SigmaLower = parseFloat(document.getElementById('y2SigmaLowerInput').value);
+    const y2SigmaUpper = parseFloat(document.getElementById('y2SigmaUpperInput').value);
+    const y3SigmaLower = parseFloat(document.getElementById('y3SigmaLowerInput').value);
+    const y3SigmaUpper = parseFloat(document.getElementById('y3SigmaUpperInput').value);
+    
+    // Obtener valores para el eje Z
+    const z2SigmaLower = parseFloat(document.getElementById('z2SigmaLowerInput').value);
+    const z2SigmaUpper = parseFloat(document.getElementById('z2SigmaUpperInput').value);
+    const z3SigmaLower = parseFloat(document.getElementById('z3SigmaLowerInput').value);
+    const z3SigmaUpper = parseFloat(document.getElementById('z3SigmaUpperInput').value);
+    
+    // Validar que todos sean valores numéricos
+    if (isNaN(x2SigmaLower) || isNaN(x2SigmaUpper) || isNaN(x3SigmaLower) || isNaN(x3SigmaUpper) ||
+        isNaN(y2SigmaLower) || isNaN(y2SigmaUpper) || isNaN(y3SigmaLower) || isNaN(y3SigmaUpper) ||
+        isNaN(z2SigmaLower) || isNaN(z2SigmaUpper) || isNaN(z3SigmaLower) || isNaN(z3SigmaUpper)) {
+        showToast('error', 'Todos los valores deben ser numéricos');
         return;
     }
     
-    // Actualizar los valores mostrados
-    document.getElementById('sigma2LowerValue').innerHTML = sigma2Lower + '<span class="stat-unit">m/s²</span>';
-    document.getElementById('sigma2UpperValue').innerHTML = sigma2Upper + '<span class="stat-unit">m/s²</span>';
-    document.getElementById('sigma3LowerValue').innerHTML = sigma3Lower + '<span class="stat-unit">m/s²</span>';
-    document.getElementById('sigma3UpperValue').innerHTML = sigma3Upper + '<span class="stat-unit">m/s²</span>';
+    // Actualizar la estructura stats con los nuevos valores
+    stats.x.sigma2.lower = x2SigmaLower;
+    stats.x.sigma2.upper = x2SigmaUpper;
+    stats.x.sigma3.lower = x3SigmaLower;
+    stats.x.sigma3.upper = x3SigmaUpper;
     
-    // Aquí enviaríamos los datos a la API o los guardaríamos en localStorage
-    // Ejemplo de guardado en localStorage
-    const limits = {
-        sigma2Lower,
-        sigma2Upper,
-        sigma3Lower,
-        sigma3Upper
-    };
-    localStorage.setItem('pdm-limits', JSON.stringify(limits));
+    stats.y.sigma2.lower = y2SigmaLower;
+    stats.y.sigma2.upper = y2SigmaUpper;
+    stats.y.sigma3.lower = y3SigmaLower;
+    stats.y.sigma3.upper = y3SigmaUpper;
     
-    // Actualizar los gráficos con los nuevos límites
-    updateChartsWithNewLimits(limits);
+    stats.z.sigma2.lower = z2SigmaLower;
+    stats.z.sigma2.upper = z2SigmaUpper;
+    stats.z.sigma3.lower = z3SigmaLower;
+    stats.z.sigma3.upper = z3SigmaUpper;
     
-    showToast('Límites guardados correctamente', 'success');
+    // Actualizar los valores mostrados en la interfaz
+    updateStatisticalDisplayValues();
+    
+    // Actualizar los gráficos
+    updateVibrationChartX();
+    updateVibrationChartY();
+    updateVibrationChartZ();
+    
+    // Guardar en localStorage para persistencia
+    localStorage.setItem('pdm-limits', JSON.stringify(stats));
+    
+    showToast('success', 'Límites guardados correctamente');
 }
 
 // Resetear límites a valores predeterminados
 function resetLimits() {
-    // Valores predeterminados (ejemplo)
-    const defaultLimits = {
-        sigma2Lower: '-2.364',
-        sigma2Upper: '2.180',
-        sigma3Lower: '-3.500',
-        sigma3Upper: '3.316'
-    };
+    // Valores predeterminados para el eje X
+    document.getElementById('x2SigmaLowerInput').value = '-2.364295';
+    document.getElementById('x2SigmaUpperInput').value = '2.180056';
+    document.getElementById('x3SigmaLowerInput').value = '-3.500383';
+    document.getElementById('x3SigmaUpperInput').value = '3.316144';
     
-    // Actualizar inputs del formulario
-    document.getElementById('sigma2LowerInput').value = defaultLimits.sigma2Lower;
-    document.getElementById('sigma2UpperInput').value = defaultLimits.sigma2Upper;
-    document.getElementById('sigma3LowerInput').value = defaultLimits.sigma3Lower;
-    document.getElementById('sigma3UpperInput').value = defaultLimits.sigma3Upper;
+    // Valores predeterminados para el eje Y
+    document.getElementById('y2SigmaLowerInput').value = '7.177221';
+    document.getElementById('y2SigmaUpperInput').value = '12.088666';
+    document.getElementById('y3SigmaLowerInput').value = '5.949359';
+    document.getElementById('y3SigmaUpperInput').value = '13.316528';
     
-    showToast('Límites restablecidos a valores predeterminados', 'info');
+    // Valores predeterminados para el eje Z
+    document.getElementById('z2SigmaLowerInput').value = '-2.389107';
+    document.getElementById('z2SigmaUpperInput').value = '1.106510';
+    document.getElementById('z3SigmaLowerInput').value = '-3.263011';
+    document.getElementById('z3SigmaUpperInput').value = '1.980414';
+    
+    showToast('info', 'Límites restablecidos a valores predeterminados');
 }
 
 // Actualizar gráficos con nuevos límites
