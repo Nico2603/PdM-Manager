@@ -25,10 +25,12 @@ class Model(Base):
 class Machine(Base):
     __tablename__ = 'machine'
     machine_id = Column(Integer, primary_key=True, index=True)
+    sensor_id = Column(Integer, ForeignKey("sensor.sensor_id"), nullable=True)
     model_id = Column(Integer, ForeignKey("model.model_id"), nullable=True)
     name = Column(String, nullable=False)
     description = Column(Text, nullable=True)
     location = Column(String, nullable=True)
+    route = Column(String, nullable=True)
     status = Column(String, nullable=True)  # estado actual: operativo, mantenimiento, etc.
 
 class VibrationData(Base):

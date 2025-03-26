@@ -663,33 +663,27 @@ def get_machine_info(machine_id: int, db: Session = Depends(get_db)):
 
 @app.post("/api/machines")
 def create_new_machine(
-    name: str = Form(...),
-    description: str = Form(None),
-    location: str = Form(None),
-    status: str = Form(None),
-    model_id: Optional[int] = Form(None),
+    data: dict = Body(...),
     db: Session = Depends(get_db)
 ):
     """
     Crea una nueva máquina
     """
     machine = models.Machine(
-        name=name,
-        description=description,
-        location=location,
-        status=status,
-        model_id=model_id
+        name=data.get("name"),
+        description=data.get("description"),
+        location=data.get("location"),
+        status=data.get("status"),
+        model_id=data.get("model_id"),
+        sensor_id=data.get("sensor_id"),
+        route=data.get("route")
     )
     return crud.create_machine(db, machine).__dict__
 
 @app.put("/api/machines/{machine_id}")
 def update_machine_info(
     machine_id: int,
-    name: str = Form(...),
-    description: str = Form(None),
-    location: str = Form(None),
-    status: str = Form(None),
-    model_id: Optional[int] = Form(None),
+    data: dict = Body(...),
     db: Session = Depends(get_db)
 ):
     """
@@ -699,11 +693,13 @@ def update_machine_info(
     if not machine:
         raise HTTPException(status_code=404, detail=f"Máquina con ID {machine_id} no encontrada")
     
-    machine.name = name
-    machine.description = description
-    machine.location = location
-    machine.status = status
-    machine.model_id = model_id
+    machine.name = data.get("name", machine.name)
+    machine.description = data.get("description", machine.description)
+    machine.location = data.get("location", machine.location)
+    machine.status = data.get("status", machine.status)
+    machine.model_id = data.get("model_id", machine.model_id)
+    machine.sensor_id = data.get("sensor_id", machine.sensor_id)
+    machine.route = data.get("route", machine.route)
     
     return crud.update_machine(db, machine).__dict__
 

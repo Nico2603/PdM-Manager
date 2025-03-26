@@ -87,6 +87,294 @@ const cache = {
     lastUpdate: null
 };
 
+// ===================================================
+// GESTIÓN DE MÁQUINAS
+// ===================================================
+
+// Inicialización de la gestión de máquinas
+function initMachineManagement() {
+  // Cargar lista de máquinas
+  loadMachinesTable();
+  
+  // Cargar selectores para el modal
+  loadSensorsForSelect();
+  loadModelsForSelect();
+  
+  // Configurar evento para añadir nueva máquina
+  const addMachineBtn = document.getElementById('addMachineBtn');
+  if (addMachineBtn) {
+    addMachineBtn.addEventListener('click', () => {
+      // Limpiar el formulario
+      document.getElementById('machineForm').reset();
+      document.getElementById('machineId').value = '';
+      document.getElementById('machineModalTitle').textContent = 'Nueva Máquina';
+      
+      // Mostrar el modal
+      const modal = document.getElementById('machineModal');
+      modal.classList.add('show');
+    });
+  }
+  
+  // Configurar evento para guardar máquina
+  const saveMachineBtn = document.getElementById('saveMachineBtn');
+  if (saveMachineBtn) {
+    saveMachineBtn.addEventListener('click', saveMachine);
+  }
+  
+  // Configurar eventos para cerrar modales
+  const closeButtons = document.querySelectorAll('[data-dismiss="modal"]');
+  closeButtons.forEach(button => {
+    button.addEventListener('click', () => {
+      const modal = button.closest('.modal');
+      if (modal) modal.classList.remove('show');
+    });
+  });
+}
+
+// Cargar tabla de máquinas
+function loadMachinesTable() {
+  fetch('/api/machines')
+    .then(response => response.json())
+    .then(machines => {
+      const tableBody = document.getElementById('machinesTableBody');
+      if (!tableBody) return;
+      
+      tableBody.innerHTML = '';
+      
+      if (machines.length === 0) {
+        tableBody.innerHTML = `
+          <tr>
+            <td colspan="6" class="text-center">No hay máquinas registradas</td>
+          </tr>
+        `;
+        return;
+      }
+      
+      machines.forEach(machine => {
+        const row = document.createElement('tr');
+        
+        row.innerHTML = `
+          <td>${machine.machine_id}</td>
+          <td>${machine.name}</td>
+          <td>${machine.description || '-'}</td>
+          <td>${machine.sensor_id || 'No asignado'}</td>
+          <td>${machine.model_id || 'No asignado'}</td>
+          <td class="actions-cell">
+            <button class="btn-icon btn-edit" data-id="${machine.machine_id}">
+              <i class="fas fa-edit"></i>
+            </button>
+            <button class="btn-icon btn-delete" data-id="${machine.machine_id}">
+              <i class="fas fa-trash"></i>
+            </button>
+          </td>
+        `;
+        
+        tableBody.appendChild(row);
+      });
+      
+      // Configurar eventos para editar y eliminar
+      const editButtons = tableBody.querySelectorAll('.btn-edit');
+      editButtons.forEach(button => {
+        button.addEventListener('click', () => {
+          const machineId = button.getAttribute('data-id');
+          editMachine(machineId);
+        });
+      });
+      
+      const deleteButtons = tableBody.querySelectorAll('.btn-delete');
+      deleteButtons.forEach(button => {
+        button.addEventListener('click', () => {
+          const machineId = button.getAttribute('data-id');
+          deleteMachine(machineId);
+        });
+      });
+    })
+    .catch(error => {
+      console.error('Error al cargar máquinas:', error);
+      showToast('Error al cargar la lista de máquinas', 'error');
+    });
+}
+
+// Cargar sensores para el selector
+function loadSensorsForSelect() {
+  fetch('/api/sensors')
+    .then(response => response.json())
+    .then(sensors => {
+      const sensorSelect = document.getElementById('machineSensor');
+      if (!sensorSelect) return;
+      
+      // Mantener la opción "Ninguno"
+      sensorSelect.innerHTML = '<option value="">Ninguno</option>';
+      
+      sensors.forEach(sensor => {
+        const option = document.createElement('option');
+        option.value = sensor.sensor_id;
+        option.textContent = sensor.name;
+        sensorSelect.appendChild(option);
+      });
+    })
+    .catch(error => {
+      console.error('Error al cargar sensores:', error);
+    });
+}
+
+// Cargar modelos para el selector
+function loadModelsForSelect() {
+  fetch('/api/models')
+    .then(response => response.json())
+    .then(models => {
+      const modelSelect = document.getElementById('machineModel');
+      if (!modelSelect) return;
+      
+      // Mantener la opción "Ninguno"
+      modelSelect.innerHTML = '<option value="">Ninguno</option>';
+      
+      models.forEach(model => {
+        const option = document.createElement('option');
+        option.value = model.model_id;
+        option.textContent = model.name;
+        modelSelect.appendChild(option);
+      });
+    })
+    .catch(error => {
+      console.error('Error al cargar modelos:', error);
+    });
+}
+
+// Editar máquina
+function editMachine(machineId) {
+  fetch(`/api/machines/${machineId}`)
+    .then(response => response.json())
+    .then(machine => {
+      // Llenar el formulario con los datos de la máquina
+      document.getElementById('machineId').value = machine.machine_id;
+      document.getElementById('machineName').value = machine.name || '';
+      document.getElementById('machineDescription').value = machine.description || '';
+      document.getElementById('machineRoute').value = machine.route || '';
+      
+      const sensorSelect = document.getElementById('machineSensor');
+      if (sensorSelect) {
+        sensorSelect.value = machine.sensor_id || '';
+      }
+      
+      const modelSelect = document.getElementById('machineModel');
+      if (modelSelect) {
+        modelSelect.value = machine.model_id || '';
+      }
+      
+      // Actualizar título del modal
+      document.getElementById('machineModalTitle').textContent = 'Editar Máquina';
+      
+      // Mostrar el modal
+      const modal = document.getElementById('machineModal');
+      modal.classList.add('show');
+    })
+    .catch(error => {
+      console.error('Error al cargar datos de la máquina:', error);
+      showToast('Error al cargar los datos de la máquina', 'error');
+    });
+}
+
+// Guardar máquina (crear o actualizar)
+function saveMachine() {
+  const machineId = document.getElementById('machineId').value;
+  const form = document.getElementById('machineForm');
+  
+  // Validar el formulario
+  if (!form.checkValidity()) {
+    form.reportValidity();
+    return;
+  }
+  
+  // Preparar datos del formulario
+  const formData = new FormData(form);
+  
+  // Convertir FormData a objeto para enviar como JSON
+  const machineData = {};
+  formData.forEach((value, key) => {
+    // Convertir valores vacíos a null para campos opcionales
+    if (key === 'sensor_id' || key === 'model_id') {
+      machineData[key] = value ? parseInt(value) : null;
+    } else {
+      machineData[key] = value || null;
+    }
+  });
+  
+  // Determinar si es una creación o actualización
+  const isUpdate = !!machineId;
+  const url = isUpdate ? `/api/machines/${machineId}` : '/api/machines';
+  const method = isUpdate ? 'PUT' : 'POST';
+  
+  // Enviar solicitud
+  fetch(url, {
+    method: method,
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(machineData)
+  })
+    .then(response => {
+      if (!response.ok) {
+        throw new Error('Error al guardar la máquina');
+      }
+      return response.json();
+    })
+    .then(() => {
+      // Cerrar modal
+      const modal = document.getElementById('machineModal');
+      modal.classList.remove('show');
+      
+      // Recargar lista de máquinas
+      loadMachinesTable();
+      
+      // Mostrar mensaje de éxito
+      const message = isUpdate ? 'Máquina actualizada correctamente' : 'Máquina creada correctamente';
+      showToast(message, 'success');
+    })
+    .catch(error => {
+      console.error('Error al guardar máquina:', error);
+      showToast('Error al guardar la máquina', 'error');
+    });
+}
+
+// Eliminar máquina
+function deleteMachine(machineId) {
+  // Confirmar eliminación
+  if (!confirm('¿Está seguro de que desea eliminar esta máquina?')) {
+    return;
+  }
+  
+  fetch(`/api/machines/${machineId}`, {
+    method: 'DELETE'
+  })
+    .then(response => {
+      if (!response.ok) {
+        throw new Error('Error al eliminar la máquina');
+      }
+      return response.json();
+    })
+    .then(() => {
+      // Recargar lista de máquinas
+      loadMachinesTable();
+      
+      // Mostrar mensaje de éxito
+      showToast('Máquina eliminada correctamente', 'success');
+    })
+    .catch(error => {
+      console.error('Error al eliminar máquina:', error);
+      showToast('Error al eliminar la máquina', 'error');
+    });
+}
+
+// Añadir initMachineManagement a la función de inicialización
+document.addEventListener('DOMContentLoaded', function() {
+  // Otras inicializaciones
+  // ... existing code ...
+  
+  // Inicializar gestión de máquinas
+  initMachineManagement();
+});
+
 // ==========================================================================
 // INICIALIZACIÓN DE LA APLICACIÓN
 // ==========================================================================
@@ -100,6 +388,9 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Inicializar el dashboard por defecto
     initDashboard();
+    
+    // Inicializar la gestión de máquinas
+    initMachineManagement();
     
     // Inicializar eventos para el botón de actualizar datos
     const refreshDataBtn = document.getElementById('refreshDataBtn');
@@ -280,24 +571,14 @@ function getCurrentPage() {
 function initPageSpecificComponents() {
     const currentPage = getCurrentPage();
     
-    // Limpiar eventos anteriores si es necesario
-    
-    // Inicializar componentes según la página
-    switch (currentPage) {
-        case 'dashboard':
-            initDashboard();
-            break;
-        case 'configuracion':
-            initConfig();
-            break;
-        default:
-            // Por defecto inicializar dashboard
-            initDashboard();
-            break;
+    if (currentPage === 'dashboard') {
+        initDashboard();
+        initCustomUIComponents();
+        updateDashboardData();
+    } 
+    else if (currentPage === 'configuracion') {
+        initConfig();
     }
-    
-    // Actualizar la UI después del cambio de página
-    updateLastUpdateTime();
 }
 
 // ==========================================================================
@@ -1666,8 +1947,8 @@ function stopSimulationUpdates() {
 function initConfig() {
     console.log("Inicializando sección de configuración...");
     
-    // Cargar la lista de máquinas y sensores
-    loadMachines('machinesList');
+    // Inicializar la gestión de máquinas
+    initMachineManagement();
     
     // Inicializar formularios y botones
     initConfigForm();
