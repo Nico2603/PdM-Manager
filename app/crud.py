@@ -2,7 +2,7 @@
 
 from sqlalchemy.orm import Session
 from datetime import datetime
-from app.models import Sensor, VibrationData, Machine, Model, Alert
+from app.models import Sensor, VibrationData, Machine, Model, Alert, UserConfig
 from typing import List, Dict, Any, Optional
 
 # --- Funciones CRUD para Sensores ---
@@ -304,3 +304,51 @@ def get_alert_counts(db: Session, sensor_id: Optional[int] = None) -> Dict[str, 
         "level3": level3_count,
         "total": level1_count + level2_count + level3_count
     }
+
+# --- Funciones CRUD para Configuraciones de Usuario ---
+
+def get_configs(db: Session, user_id: int = 1) -> List[UserConfig]:
+    """Obtiene todas las configuraciones de un usuario"""
+    return db.query(UserConfig).filter(UserConfig.user_id == user_id).all()
+
+def get_config_by_id(db: Session, config_id: int) -> Optional[UserConfig]:
+    """Obtiene una configuración por su ID"""
+    return db.query(UserConfig).filter(UserConfig.config_id == config_id).first()
+
+def get_config_by_name(db: Session, name: str, user_id: int = 1) -> Optional[UserConfig]:
+    """Obtiene una configuración por su nombre"""
+    return db.query(UserConfig).filter(
+        UserConfig.name == name,
+        UserConfig.user_id == user_id
+    ).first()
+
+def create_config(db: Session, config: UserConfig) -> UserConfig:
+    """Crea una nueva configuración de usuario"""
+    db.add(config)
+    db.commit()
+    db.refresh(config)
+    return config
+
+def update_config(db: Session, config: UserConfig) -> UserConfig:
+    """Actualiza una configuración existente"""
+    db.commit()
+    db.refresh(config)
+    return config
+
+def delete_config(db: Session, config_id: int) -> bool:
+    """Elimina una configuración por su ID"""
+    config = get_config_by_id(db, config_id)
+    if config:
+        db.delete(config)
+        db.commit()
+        return True
+    return False
+
+def delete_config_by_name(db: Session, name: str, user_id: int = 1) -> bool:
+    """Elimina una configuración por su nombre"""
+    config = get_config_by_name(db, name, user_id)
+    if config:
+        db.delete(config)
+        db.commit()
+        return True
+    return False

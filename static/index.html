@@ -442,6 +442,102 @@
               </div>
             </div>
           </div>
+
+          <!-- Apartado de Límites de Aceleración -->
+          <div class="card animate-slide-up" style="animation-delay: 0.3s" id="limitsSection">
+            <div class="card-header">
+              <h5><i class="fas fa-sliders-h"></i> Límites de Aceleración</h5>
+            </div>
+            <div class="card-body">
+              <div class="form-row">
+                <div class="form-group col-md-6">
+                  <label class="form-label">Máquina:</label>
+                  <select class="form-select" id="limitsMachineSelect">
+                    <option value="">Seleccione una máquina</option>
+                    <!-- Opciones cargadas dinámicamente -->
+                  </select>
+                </div>
+                <div class="form-group col-md-6">
+                  <label class="form-label">Sensor:</label>
+                  <select class="form-select" id="limitsSensorSelect">
+                    <option value="">Seleccione un sensor</option>
+                    <!-- Opciones cargadas dinámicamente -->
+                  </select>
+                </div>
+              </div>
+
+              <div class="limits-form mt-4">
+                <h6 class="form-section-title">Eje X</h6>
+                <div class="form-grid">
+                  <div class="form-group">
+                    <label class="form-label">X - Límite 2σ Inferior:</label>
+                    <input type="number" class="form-control" id="x2SigmaLower" step="0.01">
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">X - Límite 2σ Superior:</label>
+                    <input type="number" class="form-control" id="x2SigmaUpper" step="0.01">
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">X - Límite 3σ Inferior:</label>
+                    <input type="number" class="form-control" id="x3SigmaLower" step="0.01">
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">X - Límite 3σ Superior:</label>
+                    <input type="number" class="form-control" id="x3SigmaUpper" step="0.01">
+                  </div>
+                </div>
+                
+                <h6 class="form-section-title">Eje Y</h6>
+                <div class="form-grid">
+                  <div class="form-group">
+                    <label class="form-label">Y - Límite 2σ Inferior:</label>
+                    <input type="number" class="form-control" id="y2SigmaLower" step="0.01">
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Y - Límite 2σ Superior:</label>
+                    <input type="number" class="form-control" id="y2SigmaUpper" step="0.01">
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Y - Límite 3σ Inferior:</label>
+                    <input type="number" class="form-control" id="y3SigmaLower" step="0.01">
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Y - Límite 3σ Superior:</label>
+                    <input type="number" class="form-control" id="y3SigmaUpper" step="0.01">
+                  </div>
+                </div>
+                
+                <h6 class="form-section-title">Eje Z</h6>
+                <div class="form-grid">
+                  <div class="form-group">
+                    <label class="form-label">Z - Límite 2σ Inferior:</label>
+                    <input type="number" class="form-control" id="z2SigmaLower" step="0.01">
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Z - Límite 2σ Superior:</label>
+                    <input type="number" class="form-control" id="z2SigmaUpper" step="0.01">
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Z - Límite 3σ Inferior:</label>
+                    <input type="number" class="form-control" id="z3SigmaLower" step="0.01">
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Z - Límite 3σ Superior:</label>
+                    <input type="number" class="form-control" id="z3SigmaUpper" step="0.01">
+                  </div>
+                </div>
+                
+                <div class="form-actions mt-4">
+                  <button class="btn btn-secondary mr-2" id="limitsResetBtn">
+                    <i class="fas fa-undo mr-2"></i> Restablecer
+                  </button>
+                  <button class="btn" id="limitsSaveBtn">
+                    <i class="fas fa-save mr-2"></i> Guardar
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
         
         <!-- Otras secciones... -->

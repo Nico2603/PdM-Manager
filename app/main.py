@@ -735,3 +735,140 @@ def get_model_info(model_id: int, db: Session = Depends(get_db)):
     if not model_info:
         raise HTTPException(status_code=404, detail=f"Modelo con ID {model_id} no encontrado")
     return model_info.__dict__
+
+# ==========================================================================
+# RUTAS API PARA LÍMITES DE ACELERACIÓN
+# ==========================================================================
+
+@app.get("/api/limits/default")
+def get_default_limits():
+    """
+    Devuelve los límites por defecto para los ejes X, Y, Z
+    """
+    # Valores por defecto (se pueden ajustar según necesidades)
+    default_limits = {
+        "x": {
+            "sigma2": {
+                "lower": -2.36,
+                "upper": 2.18
+            },
+            "sigma3": {
+                "lower": -3.50,
+                "upper": 3.32
+            }
+        },
+        "y": {
+            "sigma2": {
+                "lower": 7.18,
+                "upper": 12.09
+            },
+            "sigma3": {
+                "lower": 5.95,
+                "upper": 13.32
+            }
+        },
+        "z": {
+            "sigma2": {
+                "lower": -2.39,
+                "upper": 1.11
+            },
+            "sigma3": {
+                "lower": -3.26,
+                "upper": 1.98
+            }
+        }
+    }
+    
+    return default_limits
+
+@app.get("/api/limits")
+def get_limits(
+    machine_id: int,
+    sensor_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Obtiene los límites configurados para un sensor específico
+    """
+    # Primero verificar si existen límites personalizados en la base de datos
+    config_name = f"limits_sensor_{sensor_id}"
+    config = crud.get_config_by_name(db, config_name)
+    
+    if config:
+        try:
+            # Convertir el valor JSON a diccionario
+            limits = json.loads(config.value)
+            return limits
+        except Exception as e:
+            # Si hay error al parsear JSON, devolver límites por defecto
+            print(f"Error al parsear límites: {str(e)}")
+            return get_default_limits()
+    else:
+        # Si no hay configuración personalizada, devolver límites por defecto
+        return get_default_limits()
+
+@app.post("/api/limits/save")
+def save_limits(
+    data: Dict[str, Any] = Body(...),
+    db: Session = Depends(get_db)
+):
+    """
+    Guarda los límites personalizados para un sensor
+    """
+    try:
+        # Extraer datos de la petición
+        sensor_id = data.get("sensor_id")
+        limits = data.get("limits")
+        
+        if not sensor_id or not limits:
+            raise HTTPException(status_code=400, detail="Datos incompletos")
+        
+        # Nombre de la configuración
+        config_name = f"limits_sensor_{sensor_id}"
+        
+        # Convertir límites a JSON
+        limits_json = json.dumps(limits)
+        
+        # Verificar si ya existe una configuración
+        existing_config = crud.get_config_by_name(db, config_name)
+        
+        if existing_config:
+            # Actualizar configuración existente
+            existing_config.value = limits_json
+            crud.update_config(db, existing_config)
+        else:
+            # Crear nueva configuración
+            new_config = models.UserConfig(
+                name=config_name,
+                value=limits_json
+            )
+            crud.create_config(db, new_config)
+        
+        return {"status": "success", "limits": limits}
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al guardar límites: {str(e)}")
+
+@app.delete("/api/limits/reset")
+def reset_limits(
+    sensor_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Elimina los límites personalizados y restaura valores por defecto
+    """
+    try:
+        config_name = f"limits_sensor_{sensor_id}"
+        success = crud.delete_config_by_name(db, config_name)
+        
+        # Devolver los límites por defecto
+        default_limits = get_default_limits()
+        
+        if success:
+            return {"status": "success", "message": "Límites restablecidos", "limits": default_limits}
+        else:
+            # Si no había configuración personalizada, aún así es un "éxito"
+            return {"status": "success", "message": "No había límites personalizados", "limits": default_limits}
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al restablecer límites: {str(e)}")

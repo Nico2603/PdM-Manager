@@ -1664,17 +1664,17 @@ function stopSimulationUpdates() {
  * Inicializa la sección de configuración
  */
 function initConfig() {
-    console.log('Inicializando sección de configuración');
+    console.log("Inicializando sección de configuración...");
     
-    // Cargar listas de máquinas y sensores
-    loadMachines();
+    // Cargar la lista de máquinas y sensores
+    loadMachines('machinesList');
     
-    // Inicializar botones de acción
-    initAddMachineButton();
-    initAddSensorButton();
+    // Inicializar formularios y botones
+    initConfigForm();
+    initConfigActions();
     
-    // Inicializar eventos de los elementos de la sección de configuración
-    initConfigSection();
+    // Inicializar sección de límites de aceleración
+    initLimitsSection();
 }
 
 /**
@@ -2606,4 +2606,293 @@ function downloadChart(chartId, filename) {
     link.click();
 }
 
-// Fin de archivo 
+// ==========================================================================
+// LÍMITES DE ACELERACIÓN
+// ==========================================================================
+
+/**
+ * Inicializa la sección de límites de aceleración
+ */
+function initLimitsSection() {
+    console.log("Inicializando sección de límites de aceleración...");
+    
+    // Cargar máquinas en el selector
+    fetch('/api/machines')
+        .then(response => response.json())
+        .then(machines => {
+            const machineSelect = document.getElementById('limitsMachineSelect');
+            if (machineSelect) {
+                machineSelect.innerHTML = '<option value="">Seleccione una máquina</option>';
+                machines.forEach(machine => {
+                    const option = document.createElement('option');
+                    option.value = machine.machine_id;
+                    option.textContent = machine.name;
+                    machineSelect.appendChild(option);
+                });
+                
+                // Evento de cambio de máquina
+                machineSelect.addEventListener('change', function() {
+                    const machineId = this.value;
+                    loadSensorsForLimits(machineId);
+                    clearLimitsForm();
+                });
+            }
+        })
+        .catch(error => {
+            console.error('Error al cargar las máquinas:', error);
+            showToast('danger', 'Error al cargar las máquinas');
+        });
+    
+    // Inicializar botones
+    const saveBtn = document.getElementById('limitsSaveBtn');
+    if (saveBtn) {
+        saveBtn.addEventListener('click', saveLimitsConfig);
+    }
+    
+    const resetBtn = document.getElementById('limitsResetBtn');
+    if (resetBtn) {
+        resetBtn.addEventListener('click', resetLimitsToDefault);
+    }
+    
+    // Inicializar selector de sensores
+    const sensorSelect = document.getElementById('limitsSensorSelect');
+    if (sensorSelect) {
+        sensorSelect.addEventListener('change', function() {
+            const machineId = document.getElementById('limitsMachineSelect').value;
+            const sensorId = this.value;
+            if (machineId && sensorId) {
+                loadLimitsForSensor(machineId, sensorId);
+            } else {
+                clearLimitsForm();
+            }
+        });
+    }
+}
+
+/**
+ * Carga los sensores para una máquina específica en el selector de límites
+ */
+function loadSensorsForLimits(machineId) {
+    if (!machineId) {
+        const sensorSelect = document.getElementById('limitsSensorSelect');
+        if (sensorSelect) {
+            sensorSelect.innerHTML = '<option value="">Seleccione un sensor</option>';
+        }
+        return;
+    }
+    
+    fetch(`/api/sensors?machine_id=${machineId}`)
+        .then(response => response.json())
+        .then(sensors => {
+            const sensorSelect = document.getElementById('limitsSensorSelect');
+            if (sensorSelect) {
+                sensorSelect.innerHTML = '<option value="">Seleccione un sensor</option>';
+                sensors.forEach(sensor => {
+                    const option = document.createElement('option');
+                    option.value = sensor.sensor_id;
+                    option.textContent = sensor.name;
+                    sensorSelect.appendChild(option);
+                });
+            }
+        })
+        .catch(error => {
+            console.error('Error al cargar los sensores:', error);
+            showToast('danger', 'Error al cargar los sensores');
+        });
+}
+
+/**
+ * Carga los límites actuales para un sensor específico
+ */
+function loadLimitsForSensor(machineId, sensorId) {
+    showLoadingToast('Cargando límites...');
+    
+    fetch(`/api/limits?machine_id=${machineId}&sensor_id=${sensorId}`)
+        .then(response => {
+            if (!response.ok) {
+                // Si no hay límites específicos, usar los valores por defecto
+                return fetch('/api/limits/default');
+            }
+            return response.json();
+        })
+        .then(data => {
+            hideLoadingToast();
+            
+            // Llenar el formulario con los valores
+            document.getElementById('x2SigmaLower').value = data.x.sigma2.lower;
+            document.getElementById('x2SigmaUpper').value = data.x.sigma2.upper;
+            document.getElementById('x3SigmaLower').value = data.x.sigma3.lower;
+            document.getElementById('x3SigmaUpper').value = data.x.sigma3.upper;
+            
+            document.getElementById('y2SigmaLower').value = data.y.sigma2.lower;
+            document.getElementById('y2SigmaUpper').value = data.y.sigma2.upper;
+            document.getElementById('y3SigmaLower').value = data.y.sigma3.lower;
+            document.getElementById('y3SigmaUpper').value = data.y.sigma3.upper;
+            
+            document.getElementById('z2SigmaLower').value = data.z.sigma2.lower;
+            document.getElementById('z2SigmaUpper').value = data.z.sigma2.upper;
+            document.getElementById('z3SigmaLower').value = data.z.sigma3.lower;
+            document.getElementById('z3SigmaUpper').value = data.z.sigma3.upper;
+        })
+        .catch(error => {
+            console.error('Error al cargar los límites:', error);
+            hideLoadingToast();
+            showToast('danger', 'Error al cargar los límites: ' + error.message);
+            
+            // Limpiar el formulario en caso de error
+            clearLimitsForm();
+        });
+}
+
+/**
+ * Limpia el formulario de límites
+ */
+function clearLimitsForm() {
+    const inputs = [
+        'x2SigmaLower', 'x2SigmaUpper', 'x3SigmaLower', 'x3SigmaUpper',
+        'y2SigmaLower', 'y2SigmaUpper', 'y3SigmaLower', 'y3SigmaUpper',
+        'z2SigmaLower', 'z2SigmaUpper', 'z3SigmaLower', 'z3SigmaUpper'
+    ];
+    
+    inputs.forEach(id => {
+        document.getElementById(id).value = '';
+    });
+}
+
+/**
+ * Guarda la configuración de límites
+ */
+function saveLimitsConfig() {
+    const machineId = document.getElementById('limitsMachineSelect').value;
+    const sensorId = document.getElementById('limitsSensorSelect').value;
+    
+    if (!machineId || !sensorId) {
+        showToast('warning', 'Seleccione una máquina y un sensor');
+        return;
+    }
+    
+    // Recopilar valores del formulario
+    const limitsData = {
+        machine_id: machineId,
+        sensor_id: sensorId,
+        limits: {
+            x: {
+                sigma2: {
+                    lower: parseFloat(document.getElementById('x2SigmaLower').value),
+                    upper: parseFloat(document.getElementById('x2SigmaUpper').value)
+                },
+                sigma3: {
+                    lower: parseFloat(document.getElementById('x3SigmaLower').value),
+                    upper: parseFloat(document.getElementById('x3SigmaUpper').value)
+                }
+            },
+            y: {
+                sigma2: {
+                    lower: parseFloat(document.getElementById('y2SigmaLower').value),
+                    upper: parseFloat(document.getElementById('y2SigmaUpper').value)
+                },
+                sigma3: {
+                    lower: parseFloat(document.getElementById('y3SigmaLower').value),
+                    upper: parseFloat(document.getElementById('y3SigmaUpper').value)
+                }
+            },
+            z: {
+                sigma2: {
+                    lower: parseFloat(document.getElementById('z2SigmaLower').value),
+                    upper: parseFloat(document.getElementById('z2SigmaUpper').value)
+                },
+                sigma3: {
+                    lower: parseFloat(document.getElementById('z3SigmaLower').value),
+                    upper: parseFloat(document.getElementById('z3SigmaUpper').value)
+                }
+            }
+        }
+    };
+    
+    showLoadingToast('Guardando límites...');
+    
+    fetch('/api/limits/save', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(limitsData)
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Error al guardar los límites');
+        }
+        return response.json();
+    })
+    .then(data => {
+        hideLoadingToast();
+        showToast('success', 'Límites guardados correctamente');
+        
+        // Actualizar las estadísticas globales si es el sensor actualmente seleccionado
+        if (selectedMachine == machineId && selectedSensor == sensorId) {
+            stats = data.limits;
+            updateStatisticalDisplayValues();
+            
+            // Actualizar las gráficas
+            updateVibrationChartX();
+            updateVibrationChartY();
+            updateVibrationChartZ();
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        hideLoadingToast();
+        showToast('danger', 'Error al guardar los límites: ' + error.message);
+    });
+}
+
+/**
+ * Restablece los límites a los valores por defecto
+ */
+function resetLimitsToDefault() {
+    const machineId = document.getElementById('limitsMachineSelect').value;
+    const sensorId = document.getElementById('limitsSensorSelect').value;
+    
+    if (!machineId || !sensorId) {
+        showToast('warning', 'Seleccione una máquina y un sensor');
+        return;
+    }
+    
+    showLoadingToast('Restableciendo límites por defecto...');
+    
+    fetch('/api/limits/default')
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Error al obtener los límites por defecto');
+            }
+            return response.json();
+        })
+        .then(data => {
+            hideLoadingToast();
+            
+            // Llenar el formulario con los valores por defecto
+            document.getElementById('x2SigmaLower').value = data.x.sigma2.lower;
+            document.getElementById('x2SigmaUpper').value = data.x.sigma2.upper;
+            document.getElementById('x3SigmaLower').value = data.x.sigma3.lower;
+            document.getElementById('x3SigmaUpper').value = data.x.sigma3.upper;
+            
+            document.getElementById('y2SigmaLower').value = data.y.sigma2.lower;
+            document.getElementById('y2SigmaUpper').value = data.y.sigma2.upper;
+            document.getElementById('y3SigmaLower').value = data.y.sigma3.lower;
+            document.getElementById('y3SigmaUpper').value = data.y.sigma3.upper;
+            
+            document.getElementById('z2SigmaLower').value = data.z.sigma2.lower;
+            document.getElementById('z2SigmaUpper').value = data.z.sigma2.upper;
+            document.getElementById('z3SigmaLower').value = data.z.sigma3.lower;
+            document.getElementById('z3SigmaUpper').value = data.z.sigma3.upper;
+            
+            showToast('success', 'Límites restablecidos a los valores por defecto');
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            hideLoadingToast();
+            showToast('danger', 'Error al restablecer los límites: ' + error.message);
+        });
+}
+
+// Resto del código de configuración... 
