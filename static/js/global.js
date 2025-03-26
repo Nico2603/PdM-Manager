@@ -130,25 +130,16 @@ function initNavigation() {
     const navLinks = document.querySelectorAll('.nav-link');
     
     // Establecer la sección activa basada en la URL
-    const currentPath = window.location.pathname;
-    let activePage = 'dashboard';
+    const currentPage = getCurrentPage();
     
-    if (currentPath.includes('configuracion')) {
-        activePage = 'configuracion';
-    } else if (currentPath.includes('sensores')) {
-        activePage = 'sensores';
-    } else if (currentPath.includes('ajustes')) {
-        activePage = 'ajustes';
-    }
-    
-    // Ajustar la navegación basada en la URL
+    // Ajustar la navegación basada en la página actual
     navLinks.forEach(link => {
         const linkPage = link.getAttribute('data-page');
         
-        if (linkPage === activePage) {
+        if (linkPage === currentPage) {
             link.classList.add('active');
             // Activar la sección correspondiente
-            showSection(activePage);
+            showSection(currentPage);
         }
         
         link.addEventListener('click', function(e) {
@@ -157,9 +148,6 @@ function initNavigation() {
             navigateTo(page);
         });
     });
-    
-    // Exponer la función navigateTo globalmente
-    window.navigateTo = navigateTo;
 }
 
 /**
@@ -173,7 +161,7 @@ function navigateTo(page) {
     });
     
     // Mostrar la sección seleccionada
-    const targetSection = document.getElementById(page + 'Section');
+    const targetSection = document.getElementById(page + '-section');
     if (targetSection) {
         targetSection.classList.add('active');
         
@@ -189,6 +177,14 @@ function navigateTo(page) {
                 link.classList.add('active');
             }
         });
+        
+        // Actualizar breadcrumb
+        const currentSectionElement = document.getElementById('currentSection');
+        if (currentSectionElement) {
+            // Convertir primera letra a mayúscula
+            const pageName = page.charAt(0).toUpperCase() + page.slice(1);
+            currentSectionElement.textContent = pageName;
+        }
         
         // Reinicializar componentes específicos según la página
         initPageSpecificComponents();
@@ -206,7 +202,7 @@ function showSection(sectionId) {
     });
     
     // Mostrar la sección seleccionada
-    const targetSection = document.getElementById(sectionId + 'Section');
+    const targetSection = document.getElementById(sectionId + '-section');
     if (targetSection) {
         targetSection.classList.add('active');
     }
@@ -228,12 +224,18 @@ function getCurrentPage() {
     const path = window.location.pathname;
     const hash = window.location.hash.substring(1); // Eliminar el # del inicio
     
-    if (hash === 'configuracion') {
-        return 'configuracion';
+    if (hash) {
+        return hash;
     }
     
-    if (path.includes('configuracion')) {
-        return 'configuracion';
+    if (path === '/' || path === '/index.html') {
+        return 'dashboard';
+    }
+    
+    // Extraer nombre de la página desde el path
+    const pathSegments = path.split('/').filter(segment => segment);
+    if (pathSegments.length > 0) {
+        return pathSegments[0];
     }
     
     // Verificar la navegación activa como respaldo
@@ -254,6 +256,10 @@ function getCurrentPage() {
  */
 function initPageSpecificComponents() {
     const currentPage = getCurrentPage();
+    
+    // Limpiar eventos anteriores si es necesario
+    
+    // Inicializar componentes según la página
     switch (currentPage) {
         case 'dashboard':
             initDashboard();
@@ -261,8 +267,14 @@ function initPageSpecificComponents() {
         case 'configuracion':
             initConfig();
             break;
-        // Se eliminaron las referencias a alertas y analitica
+        default:
+            // Por defecto inicializar dashboard
+            initDashboard();
+            break;
     }
+    
+    // Actualizar la UI después del cambio de página
+    updateLastUpdateTime();
 }
 
 // ==========================================================================
@@ -1632,14 +1644,15 @@ function stopSimulationUpdates() {
 function initConfig() {
     console.log('Inicializando sección de configuración');
     
-    // Inicializar la sección de configuración con máquinas y sensores
-    initConfigSection();
+    // Cargar listas de máquinas y sensores
+    loadMachines();
     
-    // Actualizar el breadcrumb para mostrar la sección actual
-    const currentSectionElement = document.getElementById('currentSection');
-    if (currentSectionElement) {
-        currentSectionElement.textContent = 'Configuración';
-    }
+    // Inicializar botones de acción
+    initAddMachineButton();
+    initAddSensorButton();
+    
+    // Inicializar eventos de los elementos de la sección de configuración
+    initConfigSection();
 }
 
 /**
@@ -2167,18 +2180,23 @@ function initThemeToggle() {
 
 // Inicialización mejorada de la UI
 function initUI() {
-    // Componentes básicos de la interfaz
+    // Inicializar sidebar
     initSidebar();
-    initThemeToggle();
-    initFilters();
+    
+    // Inicializar tooltips
     initTooltips();
     
-    // Inicializar modales y otros componentes
-    initAdjustLimitsModal();
-    initChartDownloadButtons();
+    // Inicializar dropdowns
+    initDropdowns();
     
-    // Actualizar hora de última actualización
-    updateLastUpdateTime();
+    // Inicializar switches
+    initSwitches();
+    
+    // Inicializar tema
+    initDarkTheme();
+    
+    // Hacer visible la navegación (para optimizar carga inicial)
+    document.body.classList.add('nav-loaded');
 }
 
 // Función para inicializar tooltips personalizados
