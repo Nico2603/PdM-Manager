@@ -22,20 +22,19 @@ from app import crud, models
 # Cargar modelo entrenado (Keras/TensorFlow) desde la carpeta "Modelo"
 from tensorflow.keras.models import load_model
 
-# Ruta al modelo .h5
-model_path = os.path.join("Modelo", "modeloRNN_multiclase_v3_finetuned.h5")
-model = load_model(model_path)
+# Definir rutas base
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+MODELO_DIR = os.path.join(BASE_DIR, "Modelo")
+SCALER_DIR = os.path.join(BASE_DIR, "Scaler")
 
-# Ruta al escalador (se cargará cuando exista)
-scaler_path = os.path.join("Modelo", "scaler_RNN.pkl")
-scaler = None
+# Cargar el modelo y el scaler
 try:
-    # Intentar cargar el escalador si existe
-    if os.path.exists(scaler_path):
-        scaler = joblib.load(scaler_path)
-        print("Escalador cargado correctamente")
+    modelo = load_model(os.path.join(MODELO_DIR, "modelo_pdm.h5"))
+    scaler = joblib.load(os.path.join(SCALER_DIR, "scaler_pdm.pkl"))
 except Exception as e:
-    print(f"Error al cargar el escalador: {str(e)}")
+    print(f"Error al cargar el modelo o scaler: {str(e)}")
+    modelo = None
+    scaler = None
 
 # Diccionario para mapear severidad a texto legible
 SEVERITY_MAPPING = {
@@ -57,6 +56,11 @@ Base.metadata.create_all(bind=engine)
 
 # Montar la carpeta estática (HTML, CSS, JS)
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# Configuración para favicon.ico
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    return FileResponse("static/favicon.ico")
 
 # Configuración de CORS
 app.add_middleware(
@@ -198,7 +202,7 @@ def predict_condition(
         arr = arr.reshape((1, arr.shape[0], 3))
 
     # Hacer la predicción
-    pred = model.predict(arr)
+    pred = modelo.predict(arr)
     predicted_class = int(np.argmax(pred, axis=1)[0])
     severity_text = SEVERITY_MAPPING.get(predicted_class, "Desconocido")
     confidence = float(np.max(pred)) * 100  # Confianza en porcentaje
@@ -273,7 +277,7 @@ def receive_sensor_data(sensor_data: SensorData, db: Session = Depends(get_db)):
     rnn_input = data_array.reshape(1, 1, 3)
     
     # Hacer predicción con el modelo
-    prediction = model.predict(rnn_input, verbose=0)
+    prediction = modelo.predict(rnn_input, verbose=0)
     severity = int(np.argmax(prediction[0]))
     confidence = float(np.max(prediction)) * 100
     
@@ -357,7 +361,7 @@ def receive_sensor_data_batch(batch_data: SensorDataBatch, db: Session = Depends
         rnn_input = data_array.reshape(1, 1, 3)
         
         # Hacer predicción con el modelo
-        prediction = model.predict(rnn_input, verbose=0)
+        prediction = modelo.predict(rnn_input, verbose=0)
         severity = int(np.argmax(prediction[0]))
         confidence = float(np.max(prediction)) * 100
         
@@ -416,15 +420,15 @@ def reload_model():
     """
     Recarga el modelo y el escalador desde la carpeta Modelo
     """
-    global model, scaler
+    global modelo, scaler
     
     try:
         # Recargar modelo
-        model = load_model(model_path)
+        modelo = load_model(os.path.join(MODELO_DIR, "modelo_pdm.h5"))
         
         # Recargar escalador si existe
-        if os.path.exists(scaler_path):
-            scaler = joblib.load(scaler_path)
+        if os.path.exists(os.path.join(SCALER_DIR, "scaler_pdm.pkl")):
+            scaler = joblib.load(os.path.join(SCALER_DIR, "scaler_pdm.pkl"))
             return {"status": "ok", "message": "Modelo y escalador recargados correctamente"}
         else:
             return {

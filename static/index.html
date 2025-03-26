@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PdM-Manager | Dashboard</title>
+  <title>PdM-Manager | Sistema de Mantenimiento Predictivo</title>
 
   <!-- Favicon -->
-  <link rel="icon" href="/static/img/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
   
   <!-- Preconect para carga rápida de fuentes -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -15,17 +15,14 @@
   <!-- Inter font -->
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   
-  <!-- Bootstrap CSS -->
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-  
   <!-- Font Awesome -->
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
   
   <!-- Chart.js -->
-  <link href="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   
-  <!-- Custom CSS -->
-  <link href="/static/css/dashboard.css" rel="stylesheet">
+  <!-- CSS Unificado y Optimizado -->
+  <link href="/static/css/style.css" rel="stylesheet">
 </head>
 <body>
   <div class="app-container">
@@ -33,34 +30,46 @@
     <div class="sidebar">
       <div class="sidebar-header">
         <div class="logo-container">
-          <i class="fas fa-cogs logo-icon"></i>
+          <i class="fas fa-microchip logo-icon pulse"></i>
           <h5 class="logo-text">PdM-Manager</h5>
         </div>
-        </div>
-        
+      </div>
+      
       <div class="sidebar-menu">
-        <ul class="nav flex-column">
+        <ul class="nav">
           <li class="nav-item">
             <a href="#dashboard" class="nav-link active">
-              <i class="fas fa-tachometer-alt"></i>
+              <i class="fas fa-chart-line nav-icon"></i>
               <span>Dashboard</span>
             </a>
           </li>
           <li class="nav-item">
             <a href="#configuracion" class="nav-link">
-              <i class="fas fa-wrench"></i>
+              <i class="fas fa-cog nav-icon"></i>
               <span>Configuración</span>
             </a>
           </li>
           <li class="nav-item">
-            <button id="refreshDataBtn" class="btn btn-primary w-100 d-flex align-items-center justify-content-start px-3 py-2 mt-3">
+            <a href="#alertas" class="nav-link">
+              <i class="fas fa-bell nav-icon"></i>
+              <span>Alertas</span>
+            </a>
+          </li>
+          <li class="nav-item">
+            <a href="#analitica" class="nav-link">
+              <i class="fas fa-chart-bar nav-icon"></i>
+              <span>Analítica</span>
+            </a>
+          </li>
+          <li class="nav-item mt-4">
+            <button id="refreshDataBtn" class="btn btn-block">
               <i class="fas fa-sync-alt mr-2"></i>
               <span>Actualizar Datos</span>
             </button>
           </li>
         </ul>
-          </div>
-          
+      </div>
+      
       <div class="sidebar-footer">
         <div class="system-status">
           <div class="status-title">Estado del Sistema</div>
@@ -68,11 +77,11 @@
             <div class="status-dot connected"></div>
             <div class="status-text">Sistema conectado</div>
           </div>
-          <div class="text-muted mt-2" style="font-size: 0.8rem;">
-            <i class="far fa-clock mr-1"></i> Última actualización: 
+          <div class="text-muted mt-2">
+            <i class="far fa-clock mr-2"></i> Última actualización: 
             <span id="lastUpdateTime">00:00:00</span>
+          </div>
         </div>
-      </div>
       </div>
     </div>
     
@@ -80,1050 +89,376 @@
     <div class="main-content">
       <!-- Header -->
       <div class="content-header">
-        <button class="btn btn-light btn-sm mobile-menu-toggle mr-2 d-lg-none">
-          <i class="fas fa-bars"></i>
-        </button>
-        
-        <nav aria-label="breadcrumb">
-          <ol class="breadcrumb">
-            <li class="breadcrumb-item"><a href="#dashboard">Inicio</a></li>
-            <li class="breadcrumb-item active">Dashboard</li>
-          </ol>
-        </nav>
+        <div class="d-flex align-items-center">
+          <button class="btn-icon mobile-menu-toggle d-md-none mr-3">
+            <i class="fas fa-bars"></i>
+          </button>
+          
+          <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+              <li class="breadcrumb-item"><a href="#dashboard">Inicio</a></li>
+              <li class="breadcrumb-item active" id="currentSection">Dashboard</li>
+            </ol>
+          </nav>
         </div>
-      
-      <!-- Contenedor de Secciones -->
-      <div class="content-sections">
-        <!-- Dashboard Section -->
-        <div id="dashboard-section" class="content-section active">
-          <div class="section-header">
-            <h2><i class="fas fa-tachometer-alt mr-2 text-primary"></i>Dashboard</h2>
-            <p class="text-muted">Monitoreo en tiempo real de sensores y alertas</p>
+        
+        <div class="header-actions">
+          <span class="header-user">
+            <i class="fas fa-user-circle"></i>
+            <span class="user-name">Admin</span>
+          </span>
+          <button class="btn-icon" id="themeToggleBtn" title="Cambiar tema">
+            <i class="fas fa-moon"></i>
+          </button>
+        </div>
       </div>
       
-          <!-- Tarjetas de Alertas -->
-          <div class="row mb-4">
-            <div class="col-xl-3 col-md-6 mb-3">
-              <div class="alert-card level-1">
-              <div class="card-body">
-                  <div class="alert-icon">
-                    <i class="fas fa-exclamation-circle"></i>
-                  </div>
-                  <div class="alert-info">
-                    <h2 class="alert-count" id="level1Count">0</h2>
-                    <p class="alert-label">Alertas Nivel 1</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div class="col-xl-3 col-md-6 mb-3">
-              <div class="alert-card level-2">
-              <div class="card-body">
-                  <div class="alert-icon">
-                    <i class="fas fa-exclamation-triangle"></i>
-                  </div>
-                  <div class="alert-info">
-                    <h2 class="alert-count" id="level2Count">0</h2>
-                    <p class="alert-label">Alertas Nivel 2</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div class="col-xl-3 col-md-6 mb-3">
-              <div class="alert-card level-3">
-                <div class="card-body">
-                  <div class="alert-icon">
-                    <i class="fas fa-radiation-alt"></i>
-          </div>
-                  <div class="alert-info">
-                    <h2 class="alert-count" id="level3Count">0</h2>
-                    <p class="alert-label">Alertas Nivel 3</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div class="col-xl-3 col-md-6 mb-3">
-              <div class="alert-card total">
-              <div class="card-body">
-                  <div class="alert-icon">
-                    <i class="fas fa-bell"></i>
-                  </div>
-                  <div class="alert-info">
-                    <h2 class="alert-count" id="totalCount">0</h2>
-                    <p class="alert-label">Total Alertas</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Gráfico de Vibraciones con Filtros laterales -->
-          <div class="row mb-4">
-            <div class="col-lg-3 mb-3">
-              <div class="card filter-card h-100">
-                <div class="card-header">
-                  <h5><i class="fas fa-filter"></i> Filtros</h5>
-                </div>
-                <div class="card-body">
-                  <div class="form-group mb-3">
-                    <label for="selectMachine">Máquina:</label>
-                    <select id="selectMachine" class="form-control">
-                      <option value="">Todas las máquinas</option>
-                    </select>
-                  </div>
-                  <div class="form-group mb-3">
-                    <label for="selectSensor">Sensor:</label>
-                    <select id="selectSensor" class="form-control">
-                      <option value="">Todos los sensores</option>
-                    </select>
-                  </div>
-                  <div class="form-group mb-3">
-                    <label for="timeRange">Rango de tiempo:</label>
-                    <select id="timeRange" class="form-control">
-                      <option value="1h">Última hora</option>
-                      <option value="6h">Últimas 6 horas</option>
-                      <option value="24h" selected>Últimas 24 horas</option>
-                      <option value="7d">Últimos 7 días</option>
-                    </select>
-                  </div>
-                  
-                  <div class="mt-4">
-                    <h6 class="mb-2"><i class="fas fa-chart-line"></i> Visualización</h6>
-                    <div class="threshold-controls">
-                      <div class="custom-control custom-switch mb-2">
-                        <input type="checkbox" class="custom-control-input" id="showMean" checked>
-                        <label class="custom-control-label" for="showMean">Media</label>
-                      </div>
-                      <div class="custom-control custom-switch mb-2">
-                        <input type="checkbox" class="custom-control-input" id="show1Sigma" checked>
-                        <label class="custom-control-label" for="show1Sigma">1σ</label>
-                      </div>
-                      <div class="custom-control custom-switch mb-2">
-                        <input type="checkbox" class="custom-control-input" id="show2Sigma" checked>
-                        <label class="custom-control-label" for="show2Sigma">2σ</label>
-                      </div>
-                      <div class="custom-control custom-switch mb-2">
-                        <input type="checkbox" class="custom-control-input" id="show3Sigma" checked>
-                        <label class="custom-control-label" for="show3Sigma">3σ</label>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div class="mt-4">
-                    <button class="btn btn-sm btn-outline-primary" id="exportDataBtn">
-                      <i class="fas fa-download mr-1"></i> Exportar Datos
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div class="col-lg-9 mb-3">
-              <div class="card chart-card">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                  <h5><i class="fas fa-chart-line"></i> Tendencia de Vibraciones</h5>
-                  <div class="btn-group btn-group-sm">
-                    <button class="btn btn-outline-secondary" id="zoomResetBtn">
-                      <i class="fas fa-sync-alt"></i>
-                    </button>
-                  </div>
-                </div>
-                <div class="card-body">
-                  <div class="chart-container">
-                    <canvas id="vibrationChart"></canvas>
-                  </div>
-                </div>
-              </div>
-            </div>
+      <!-- Contenido -->
+      <div class="content">
+        <!-- Dashboard Section -->
+        <div id="dashboard-section" class="content-section active animate-fade-in">
+          <div class="section-header">
+            <h2>
+              <i class="fas fa-tachometer-alt text-accent"></i>
+              Dashboard
+            </h2>
+            <p class="section-description">Monitoreo en tiempo real de sensores y alertas</p>
           </div>
           
-          <!-- Alertas Recientes y Datos -->
-          <div class="row">
-            <div class="col-lg-4 mb-3">
-              <div class="card chart-card h-100">
-                <div class="card-header">
-                  <h5><i class="fas fa-bell"></i> Alertas Recientes</h5>
+          <!-- Tarjetas de Alertas -->
+          <div class="alert-cards-grid">
+            <div class="alert-card-wrapper animate-slide-up" style="animation-delay: 0.1s">
+              <div class="alert-card level-1">
+                <div class="alert-icon">
+                  <i class="fas fa-exclamation"></i>
                 </div>
-                <div class="card-body p-0">
-                  <div class="table-responsive">
-                    <table class="table table-hover mb-0">
-                      <thead>
-                        <tr>
-                          <th>Nivel</th>
-                          <th>Sensor</th>
-                          <th>Tiempo</th>
-                        </tr>
-                      </thead>
-                      <tbody id="recentAlertsTable">
-                        <tr>
-                          <td colspan="3" class="text-center py-3">
-                            <span class="text-muted">No hay alertas recientes</span>
-                          </td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
+                <div class="alert-info">
+                  <h2 class="alert-count" id="level1Count">0</h2>
+                  <p class="alert-label">Alertas Nivel 1</p>
                 </div>
               </div>
             </div>
             
-            <div class="col-lg-8">
-              <div class="card chart-card">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                  <h5><i class="fas fa-table"></i> Datos Recientes</h5>
+            <div class="alert-card-wrapper animate-slide-up" style="animation-delay: 0.2s">
+              <div class="alert-card level-2">
+                <div class="alert-icon">
+                  <i class="fas fa-exclamation-triangle"></i>
                 </div>
-                <div class="card-body p-0">
-                  <div class="table-responsive">
-                    <table class="table table-hover mb-0">
-                      <thead>
-                        <tr>
-                          <th>Fecha/Hora</th>
-                          <th>Máquina</th>
-                          <th>Sensor</th>
-                          <th>Valor X</th>
-                          <th>Valor Y</th>
-                          <th>Valor Z</th>
-                          <th>Estado</th>
-                        </tr>
-                      </thead>
-                      <tbody id="recentDataTable">
-                        <tr>
-                          <td colspan="7" class="text-center py-3">
-                            <span class="text-muted">Cargando datos...</span>
-                          </td>
-                        </tr>
-                      </tbody>
-                    </table>
+                <div class="alert-info">
+                  <h2 class="alert-count" id="level2Count">0</h2>
+                  <p class="alert-label">Alertas Nivel 2</p>
+                </div>
+              </div>
+            </div>
+            
+            <div class="alert-card-wrapper animate-slide-up" style="animation-delay: 0.3s">
+              <div class="alert-card level-3">
+                <div class="alert-icon">
+                  <i class="fas fa-radiation-alt"></i>
+                </div>
+                <div class="alert-info">
+                  <h2 class="alert-count" id="level3Count">0</h2>
+                  <p class="alert-label">Alertas Nivel 3</p>
+                </div>
+              </div>
+            </div>
+            
+            <div class="alert-card-wrapper animate-slide-up" style="animation-delay: 0.4s">
+              <div class="alert-card total">
+                <div class="alert-icon">
+                  <i class="fas fa-bell"></i>
+                </div>
+                <div class="alert-info">
+                  <h2 class="alert-count" id="totalCount">0</h2>
+                  <p class="alert-label">Total Alertas</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Filtros y Gráficos -->
+          <div class="dashboard-grid">
+            <!-- Filtros del Dashboard -->
+            <div class="filter-card animate-slide-up" style="animation-delay: 0.5s">
+              <div class="card-header">
+                <h5><i class="fas fa-filter"></i> Filtros</h5>
+                <button class="btn-icon" id="expandFiltersBtn">
+                  <i class="fas fa-chevron-down"></i>
+                </button>
+              </div>
+              <div class="card-body filter-panel show">
+                <div class="filter-section">
+                  <label class="filter-label">Máquina:</label>
+                  <div class="filter-dropdown" id="machineDropdown">
+                    <div class="filter-dropdown-toggle">
+                      <span id="selectedMachineText">Todas las máquinas</span>
+                      <i class="fas fa-chevron-down"></i>
+                    </div>
+                    <div class="filter-dropdown-menu" id="machineDropdownMenu">
+                      <div class="filter-dropdown-item selected" data-value="">Todas las máquinas</div>
+                      <!-- Las opciones se cargarán dinámicamente -->
+                    </div>
                   </div>
+                </div>
+                
+                <div class="filter-section">
+                  <label class="filter-label">Sensor:</label>
+                  <div class="filter-dropdown" id="sensorDropdown">
+                    <div class="filter-dropdown-toggle">
+                      <span id="selectedSensorText">Todos los sensores</span>
+                      <i class="fas fa-chevron-down"></i>
+                    </div>
+                    <div class="filter-dropdown-menu" id="sensorDropdownMenu">
+                      <div class="filter-dropdown-item selected" data-value="">Todos los sensores</div>
+                      <!-- Las opciones se cargarán dinámicamente -->
+                    </div>
+                  </div>
+                </div>
+                
+                <div class="filter-section">
+                  <label class="filter-label">Rango de tiempo:</label>
+                  <div class="filter-dropdown" id="timeRangeDropdown">
+                    <div class="filter-dropdown-toggle">
+                      <span id="selectedTimeRangeText">Últimas 24 horas</span>
+                      <i class="fas fa-chevron-down"></i>
+                    </div>
+                    <div class="filter-dropdown-menu" id="timeRangeDropdownMenu">
+                      <div class="filter-dropdown-item" data-value="1h">Última hora</div>
+                      <div class="filter-dropdown-item" data-value="6h">Últimas 6 horas</div>
+                      <div class="filter-dropdown-item selected" data-value="24h">Últimas 24 horas</div>
+                      <div class="filter-dropdown-item" data-value="7d">Últimos 7 días</div>
+                    </div>
+                  </div>
+                </div>
+                
+                <div class="filter-section">
+                  <h6 class="filter-subtitle"><i class="fas fa-chart-line"></i> Visualización</h6>
+                  <div class="switch-group">
+                    <div class="custom-switch">
+                      <input type="checkbox" class="custom-control-input" id="showMean" checked>
+                      <label class="custom-control-label" for="showMean">Media</label>
+                    </div>
+                    <div class="custom-switch">
+                      <input type="checkbox" class="custom-control-input" id="show1Sigma" checked>
+                      <label class="custom-control-label" for="show1Sigma">1σ</label>
+                    </div>
+                    <div class="custom-switch">
+                      <input type="checkbox" class="custom-control-input" id="show2Sigma" checked>
+                      <label class="custom-control-label" for="show2Sigma">2σ</label>
+                    </div>
+                    <div class="custom-switch">
+                      <input type="checkbox" class="custom-control-input" id="show3Sigma" checked>
+                      <label class="custom-control-label" for="show3Sigma">3σ</label>
+                    </div>
+                  </div>
+                </div>
+                
+                <div class="filter-actions">
+                  <button class="btn btn-block" id="exportDataBtn">
+                    <i class="fas fa-file-pdf mr-2"></i> Exportar a PDF
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Parámetros Estadísticos -->
+            <div class="stats-container animate-slide-up" style="animation-delay: 0.6s">
+              <div class="stats-header">
+                <h3>
+                  <i class="fas fa-chart-bar text-accent"></i>
+                  Parámetros Estadísticos
+                </h3>
+                <button class="btn btn-secondary" id="adjustLimitsBtn">
+                  <i class="fas fa-sliders-h mr-2"></i> Ajustar Límites
+                </button>
+              </div>
+              
+              <div class="stats-grid">
+                <div class="stat-card">
+                  <div class="stat-label"><i class="fas fa-calculator"></i> Media</div>
+                  <div class="stat-value" id="meanValue">0<span class="stat-unit">m/s²</span></div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-label"><i class="fas fa-arrows-alt-h"></i> Desviación estándar</div>
+                  <div class="stat-value" id="stdDevValue">0<span class="stat-unit">m/s²</span></div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-label"><i class="fas fa-level-down-alt"></i> Límite inferior 2σ</div>
+                  <div class="stat-value" id="sigma2LowerValue">0<span class="stat-unit">m/s²</span></div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-label"><i class="fas fa-level-up-alt"></i> Límite superior 2σ</div>
+                  <div class="stat-value" id="sigma2UpperValue">0<span class="stat-unit">m/s²</span></div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-label"><i class="fas fa-level-down-alt"></i> Límite inferior 3σ</div>
+                  <div class="stat-value" id="sigma3LowerValue">0<span class="stat-unit">m/s²</span></div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-label"><i class="fas fa-level-up-alt"></i> Límite superior 3σ</div>
+                  <div class="stat-value" id="sigma3UpperValue">0<span class="stat-unit">m/s²</span></div>
                 </div>
               </div>
             </div>
           </div>
           
-          <!-- Parámetros Estadísticos -->
-          <div class="row mt-4">
-            <div class="col-12">
-              <div class="card chart-card">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                  <h5><i class="fas fa-chart-bar"></i> Parámetros Estadísticos</h5>
-                  <button class="btn btn-sm btn-outline-primary" id="adjustLimitsBtn">
-                    <i class="fas fa-sliders-h mr-1"></i> Ajustar Límites
+          <!-- Gráficos -->
+          <div class="charts-container">
+            <div class="chart-container chart-container-x animate-slide-up" style="animation-delay: 0.7s">
+              <div class="chart-header">
+                <div class="chart-title">
+                  <span>Vibración - Eje X</span>
+                  <span class="axis-indicator">X</span>
+                </div>
+                <div class="chart-actions">
+                  <button class="btn-icon" id="zoomResetBtnX" title="Restablecer zoom">
+                    <i class="fas fa-compress-arrows-alt"></i>
+                  </button>
+                  <button class="btn-icon" id="downloadChartX" title="Descargar gráfico">
+                    <i class="fas fa-download"></i>
                   </button>
                 </div>
-                <div class="card-body">
-                  <div class="row">
-                    <!-- Eje X -->
-                    <div class="col-md-4">
-                      <h6 class="border-bottom pb-2 text-primary">Aceleración Eje X</h6>
-                      <div class="row">
-                        <div class="col-6">
-                          <div class="stat-item mb-3">
-                            <div class="stat-label">2σ Inferior:</div>
-                            <div class="stat-value" id="x2SigmaLowerDisplay">-2.364295</div>
-                          </div>
-                          <div class="stat-item mb-3">
-                            <div class="stat-label">2σ Superior:</div>
-                            <div class="stat-value" id="x2SigmaUpperDisplay">2.180056</div>
-                          </div>
-                        </div>
-                        <div class="col-6">
-                          <div class="stat-item mb-3">
-                            <div class="stat-label">3σ Inferior:</div>
-                            <div class="stat-value" id="x3SigmaLowerDisplay">-3.500383</div>
-                          </div>
-                          <div class="stat-item mb-3">
-                            <div class="stat-label">3σ Superior:</div>
-                            <div class="stat-value" id="x3SigmaUpperDisplay">3.316144</div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <!-- Eje Y -->
-                    <div class="col-md-4">
-                      <h6 class="border-bottom pb-2 text-primary">Aceleración Eje Y</h6>
-                      <div class="row">
-                        <div class="col-6">
-                          <div class="stat-item mb-3">
-                            <div class="stat-label">2σ Inferior:</div>
-                            <div class="stat-value" id="y2SigmaLowerDisplay">7.177221</div>
-                          </div>
-                          <div class="stat-item mb-3">
-                            <div class="stat-label">2σ Superior:</div>
-                            <div class="stat-value" id="y2SigmaUpperDisplay">12.088666</div>
-                          </div>
-                        </div>
-                        <div class="col-6">
-                          <div class="stat-item mb-3">
-                            <div class="stat-label">3σ Inferior:</div>
-                            <div class="stat-value" id="y3SigmaLowerDisplay">5.949359</div>
-                          </div>
-                          <div class="stat-item mb-3">
-                            <div class="stat-label">3σ Superior:</div>
-                            <div class="stat-value" id="y3SigmaUpperDisplay">13.316528</div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <!-- Eje Z -->
-                    <div class="col-md-4">
-                      <h6 class="border-bottom pb-2 text-primary">Aceleración Eje Z</h6>
-                      <div class="row">
-                        <div class="col-6">
-                          <div class="stat-item mb-3">
-                            <div class="stat-label">2σ Inferior:</div>
-                            <div class="stat-value" id="z2SigmaLowerDisplay">-2.389107</div>
-                          </div>
-                          <div class="stat-item mb-3">
-                            <div class="stat-label">2σ Superior:</div>
-                            <div class="stat-value" id="z2SigmaUpperDisplay">1.106510</div>
-                          </div>
-                        </div>
-                        <div class="col-6">
-                          <div class="stat-item mb-3">
-                            <div class="stat-label">3σ Inferior:</div>
-                            <div class="stat-value" id="z3SigmaLowerDisplay">-3.263011</div>
-                          </div>
-                          <div class="stat-item mb-3">
-                            <div class="stat-label">3σ Superior:</div>
-                            <div class="stat-value" id="z3SigmaUpperDisplay">1.980414</div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+              </div>
+              <div class="chart-body">
+                <canvas id="vibrationChartX"></canvas>
               </div>
             </div>
-          </div>
-        </div>
-        
-        <!-- Sección de Históricos -->
-        <!-- Esta sección ha sido eliminada y sus funcionalidades integradas al dashboard -->
-        
-        <!-- Configuración Section -->
-        <div id="configuracion-section" class="content-section">
-          <div class="section-header">
-            <h2><i class="fas fa-wrench mr-2 text-primary"></i>Configuración</h2>
-            <p class="text-muted">Configuración de máquinas, sensores y modelos de predicción</p>
-          </div>
-          
-              <div class="row">
-            <div class="col-lg-5 mb-4">
-              <!-- Panel de Máquinas -->
-              <div class="card chart-card h-100">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                  <h5><i class="fas fa-industry"></i> Máquinas</h5>
-                  <button class="btn btn-sm btn-primary" data-toggle="modal" data-target="#addMachineModal">
-                    <i class="fas fa-plus mr-1"></i> Añadir
+            
+            <div class="chart-container chart-container-y animate-slide-up" style="animation-delay: 0.8s">
+              <div class="chart-header">
+                <div class="chart-title">
+                  <span>Vibración - Eje Y</span>
+                  <span class="axis-indicator">Y</span>
+                </div>
+                <div class="chart-actions">
+                  <button class="btn-icon" id="zoomResetBtnY" title="Restablecer zoom">
+                    <i class="fas fa-compress-arrows-alt"></i>
                   </button>
-                  </div>
-                <div class="card-body p-0">
-                  <div class="table-responsive">
-                    <table class="table table-hover mb-0">
-                      <thead>
-                        <tr>
-                          <th>Nombre</th>
-                          <th>Tipo</th>
-                          <th>Sensores</th>
-                          <th>Acciones</th>
-                        </tr>
-                      </thead>
-                      <tbody id="machinesTable">
-                        <tr>
-                          <td colspan="4" class="text-center py-3">
-                            <span class="text-muted">Cargando máquinas...</span>
-                          </td>
-                        </tr>
-                      </tbody>
-                    </table>
+                  <button class="btn-icon" id="downloadChartY" title="Descargar gráfico">
+                    <i class="fas fa-download"></i>
+                  </button>
                 </div>
-                  </div>
-                  </div>
+              </div>
+              <div class="chart-body">
+                <canvas id="vibrationChartY"></canvas>
+              </div>
+            </div>
+            
+            <div class="chart-container chart-container-z animate-slide-up" style="animation-delay: 0.9s">
+              <div class="chart-header">
+                <div class="chart-title">
+                  <span>Vibración - Eje Z</span>
+                  <span class="axis-indicator">Z</span>
                 </div>
-                
-            <div class="col-lg-7 mb-4">
-              <!-- Panel de Sensores -->
-              <div class="card chart-card h-100">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                  <h5><i class="fas fa-microchip"></i> Sensores</h5>
-                  <div>
-                    <select id="filterMachine" class="form-control form-control-sm mr-2 d-inline-block" style="width: auto;">
-                      <option value="">Todas las máquinas</option>
-                    </select>
-                    <button class="btn btn-sm btn-primary" data-toggle="modal" data-target="#addSensorModal">
-                      <i class="fas fa-plus mr-1"></i> Añadir
-                    </button>
-                  </div>
+                <div class="chart-actions">
+                  <button class="btn-icon" id="zoomResetBtnZ" title="Restablecer zoom">
+                    <i class="fas fa-compress-arrows-alt"></i>
+                  </button>
+                  <button class="btn-icon" id="downloadChartZ" title="Descargar gráfico">
+                    <i class="fas fa-download"></i>
+                  </button>
                 </div>
-                <div class="card-body p-0">
-                  <div class="table-responsive">
-                    <table class="table table-hover mb-0">
-                      <thead>
-                        <tr>
-                          <th>Nombre</th>
-                          <th>Máquina</th>
-                          <th>Tipo</th>
-                          <th>Ubicación</th>
-                          <th>Modelo</th>
-                          <th>Acciones</th>
-                        </tr>
-                      </thead>
-                      <tbody id="sensorsTable">
-                        <tr>
-                          <td colspan="6" class="text-center py-3">
-                            <span class="text-muted">Cargando sensores...</span>
-                          </td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
+              </div>
+              <div class="chart-body">
+                <canvas id="vibrationChartZ"></canvas>
+              </div>
+            </div>
+            
+            <!-- Historial de alertas -->
+            <div class="chart-container animate-slide-up" style="animation-delay: 1s">
+              <div class="chart-header">
+                <div class="chart-title">
+                  <span>Historial de Alertas</span>
                 </div>
-                  </div>
+                <div class="chart-actions">
+                  <button class="btn-icon" id="downloadAlertsChart" title="Descargar gráfico">
+                    <i class="fas fa-download"></i>
+                  </button>
                 </div>
               </div>
               
-              <div class="row">
-            <div class="col-lg-6 mb-4">
-              <!-- Panel de Detalles del Sensor -->
-              <div class="card chart-card">
-                <div class="card-header">
-                  <h5><i class="fas fa-info-circle"></i> Detalles del Sensor</h5>
-                  </div>
-                <div class="card-body">
-                  <div id="sensorDetailsPlaceholder" class="text-center py-4">
-                    <i class="fas fa-microchip text-muted" style="font-size: 3rem;"></i>
-                    <p class="mt-3 text-muted">Seleccione un sensor para ver sus detalles</p>
-                  </div>
-                  <div id="sensorDetails" class="d-none">
-                    <form id="sensorConfigForm">
-                      <div class="form-group row">
-                        <label class="col-sm-4 col-form-label">ID del Sensor:</label>
-                        <div class="col-sm-8">
-                          <input type="text" class="form-control-plaintext" id="sensorDetailId" readonly>
-                  </div>
-                  </div>
-                      <div class="form-group row">
-                        <label class="col-sm-4 col-form-label">Máquina:</label>
-                        <div class="col-sm-8">
-                          <select class="form-control" id="sensorDetailMachine">
-                            <option value="">Seleccionar máquina...</option>
-                          </select>
-                  </div>
+              <div class="chart-legend">
+                <div class="chart-legend-item">
+                  <div class="chart-legend-color" style="background-color: var(--color-level1)"></div>
+                  <span>Nivel 1</span>
                 </div>
-                      <div class="form-group row">
-                        <label class="col-sm-4 col-form-label">Nombre:</label>
-                        <div class="col-sm-8">
-                          <input type="text" class="form-control" id="sensorDetailName">
-                        </div>
-                      </div>
-                      <div class="form-group row">
-                        <label class="col-sm-4 col-form-label">Ubicación:</label>
-                        <div class="col-sm-8">
-                          <input type="text" class="form-control" id="sensorDetailLocation">
-                        </div>
-                      </div>
-                      <div class="form-group row">
-                        <label class="col-sm-4 col-form-label">Descripción:</label>
-                        <div class="col-sm-8">
-                          <textarea class="form-control" id="sensorDetailDescription" rows="3"></textarea>
-                        </div>
-                      </div>
-                      <div class="text-right">
-                        <button type="button" class="btn btn-primary" id="saveSensorConfigBtn">
-                          <i class="fas fa-save mr-1"></i> Guardar Configuración
-                        </button>
-              </div>
-            </form>
-            </div>
-                  </div>
+                <div class="chart-legend-item">
+                  <div class="chart-legend-color" style="background-color: var(--color-level2)"></div>
+                  <span>Nivel 2</span>
+                </div>
+                <div class="chart-legend-item">
+                  <div class="chart-legend-color" style="background-color: var(--color-level3)"></div>
+                  <span>Nivel 3</span>
                 </div>
               </div>
               
-            <div class="col-lg-6 mb-4">
-              <!-- Panel de Modelos y Asociación -->
-              <div class="card chart-card">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                  <h5><i class="fas fa-brain"></i> Modelo Asignado</h5>
-                  <div>
-                    <button class="btn btn-sm btn-outline-primary mr-2" data-toggle="modal" data-target="#addModelModal">
-                      <i class="fas fa-plus mr-1"></i> Nuevo Modelo
-                    </button>
-                    <button class="btn btn-sm btn-outline-info" data-toggle="modal" data-target="#addScalerModal">
-                      <i class="fas fa-plus mr-1"></i> Nuevo Scaler
-                    </button>
-                  </div>
-                </div>
-                  <div class="card-body">
-                  <div id="modelDetailsPlaceholder" class="text-center py-4">
-                    <i class="fas fa-brain text-muted" style="font-size: 3rem;"></i>
-                    <p class="mt-3 text-muted">Seleccione un sensor para ver el modelo asignado</p>
-                  </div>
-                  <div id="modelDetails" class="d-none">
-                    <div id="noModelAssigned" class="alert alert-warning">
-                      <i class="fas fa-exclamation-triangle mr-2"></i>
-                      No hay un modelo asignado a este sensor
-                </div>
-                    <form id="assignModelForm">
-                      <div class="form-group">
-                        <label for="selectModel">Modelo:</label>
-                        <select class="form-control" id="selectModel">
-                          <option value="">Seleccionar modelo...</option>
-                        </select>
+              <div class="chart-body">
+                <canvas id="alertsHistoryChart"></canvas>
               </div>
-                      <div class="form-group">
-                        <label for="selectScaler">Scaler:</label>
-                        <select class="form-control" id="selectScaler">
-                          <option value="">Seleccionar scaler...</option>
-                        </select>
-                      </div>
-                      <div class="text-right">
-                        <button type="button" class="btn btn-primary" id="assignModelBtn">
-                          <i class="fas fa-link mr-1"></i> Asignar Modelo
-                        </button>
-                      </div>
-                    </form>
-                    
-                    <div id="currentModelInfo" class="mt-4 d-none">
-                      <h6 class="border-bottom pb-2">Modelo Actualmente Asignado</h6>
-                      <div class="row">
-                        <div class="col-sm-4 font-weight-bold">Modelo:</div>
-                        <div class="col-sm-8" id="currentModelName">-</div>
-                  </div>
-                      <div class="row mt-2">
-                        <div class="col-sm-4 font-weight-bold">Tipo:</div>
-                        <div class="col-sm-8" id="currentModelType">-</div>
-                </div>
-                      <div class="row mt-2">
-                        <div class="col-sm-4 font-weight-bold">Scaler:</div>
-                        <div class="col-sm-8" id="currentScalerName">-</div>
-              </div>
-                      <div class="row mt-2">
-                        <div class="col-sm-4 font-weight-bold">Precisión:</div>
-                        <div class="col-sm-8" id="currentModelAccuracy">-</div>
-            </div>
-                      <div class="row mt-2">
-                        <div class="col-sm-4 font-weight-bold">Fecha Asignación:</div>
-                        <div class="col-sm-8" id="currentModelDate">-</div>
-          </div>
-                      <div class="text-right mt-3">
-                        <button type="button" class="btn btn-sm btn-danger" id="removeModelBtn">
-                          <i class="fas fa-unlink mr-1"></i> Desasignar
-                        </button>
-        </div>
-          </div>
-                </div>
-              </div>
-            </div>
             </div>
           </div>
         </div>
         
-        <!-- Configuración de Parámetros Estadísticos -->
-        <div class="card chart-card mt-4">
-          <div class="card-header">
-            <h5><i class="fas fa-cogs"></i> Parámetros Estadísticos</h5>
-          </div>
-          <div class="card-body">
-            <form id="statisticalLimitsForm">
-              <div class="row">
-                <div class="col-md-4">
-                  <h6 class="border-bottom pb-2">Eje X</h6>
-                  <div class="form-group row">
-                    <label class="col-sm-6 col-form-label">2σ Inferior:</label>
-                    <div class="col-sm-6">
-                      <input type="number" step="0.01" class="form-control" id="x2SigmaLower">
-                    </div>
-                  </div>
-                  <div class="form-group row">
-                    <label class="col-sm-6 col-form-label">2σ Superior:</label>
-                    <div class="col-sm-6">
-                      <input type="number" step="0.01" class="form-control" id="x2SigmaUpper">
-                    </div>
-                  </div>
-                  <div class="form-group row">
-                    <label class="col-sm-6 col-form-label">3σ Inferior:</label>
-                    <div class="col-sm-6">
-                      <input type="number" step="0.01" class="form-control" id="x3SigmaLower">
-                    </div>
-                  </div>
-                  <div class="form-group row">
-                    <label class="col-sm-6 col-form-label">3σ Superior:</label>
-                    <div class="col-sm-6">
-                      <input type="number" step="0.01" class="form-control" id="x3SigmaUpper">
-                    </div>
-                  </div>
-                </div>
-                
-                <div class="col-md-4">
-                  <h6 class="border-bottom pb-2">Eje Y</h6>
-                  <div class="form-group row">
-                    <label class="col-sm-6 col-form-label">2σ Inferior:</label>
-                    <div class="col-sm-6">
-                      <input type="number" step="0.01" class="form-control" id="y2SigmaLower">
-                    </div>
-                  </div>
-                  <div class="form-group row">
-                    <label class="col-sm-6 col-form-label">2σ Superior:</label>
-                    <div class="col-sm-6">
-                      <input type="number" step="0.01" class="form-control" id="y2SigmaUpper">
-                    </div>
-                  </div>
-                  <div class="form-group row">
-                    <label class="col-sm-6 col-form-label">3σ Inferior:</label>
-                    <div class="col-sm-6">
-                      <input type="number" step="0.01" class="form-control" id="y3SigmaLower">
-                    </div>
-                  </div>
-                  <div class="form-group row">
-                    <label class="col-sm-6 col-form-label">3σ Superior:</label>
-                    <div class="col-sm-6">
-                      <input type="number" step="0.01" class="form-control" id="y3SigmaUpper">
-                    </div>
-                  </div>
-                </div>
-                
-                <div class="col-md-4">
-                  <h6 class="border-bottom pb-2">Eje Z</h6>
-                  <div class="form-group row">
-                    <label class="col-sm-6 col-form-label">2σ Inferior:</label>
-                    <div class="col-sm-6">
-                      <input type="number" step="0.01" class="form-control" id="z2SigmaLower">
-                    </div>
-                  </div>
-                  <div class="form-group row">
-                    <label class="col-sm-6 col-form-label">2σ Superior:</label>
-                    <div class="col-sm-6">
-                      <input type="number" step="0.01" class="form-control" id="z2SigmaUpper">
-                    </div>
-                  </div>
-                  <div class="form-group row">
-                    <label class="col-sm-6 col-form-label">3σ Inferior:</label>
-                    <div class="col-sm-6">
-                      <input type="number" step="0.01" class="form-control" id="z3SigmaLower">
-                    </div>
-                  </div>
-                  <div class="form-group row">
-                    <label class="col-sm-6 col-form-label">3σ Superior:</label>
-                    <div class="col-sm-6">
-                      <input type="number" step="0.01" class="form-control" id="z3SigmaUpper">
-                    </div>
-                  </div>
-                </div>
-              </div>
-              
-              <div class="text-right mt-3">
-                <button type="button" class="btn btn-secondary" id="resetLimitsBtn">
-                  <i class="fas fa-undo mr-1"></i> Valores por Defecto
-                </button>
-                <button type="button" class="btn btn-primary" id="saveLimitsBtn">
-                  <i class="fas fa-save mr-1"></i> Guardar Límites
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <!-- Otras secciones... -->
+        
       </div>
     </div>
   </div>
   
-  <!-- Modales -->
-  
-  <!-- Modal de Confirmación -->
-  <div class="modal fade" id="confirmModal" tabindex="-1" role="dialog" aria-labelledby="confirmModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered" role="document">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title" id="confirmModalLabel">Confirmar acción</h5>
-          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-            <span aria-hidden="true">&times;</span>
-          </button>
-                </div>
-        <div class="modal-body" id="confirmModalBody">
-          ¿Está seguro que desea continuar con esta acción?
-              </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
-          <button type="button" class="btn btn-primary" id="confirmModalBtn">Confirmar</button>
-            </div>
-          </div>
-        </div>
-  </div>
-  
-  <!-- Modal para añadir una máquina nueva -->
-  <div class="modal fade" id="addMachineModal" tabindex="-1" aria-labelledby="addMachineModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title" id="addMachineModalLabel">Añadir Nueva Máquina</h5>
-          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-            <span aria-hidden="true">&times;</span>
-          </button>
-              </div>
-        <div class="modal-body">
-          <form id="addMachineForm">
-            <div class="row">
-              <div class="col-md-6">
-                <div class="form-group">
-                  <label for="machineName">Nombre de la Máquina</label>
-                  <input type="text" class="form-control" id="machineName" required>
-                </div>
-                <div class="form-group">
-                  <label for="machineType">Tipo de Máquina</label>
-                  <select class="form-control" id="machineType" required>
-                    <option value="">Seleccionar tipo...</option>
-                    <option value="motor">Motor</option>
-                    <option value="pump">Bomba</option>
-                    <option value="fan">Ventilador</option>
-                    <option value="compressor">Compresor</option>
-                    <option value="generator">Generador</option>
-                    <option value="other">Otro</option>
-                  </select>
-                </div>
-                <div class="form-group">
-                  <label for="machineLocation">Ubicación</label>
-                  <input type="text" class="form-control" id="machineLocation" required>
-                </div>
-              </div>
-              <div class="col-md-6">
-                <div class="form-group">
-                  <label for="machineSensor">Asignar Sensor</label>
-                  <select class="form-control" id="machineSensor" required>
-                    <option value="">Seleccionar sensor...</option>
-                    <!-- Se poblarán los sensores disponibles dinámicamente -->
-                  </select>
-                  <small class="form-text text-muted">Seleccione un sensor para asignar a esta máquina</small>
-                </div>
-                <div class="form-group">
-                  <label for="machineDescription">Descripción</label>
-                  <textarea class="form-control" id="machineDescription" rows="4"></textarea>
-                </div>
-              </div>
-            </div>
-            <div class="alert alert-info mt-3">
-              <i class="fas fa-info-circle mr-2"></i>
-              <strong>Nota:</strong> Primero debe crear un sensor antes de poder asignarlo a una máquina.
-            </div>
-          </form>
-                </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
-          <button type="button" class="btn btn-primary" id="saveMachineBtn">Guardar</button>
-                    </div>
-                    </div>
-                  </div>
-                    </div>
-  
-  <!-- Modal para añadir un sensor nuevo -->
-  <div class="modal fade" id="addSensorModal" tabindex="-1" aria-labelledby="addSensorModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title" id="addSensorModalLabel">Añadir Nuevo Sensor</h5>
-          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-            <span aria-hidden="true">&times;</span>
-          </button>
-                    </div>
-        <div class="modal-body">
-          <form id="addSensorForm">
-            <div class="row">
-              <div class="col-md-6">
-                <div class="form-group">
-                  <label for="sensorName">Nombre del Sensor</label>
-                  <input type="text" class="form-control" id="sensorName" required>
-                </div>
-                <div class="form-group">
-                  <label for="sensorType">Tipo de Sensor</label>
-                  <select class="form-control" id="sensorType" required>
-                    <option value="">Seleccionar tipo...</option>
-                    <option value="vibration">Vibración</option>
-                    <option value="temperature">Temperatura</option>
-                    <option value="pressure">Presión</option>
-                    <option value="flow">Flujo</option>
-                    <option value="other">Otro</option>
-                  </select>
-                </div>
-                <div class="form-group">
-                  <label for="sensorSampleRate">Frecuencia de Muestreo (Hz)</label>
-                  <input type="number" class="form-control" id="sensorSampleRate" min="1" value="100">
-                </div>
-              </div>
-              <div class="col-md-6">
-                <div class="form-group">
-                  <label for="sensorModel">Modelo de ML Asociado</label>
-                  <select class="form-control" id="sensorModel">
-                    <option value="">Ninguno (opcional)</option>
-                    <!-- Se poblarán los modelos disponibles dinámicamente -->
-                  </select>
-                </div>
-                <div class="form-group">
-                  <label for="sensorLocation">Ubicación</label>
-                  <input type="text" class="form-control" id="sensorLocation" required>
-                </div>
-                <div class="form-group">
-                  <label for="sensorDescription">Descripción</label>
-                  <textarea class="form-control" id="sensorDescription" rows="3"></textarea>
-                </div>
-              </div>
-            </div>
-                </form>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
-          <button type="button" class="btn btn-primary" id="saveSensorBtn">Guardar</button>
-        </div>
-              </div>
-            </div>
-          </div>
-          
-  <!-- Modal para añadir un modelo nuevo -->
-  <div class="modal fade" id="addModelModal" tabindex="-1" aria-labelledby="addModelModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title" id="addModelModalLabel">Añadir Nuevo Modelo</h5>
-          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-            <span aria-hidden="true">&times;</span>
-          </button>
-              </div>
-        <div class="modal-body">
-          <form id="addModelForm">
-            <div class="row">
-              <div class="col-md-6">
-                <div class="form-group">
-                  <label for="modelName">Nombre del Modelo</label>
-                  <input type="text" class="form-control" id="modelName" required>
-                </div>
-                <div class="form-group">
-                  <label for="modelType">Tipo de Modelo</label>
-                  <select class="form-control" id="modelType" required>
-                    <option value="">Seleccionar tipo...</option>
-                    <option value="anomaly_detection">Detección de Anomalías</option>
-                    <option value="classification">Clasificación</option>
-                    <option value="regression">Regresión</option>
-                    <option value="other">Otro</option>
-                  </select>
-                </div>
-                <div class="form-group">
-                  <label for="modelFile">Archivo del Modelo (.h5)</label>
-                  <div class="custom-file">
-                    <input type="file" class="custom-file-input" id="modelFile" required>
-                    <label class="custom-file-label" for="modelFile">Elegir archivo...</label>
-                  </div>
-                  <small class="form-text text-muted">Formato soportado: .h5</small>
-                </div>
-              </div>
-              <div class="col-md-6">
-                <div class="form-group">
-                  <label for="modelRoute">Ruta del Modelo (route_h5)</label>
-                  <input type="text" class="form-control" id="modelRoute" placeholder="models/my_model.h5" required>
-                  <small class="form-text text-muted">Ruta donde se almacenará el modelo</small>
-                </div>
-                <div class="form-group">
-                  <label for="modelScaler">Scaler Asociado (opcional)</label>
-                  <select class="form-control" id="modelScaler">
-                    <option value="">Ninguno</option>
-                    <!-- Se poblarán los scalers disponibles dinámicamente -->
-                  </select>
-                </div>
-                <div class="form-group">
-                  <label for="modelDescription">Descripción</label>
-                  <textarea class="form-control" id="modelDescription" rows="3"></textarea>
-                </div>
-              </div>
-            </div>
-          </form>
-            </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
-          <button type="button" class="btn btn-primary" id="saveModelBtn">Guardar</button>
-          </div>
-        </div>
-  </div>
-</div>
-
-  <!-- Modal para añadir un scaler nuevo -->
-  <div class="modal fade" id="addScalerModal" tabindex="-1" aria-labelledby="addScalerModalLabel" aria-hidden="true">
+  <!-- Modal de Ajuste de Límites -->
+  <div class="modal" id="adjustLimitsModal">
     <div class="modal-dialog">
       <div class="modal-content">
-      <div class="modal-header">
-          <h5 class="modal-title" id="addScalerModalLabel">Añadir Nuevo Scaler</h5>
-          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-          <span aria-hidden="true">&times;</span>
-        </button>
-      </div>
-      <div class="modal-body">
-          <form id="addScalerForm">
-        <div class="form-group">
-              <label for="scalerName">Nombre del Scaler</label>
-              <input type="text" class="form-control" id="scalerName" required>
-        </div>
-            <div class="form-group">
-              <label for="scalerType">Tipo de Scaler</label>
-              <select class="form-control" id="scalerType" required>
-                <option value="">Seleccionar tipo...</option>
-                <option value="standard">StandardScaler</option>
-                <option value="minmax">MinMaxScaler</option>
-                <option value="robust">RobustScaler</option>
-                <option value="other">Otro</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label for="scalerFile">Archivo del Scaler</label>
-              <div class="custom-file">
-                <input type="file" class="custom-file-input" id="scalerFile" required>
-                <label class="custom-file-label" for="scalerFile">Elegir archivo...</label>
-              </div>
-              <small class="form-text text-muted">Formatos soportados: .pkl, .joblib</small>
-            </div>
-            <div class="form-group">
-              <label for="scalerDescription">Descripción</label>
-              <textarea class="form-control" id="scalerDescription" rows="3"></textarea>
-            </div>
-          </form>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
-          <button type="button" class="btn btn-primary" id="saveScalerBtn">Guardar</button>
-      </div>
-      </div>
-  </div>
-</div>
-
-  <!-- Modal para ajustar límites estadísticos -->
-  <div class="modal fade" id="adjustLimitsModal" tabindex="-1" aria-labelledby="adjustLimitsModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
-      <div class="modal-content">
         <div class="modal-header">
-          <h5 class="modal-title" id="adjustLimitsModalLabel">Ajustar Límites Estadísticos</h5>
-          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-            <span aria-hidden="true">&times;</span>
+          <h5 class="modal-title">Ajustar Límites Estadísticos</h5>
+          <button type="button" class="modal-close" data-dismiss="modal">
+            <i class="fas fa-times"></i>
           </button>
         </div>
         <div class="modal-body">
           <form id="adjustLimitsForm">
-            <div class="row">
-              <!-- Eje X -->
-              <div class="col-md-4">
-                <h6 class="border-bottom pb-2">Eje X</h6>
-                <div class="form-group row">
-                  <label class="col-sm-6 col-form-label">2σ Inferior:</label>
-                  <div class="col-sm-6">
-                    <input type="number" step="0.000001" class="form-control" id="x2SigmaLower">
-                  </div>
-                </div>
-                <div class="form-group row">
-                  <label class="col-sm-6 col-form-label">2σ Superior:</label>
-                  <div class="col-sm-6">
-                    <input type="number" step="0.000001" class="form-control" id="x2SigmaUpper">
-                  </div>
-                </div>
-                <div class="form-group row">
-                  <label class="col-sm-6 col-form-label">3σ Inferior:</label>
-                  <div class="col-sm-6">
-                    <input type="number" step="0.000001" class="form-control" id="x3SigmaLower">
-                  </div>
-                </div>
-                <div class="form-group row">
-                  <label class="col-sm-6 col-form-label">3σ Superior:</label>
-                  <div class="col-sm-6">
-                    <input type="number" step="0.000001" class="form-control" id="x3SigmaUpper">
-                  </div>
-                </div>
+            <div class="form-grid">
+              <div class="form-group">
+                <label class="form-label">Sigma 2 Inferior:</label>
+                <input type="number" class="form-control" id="sigma2LowerInput" step="0.001">
               </div>
-              
-              <!-- Eje Y -->
-              <div class="col-md-4">
-                <h6 class="border-bottom pb-2">Eje Y</h6>
-                <div class="form-group row">
-                  <label class="col-sm-6 col-form-label">2σ Inferior:</label>
-                  <div class="col-sm-6">
-                    <input type="number" step="0.000001" class="form-control" id="y2SigmaLower">
-                  </div>
-                </div>
-                <div class="form-group row">
-                  <label class="col-sm-6 col-form-label">2σ Superior:</label>
-                  <div class="col-sm-6">
-                    <input type="number" step="0.000001" class="form-control" id="y2SigmaUpper">
-                  </div>
-                </div>
-                <div class="form-group row">
-                  <label class="col-sm-6 col-form-label">3σ Inferior:</label>
-                  <div class="col-sm-6">
-                    <input type="number" step="0.000001" class="form-control" id="y3SigmaLower">
-                  </div>
-                </div>
-                <div class="form-group row">
-                  <label class="col-sm-6 col-form-label">3σ Superior:</label>
-                  <div class="col-sm-6">
-                    <input type="number" step="0.000001" class="form-control" id="y3SigmaUpper">
-                  </div>
-                </div>
+              <div class="form-group">
+                <label class="form-label">Sigma 2 Superior:</label>
+                <input type="number" class="form-control" id="sigma2UpperInput" step="0.001">
               </div>
-              
-              <!-- Eje Z -->
-              <div class="col-md-4">
-                <h6 class="border-bottom pb-2">Eje Z</h6>
-                <div class="form-group row">
-                  <label class="col-sm-6 col-form-label">2σ Inferior:</label>
-                  <div class="col-sm-6">
-                    <input type="number" step="0.000001" class="form-control" id="z2SigmaLower">
-                  </div>
-                </div>
-                <div class="form-group row">
-                  <label class="col-sm-6 col-form-label">2σ Superior:</label>
-                  <div class="col-sm-6">
-                    <input type="number" step="0.000001" class="form-control" id="z2SigmaUpper">
-                  </div>
-                </div>
-                <div class="form-group row">
-                  <label class="col-sm-6 col-form-label">3σ Inferior:</label>
-                  <div class="col-sm-6">
-                    <input type="number" step="0.000001" class="form-control" id="z3SigmaLower">
-                  </div>
-                </div>
-                <div class="form-group row">
-                  <label class="col-sm-6 col-form-label">3σ Superior:</label>
-                  <div class="col-sm-6">
-                    <input type="number" step="0.000001" class="form-control" id="z3SigmaUpper">
-                  </div>
-                </div>
+              <div class="form-group">
+                <label class="form-label">Sigma 3 Inferior:</label>
+                <input type="number" class="form-control" id="sigma3LowerInput" step="0.001">
               </div>
-            </div>
-            
-            <div class="text-right mt-3">
-              <button type="button" class="btn btn-secondary" id="resetLimitsBtn">
-                <i class="fas fa-undo mr-1"></i> Valores por Defecto
-              </button>
-              <button type="button" class="btn btn-primary" id="saveLimitsBtn">
-                <i class="fas fa-save mr-1"></i> Guardar Límites
-              </button>
+              <div class="form-group">
+                <label class="form-label">Sigma 3 Superior:</label>
+                <input type="number" class="form-control" id="sigma3UpperInput" step="0.001">
+              </div>
             </div>
           </form>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" id="resetLimitsBtn">
+            <i class="fas fa-undo mr-2"></i> Restablecer
+          </button>
+          <button class="btn" id="saveLimitsBtn">
+            <i class="fas fa-save mr-2"></i> Guardar
+          </button>
         </div>
       </div>
     </div>
   </div>
   
-  <!-- Loading Overlay -->
-  <div id="loadingOverlay" class="loading-overlay">
-    <div class="spinner-container">
-      <div class="spinner-border text-light mb-2" role="status" style="width: 3rem; height: 3rem;">
-        <span class="sr-only">Cargando...</span>
-      </div>
-      <div id="loadingText" class="text-light">Procesando...</div>
-    </div>
+  <!-- Overlay de carga -->
+  <div id="loadingOverlay">
+    <div class="loading-spinner"></div>
+    <div class="loading-message">Cargando datos...</div>
   </div>
   
-  <!-- Scripts -->
-  <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/moment@2.29.4/moment.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
-  <script src="/static/js/navigation.js"></script>
-  <script src="/static/js/dashboard.js"></script>
-  <script src="/static/js/forms.js"></script>
+  <!-- Contenedor de toasts -->
+  <div class="toast-container" id="toastContainer"></div>
+  
+  <!-- JavaScript Unificado y Optimizado -->
+  <script src="/static/js/global.js"></script>
 </body>
 </html>
