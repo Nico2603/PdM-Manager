@@ -498,7 +498,6 @@
                       <th>Estado</th>
                       <th>Ruta</th>
                       <th>Sensor</th>
-                      <th>Modelo</th>
                       <th>Acciones</th>
                     </tr>
                   </thead>
@@ -530,6 +529,7 @@
                       <th>Ubicación</th>
                       <th>Tipo</th>
                       <th>Máquina Asociada</th>
+                      <th>Modelo Asociado</th>
                       <th>Acciones</th>
                     </tr>
                   </thead>
@@ -901,14 +901,6 @@
             </div>
             
             <div class="form-group">
-              <label class="form-label">Modelo:</label>
-              <select class="form-select" id="machineModel" name="model_id">
-                <option value="">Ninguno</option>
-                <!-- Opciones cargadas dinámicamente -->
-              </select>
-            </div>
-            
-            <div class="form-group">
               <label class="form-label">Ruta:</label>
               <input type="text" class="form-control" id="machineRoute" name="route">
             </div>
@@ -960,6 +952,14 @@
               <label class="form-label">Máquina:</label>
               <select class="form-select" id="sensorMachine" name="machine_id">
                 <option value="">Ninguna</option>
+                <!-- Opciones cargadas dinámicamente -->
+              </select>
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">Modelo:</label>
+              <select class="form-select" id="sensorModel" name="model_id">
+                <option value="">Ninguno</option>
                 <!-- Opciones cargadas dinámicamente -->
               </select>
             </div>

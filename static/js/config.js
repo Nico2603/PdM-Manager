@@ -65,7 +65,6 @@ function initMachineManagement() {
     
     // Cargar selectores para el modal
     loadSensorsForSelect();
-    loadModelsForSelect();
     
     // Configurar evento para añadir nueva máquina
     const addMachineBtn = document.getElementById('addMachineBtn');
@@ -111,7 +110,7 @@ function loadMachinesTable() {
             if (machines.length === 0) {
                 tableBody.innerHTML = `
                     <tr>
-                        <td colspan="9" class="text-center">No hay máquinas registradas</td>
+                        <td colspan="8" class="text-center">No hay máquinas registradas</td>
                     </tr>
                 `;
                 return;
@@ -120,13 +119,15 @@ function loadMachinesTable() {
             machines.forEach(machine => {
                 const row = document.createElement('tr');
                 
-                // Obtener nombres de sensor y modelo del resultado del backend
-                const sensorName = machine.sensor_name || 'No asignado';
-                const modelName = machine.model_name || 'No asignado';
+                // Preparar información de sensor
+                const sensorInfo = machine.sensor_name ? 
+                    `<span class="badge badge-primary">${machine.sensor_name}</span>` : 
+                    '<span class="badge badge-secondary">Sin sensor</span>';
                 
-                // Crear badge para el estado
-                let statusBadge = '';
-                switch(machine.status) {
+                // Preparar estado según valor
+                let statusBadge = '<span class="badge badge-secondary">Desconocido</span>';
+                
+                switch (machine.status) {
                     case 'operativo':
                         statusBadge = '<span class="badge badge-success">Operativo</span>';
                         break;
@@ -139,8 +140,6 @@ function loadMachinesTable() {
                     case 'error':
                         statusBadge = '<span class="badge badge-danger">Error</span>';
                         break;
-                    default:
-                        statusBadge = '<span class="badge badge-secondary">No definido</span>';
                 }
                 
                 row.innerHTML = `
@@ -149,9 +148,8 @@ function loadMachinesTable() {
                     <td>${machine.description || '-'}</td>
                     <td>${machine.location || '-'}</td>
                     <td>${statusBadge}</td>
-                    <td><span class="text-truncate d-inline-block" style="max-width: 100px;" title="${machine.route || ''}">${machine.route || '-'}</span></td>
-                    <td><span class="badge-info">${sensorName}</span></td>
-                    <td><span class="badge-secondary">${modelName}</span></td>
+                    <td>${machine.route || '-'}</td>
+                    <td>${sensorInfo}</td>
                     <td class="column-actions">
                         <div class="table-actions">
                             <button class="btn-icon btn-edit" title="Editar máquina" data-id="${machine.machine_id}">
@@ -254,15 +252,10 @@ function editMachine(machineId) {
                 statusSelect.value = machine.status || 'operativo';
             }
             
-            // Seleccionar sensor y modelo si están asignados
+            // Seleccionar sensor si está asignado
             const sensorSelect = document.getElementById('machineSensor');
             if (sensorSelect && machine.sensor_id) {
                 sensorSelect.value = machine.sensor_id;
-            }
-            
-            const modelSelect = document.getElementById('machineModel');
-            if (modelSelect && machine.model_id) {
-                modelSelect.value = machine.model_id;
             }
             
             // Actualizar título del modal
@@ -288,7 +281,6 @@ function saveMachine() {
     const machineStatus = document.getElementById('machineStatus').value;
     const machineRoute = document.getElementById('machineRoute').value;
     const sensorId = document.getElementById('machineSensor').value;
-    const modelId = document.getElementById('machineModel').value;
     
     // Verificar campo obligatorio
     if (!machineName) {
@@ -303,8 +295,7 @@ function saveMachine() {
         location: machineLocation || '',
         status: machineStatus || 'operativo',
         route: machineRoute || '',
-        sensor_id: sensorId ? parseInt(sensorId) : null,
-        model_id: modelId ? parseInt(modelId) : null
+        sensor_id: sensorId ? parseInt(sensorId) : null
     };
     
     // Determinar si es creación o actualización
@@ -442,8 +433,9 @@ function initSensorManagement() {
     // Cargar lista de sensores
     loadSensorsTable();
     
-    // Cargar selectores para el modal (máquinas disponibles)
+    // Cargar selectores para el modal (máquinas y modelos disponibles)
     loadMachinesForSelect();
+    loadModelsForSelect();
     
     // Configurar evento para añadir nuevo sensor
     const addSensorBtn = document.getElementById('addSensorBtn');
@@ -454,9 +446,9 @@ function initSensorManagement() {
             document.getElementById('sensorId').value = '';
             document.getElementById('sensorModalTitle').textContent = 'Nuevo Sensor';
             
-            // Limpiar campo oculto de máquina actual si existe
-            const hiddenField = document.getElementById('currentMachineId');
-            if (hiddenField) hiddenField.value = '';
+            // Actualizar selectores
+            loadMachinesForSelect('sensorMachine');
+            loadModelsForSelect('sensorModel');
             
             // Mostrar el modal
             const modal = document.getElementById('sensorModal');
@@ -472,7 +464,7 @@ function initSensorManagement() {
 }
 
 // Cargar máquinas para el selector en el formulario de sensores
-function loadMachinesForSelect() {
+function loadMachinesForSelect(selectedMachine = null) {
     fetch('/api/machines')
         .then(response => response.json())
         .then(machines => {
@@ -488,9 +480,40 @@ function loadMachinesForSelect() {
                 option.textContent = machine.name;
                 machineSelect.appendChild(option);
             });
+            
+            if (selectedMachine) {
+                machineSelect.value = selectedMachine;
+            }
         })
         .catch(error => {
             console.error('Error al cargar máquinas:', error);
+        });
+}
+
+// Cargar modelos para el selector en el formulario de sensores
+function loadModelsForSelect(selectedModel = null) {
+    fetch('/api/models')
+        .then(response => response.json())
+        .then(models => {
+            const modelSelect = document.getElementById('sensorModel');
+            if (!modelSelect) return;
+            
+            // Mantener la opción "Ninguno"
+            modelSelect.innerHTML = '<option value="">Ninguno</option>';
+            
+            models.forEach(model => {
+                const option = document.createElement('option');
+                option.value = model.model_id;
+                option.textContent = model.name;
+                modelSelect.appendChild(option);
+            });
+            
+            if (selectedModel) {
+                modelSelect.value = selectedModel;
+            }
+        })
+        .catch(error => {
+            console.error('Error al cargar modelos:', error);
         });
 }
 
@@ -507,7 +530,7 @@ function loadSensorsTable() {
             if (sensors.length === 0) {
                 tableBody.innerHTML = `
                     <tr>
-                        <td colspan="7" class="text-center">No hay sensores registrados</td>
+                        <td colspan="8" class="text-center">No hay sensores registrados</td>
                     </tr>
                 `;
                 return;
@@ -518,6 +541,9 @@ function loadSensorsTable() {
                 
                 // Obtener nombre de máquina asociada
                 const machineName = sensor.machine_name || 'No asignado';
+                
+                // Obtener nombre de modelo asociado
+                const modelName = sensor.model_name || 'No asignado';
                 
                 // Clase para filas según si está asociado a una máquina
                 if (sensor.machine_id) {
@@ -533,6 +559,11 @@ function loadSensorsTable() {
                     <td>
                         <span class="badge ${sensor.machine_id ? 'badge-primary' : 'badge-secondary'}">
                             ${machineName}
+                        </span>
+                    </td>
+                    <td>
+                        <span class="badge ${sensor.model_id ? 'badge-info' : 'badge-secondary'}">
+                            ${modelName}
                         </span>
                     </td>
                     <td class="column-actions">
@@ -613,6 +644,11 @@ function editSensor(sensorId) {
                 document.getElementById('sensorMachine').value = sensor.machine_id || '';
             }
             
+            // Seleccionar modelo si está asignado
+            if (document.getElementById('sensorModel')) {
+                document.getElementById('sensorModel').value = sensor.model_id || '';
+            }
+            
             // Almacenar id de máquina actual para comparación posterior
             const hiddenField = document.getElementById('currentMachineId') || document.createElement('input');
             hiddenField.type = 'hidden';
@@ -642,6 +678,7 @@ function saveSensor() {
     const sensorLocation = document.getElementById('sensorLocation').value;
     const sensorType = document.getElementById('sensorType').value;
     const machineId = document.getElementById('sensorMachine').value;
+    const modelId = document.getElementById('sensorModel').value;
     
     // Verificar campo obligatorio
     if (!sensorName) {
@@ -655,6 +692,7 @@ function saveSensor() {
     formData.append('location', sensorLocation || '');
     formData.append('type', sensorType || '');
     formData.append('machine_id', machineId || '');
+    formData.append('model_id', modelId || '');
     
     // Determinar si es creación o actualización
     const isUpdate = sensorId && sensorId !== '';
@@ -732,8 +770,9 @@ function ensureMachineSensorReference(sensorId, machineId) {
                 name: machine.name,
                 description: machine.description || '',
                 location: machine.location || '',
-                sensor_id: parseInt(sensorId),
-                model_id: machine.model_id || null
+                status: machine.status || 'operativo',
+                route: machine.route || '',
+                sensor_id: parseInt(sensorId)
             };
             
             // Actualizar la máquina
@@ -1352,4 +1391,46 @@ function resetLimits() {
         .finally(() => {
             hideLoadingIndicator();
         });
+}
+
+// Cargar datos para el modal de sensor
+function loadSensorForm(sensorId = null) {
+    // Limpiar formulario primero
+    document.getElementById('sensorForm').reset();
+    document.getElementById('sensorId').value = '';
+    document.getElementById('sensorModalTitle').textContent = 'Nuevo Sensor';
+    
+    // Cargar máquinas y modelos disponibles
+    loadMachinesForSelect('sensorMachine');
+    loadModelsForSelect('sensorModel');
+    
+    // Si es edición, cargar datos del sensor
+    if (sensorId) {
+        document.getElementById('sensorModalTitle').textContent = 'Editar Sensor';
+        
+        // Cargar datos del sensor
+        fetch(`/api/sensors/${sensorId}`)
+            .then(response => response.json())
+            .then(sensor => {
+                document.getElementById('sensorId').value = sensor.sensor_id;
+                document.getElementById('sensorName').value = sensor.name;
+                document.getElementById('sensorDescription').value = sensor.description || '';
+                document.getElementById('sensorLocation').value = sensor.location || '';
+                document.getElementById('sensorType').value = sensor.type || '';
+                
+                // Seleccionar máquina si está asignada
+                if (document.getElementById('sensorMachine')) {
+                    document.getElementById('sensorMachine').value = sensor.machine_id || '';
+                }
+                
+                // Seleccionar modelo si está asignado
+                if (document.getElementById('sensorModel')) {
+                    document.getElementById('sensorModel').value = sensor.model_id || '';
+                }
+            })
+            .catch(error => {
+                console.error('Error al cargar datos del sensor:', error);
+                showToast('Error al cargar datos del sensor', 'error');
+            });
+    }
 }

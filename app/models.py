@@ -11,6 +11,7 @@ class Sensor(Base):
     location = Column(String, nullable=True)
     type = Column(String, nullable=True)
     machine_id = Column(Integer, ForeignKey("machine.machine_id"), nullable=True)
+    model_id = Column(Integer, ForeignKey("model.model_id"), nullable=True)
 
 class Model(Base):
     __tablename__ = 'model'
@@ -27,7 +28,6 @@ class Machine(Base):
     __tablename__ = 'machine'
     machine_id = Column(Integer, primary_key=True, index=True)
     sensor_id = Column(Integer, ForeignKey("sensor.sensor_id"), nullable=True)
-    model_id = Column(Integer, ForeignKey("model.model_id"), nullable=True)
     name = Column(String, nullable=False)
     description = Column(Text, nullable=True)
     location = Column(String, nullable=True)

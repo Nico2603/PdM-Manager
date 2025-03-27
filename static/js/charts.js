@@ -273,7 +273,7 @@ function updateAxisChart(chart, axis) {
     
     // Obtener estadísticas y opciones de gráfico
     const stats = getGlobalState('stats');
-    const chartOptions = getGlobalState('chartOptions');
+    const chartOptions = getGlobalState('chartOptions') || { show2Sigma: true, show3Sigma: true };
     
     // Eliminar datasets adicionales (líneas estadísticas)
     while (chart.data.datasets.length > 1) {
@@ -282,7 +282,7 @@ function updateAxisChart(chart, axis) {
     
     // Añadir líneas estadísticas si están disponibles y activadas
     if (stats && stats[axis]) {
-        // Límites 2-sigma
+        // Límites 2-sigma (solo si show2Sigma está activo)
         if (chartOptions && chartOptions.show2Sigma && stats[axis].sigma2) {
             chart.data.datasets.push({
                 label: `+2σ (${axis.toUpperCase()})`,
@@ -305,7 +305,7 @@ function updateAxisChart(chart, axis) {
             });
         }
         
-        // Límites 3-sigma
+        // Límites 3-sigma (solo si show3Sigma está activo)
         if (chartOptions && chartOptions.show3Sigma && stats[axis].sigma3) {
             chart.data.datasets.push({
                 label: `+3σ (${axis.toUpperCase()})`,
@@ -588,18 +588,18 @@ function updateAxisChartLimits(chart, axis, limits) {
     // Buscar datasets de límites por su nombre (etiqueta)
     chart.data.datasets.forEach(dataset => {
         // Actualizar límites sigma 2
-        if (dataset.label === '+2σ' && chartOptions.show2Sigma) {
+        if ((dataset.label === `+2σ (${axis.toUpperCase()})` || dataset.label === '+2σ') && chartOptions.show2Sigma) {
             dataset.data = Array(chart.data.labels.length).fill(limits[axis].sigma2.upper);
         }
-        if (dataset.label === '-2σ' && chartOptions.show2Sigma) {
+        if ((dataset.label === `-2σ (${axis.toUpperCase()})` || dataset.label === '-2σ') && chartOptions.show2Sigma) {
             dataset.data = Array(chart.data.labels.length).fill(limits[axis].sigma2.lower);
         }
         
         // Actualizar límites sigma 3
-        if (dataset.label === '+3σ' && chartOptions.show3Sigma) {
+        if ((dataset.label === `+3σ (${axis.toUpperCase()})` || dataset.label === '+3σ') && chartOptions.show3Sigma) {
             dataset.data = Array(chart.data.labels.length).fill(limits[axis].sigma3.upper);
         }
-        if (dataset.label === '-3σ' && chartOptions.show3Sigma) {
+        if ((dataset.label === `-3σ (${axis.toUpperCase()})` || dataset.label === '-3σ') && chartOptions.show3Sigma) {
             dataset.data = Array(chart.data.labels.length).fill(limits[axis].sigma3.lower);
         }
     });
@@ -611,6 +611,8 @@ function updateChartsVisibility() {
     const show2Sigma = document.getElementById('show2Sigma')?.checked || false;
     const show3Sigma = document.getElementById('show3Sigma')?.checked || false;
     
+    console.log('Actualizando visibilidad de gráficos:', { show2Sigma, show3Sigma });
+    
     // Actualizar el estado global
     setGlobalState('chartOptions', {
         showMean: false,
@@ -618,10 +620,13 @@ function updateChartsVisibility() {
         show3Sigma: show3Sigma
     });
     
-    // Actualizar los gráficos
-    updateVibrationChartX();
-    updateVibrationChartY();
-    updateVibrationChartZ();
+    // Actualizar los gráficos para que reflejen los cambios en la visibilidad
+    if (vibrationChartX) updateVibrationChartX();
+    if (vibrationChartY) updateVibrationChartY();
+    if (vibrationChartZ) updateVibrationChartZ();
+    
+    // Mostrar mensaje de confirmación
+    showToast(`Visualización actualizada: ${show2Sigma ? 'Mostrando' : 'Ocultando'} límites 2σ, ${show3Sigma ? 'Mostrando' : 'Ocultando'} límites 3σ`, 'info');
 }
 
 // Exportar funciones para uso global

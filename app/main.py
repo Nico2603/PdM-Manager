@@ -263,22 +263,13 @@ def receive_sensor_data(sensor_data: SensorData, db: Session = Depends(get_db)):
             detail=f"Sensor con ID {sensor_data.sensor_id} no encontrado"
         )
     
-    # Buscar la máquina asociada al sensor
-    machine = None
-    if sensor.machine_id:
-        machine = crud.get_machine_by_id(db, sensor.machine_id)
-    
-    if not machine:
-        # No se encontró máquina asociada directamente
-        pass
-    
-    # Si no encontramos máquina o la máquina no tiene modelo asociado, usar el modelo por defecto
+    # Si no hay modelo asociado al sensor, usar el modelo por defecto
     modelo_to_use = modelo
     scaler_to_use = scaler
     
-    if machine and machine.model_id:
-        # Cargar el modelo y escalador específicos de la máquina
-        model_info = crud.get_model_by_id(db, machine.model_id)
+    if sensor.model_id:
+        # Cargar el modelo y escalador específicos del sensor
+        model_info = crud.get_model_by_id(db, sensor.model_id)
         if model_info:
             try:
                 # Cargar modelo desde la ruta especificada
@@ -300,6 +291,15 @@ def receive_sensor_data(sensor_data: SensorData, db: Session = Depends(get_db)):
                             scaler_to_use = joblib.load(custom_scaler_path)
             except Exception as e:
                 print(f"Error al cargar modelo personalizado: {str(e)}. Usando modelo por defecto.")
+    
+    # Buscar la máquina asociada al sensor (para límites configurados)
+    machine = None
+    if sensor.machine_id:
+        machine = crud.get_machine_by_id(db, sensor.machine_id)
+    
+    if not machine:
+        # No se encontró máquina asociada directamente
+        pass
     
     # Preparar los datos para el modelo (triaxial)
     data_array = np.array([[
@@ -437,22 +437,13 @@ def receive_sensor_data_batch(batch_data: SensorDataBatch, db: Session = Depends
             })
             continue
         
-        # Buscar la máquina asociada al sensor
-        machine = None
-        if sensor.machine_id:
-            machine = crud.get_machine_by_id(db, sensor.machine_id)
-        
-        if not machine:
-            # No se encontró máquina asociada directamente
-            pass
-        
-        # Si no encontramos máquina o la máquina no tiene modelo asociado, usar el modelo por defecto
+        # Si no hay modelo asociado al sensor, usar el modelo por defecto
         modelo_to_use = modelo
         scaler_to_use = scaler
         
-        if machine and machine.model_id:
-            # Cargar el modelo y escalador específicos de la máquina
-            model_info = crud.get_model_by_id(db, machine.model_id)
+        if sensor.model_id:
+            # Cargar el modelo y escalador específicos del sensor
+            model_info = crud.get_model_by_id(db, sensor.model_id)
             if model_info:
                 try:
                     # Cargar modelo desde la ruta especificada
@@ -474,6 +465,15 @@ def receive_sensor_data_batch(batch_data: SensorDataBatch, db: Session = Depends
                                 scaler_to_use = joblib.load(custom_scaler_path)
                 except Exception as e:
                     print(f"Error al cargar modelo personalizado: {str(e)}. Usando modelo por defecto.")
+        
+        # Buscar la máquina asociada al sensor (para límites configurados)
+        machine = None
+        if sensor.machine_id:
+            machine = crud.get_machine_by_id(db, sensor.machine_id)
+        
+        if not machine:
+            # No se encontró máquina asociada directamente
+            pass
         
         # Preparar los datos para el modelo (triaxial)
         data_array = np.array([[
@@ -665,12 +665,32 @@ def reload_model(db: Session = Depends(get_db)):
     except Exception as e:
         return {"status": "error", "message": f"Error recargando el modelo: {str(e)}"}
 
-@app.get("/api/sensors", response_model=List[Dict[str, Any]])
-def get_all_sensors(db: Session = Depends(get_db)):
+@app.get("/api/sensors")
+def get_sensors(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
     """
     Obtiene la lista de todos los sensores
     """
-    return crud.get_sensors(db)
+    sensors = crud.get_sensors(db, skip, limit)
+    
+    # Agregar información de máquina y modelo asociados
+    for sensor in sensors:
+        # Información de máquina
+        if sensor.get("machine_id"):
+            machine = crud.get_machine_by_id(db, sensor["machine_id"])
+            if machine:
+                sensor["machine_name"] = machine.name
+        else:
+            sensor["machine_name"] = None
+        
+        # Información de modelo
+        if sensor.get("model_id"):
+            model = crud.get_model_by_id(db, sensor["model_id"])
+            if model:
+                sensor["model_name"] = model.name
+        else:
+            sensor["model_name"] = None
+    
+    return sensors
 
 @app.get("/api/sensors/{sensor_id}", response_model=Dict[str, Any])
 def get_sensor_info(sensor_id: int, db: Session = Depends(get_db)):
@@ -682,56 +702,113 @@ def get_sensor_info(sensor_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail=f"Sensor con ID {sensor_id} no encontrado")
     return sensor
 
-@app.post("/api/sensors", response_model=Dict[str, Any])
-def create_new_sensor(
+@app.post("/api/sensors")
+async def create_sensor(
     name: str = Form(...),
     description: str = Form(None),
     location: str = Form(None),
     type: str = Form(None),
     machine_id: Optional[int] = Form(None),
+    model_id: Optional[int] = Form(None),
     db: Session = Depends(get_db)
 ):
     """
     Crea un nuevo sensor
     """
-    sensor = models.Sensor(
-        name=name,
-        description=description,
-        location=location,
-        type=type,
-        machine_id=machine_id
-    )
-    return crud.create_sensor(db, sensor)
+    try:
+        # Validar campos
+        if not name:
+            raise HTTPException(status_code=400, detail="El nombre del sensor es obligatorio")
+        
+        # Verificar si la máquina existe
+        if machine_id:
+            machine = crud.get_machine_by_id(db, machine_id)
+            if not machine:
+                raise HTTPException(status_code=404, detail=f"Máquina con ID {machine_id} no encontrada")
+        
+        # Verificar si el modelo existe
+        if model_id:
+            model = crud.get_model_by_id(db, model_id)
+            if not model:
+                raise HTTPException(status_code=404, detail=f"Modelo con ID {model_id} no encontrado")
+        
+        # Crear sensor
+        new_sensor = models.Sensor(
+            name=name,
+            description=description,
+            location=location,
+            type=type,
+            machine_id=machine_id if machine_id else None,
+            model_id=model_id if model_id else None
+        )
+        
+        # Guardar en la BD
+        created_sensor = crud.create_sensor(db, new_sensor)
+        
+        return created_sensor
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al crear el sensor: {str(e)}")
 
 @app.put("/api/sensors/{sensor_id}", response_model=Dict[str, Any])
-def update_sensor(
+def update_sensor_info(
     sensor_id: int,
-    name: str = Form(...),
+    name: str = Form(None),
     description: str = Form(None),
     location: str = Form(None),
     type: str = Form(None),
     machine_id: Optional[int] = Form(None),
+    model_id: Optional[int] = Form(None),
     db: Session = Depends(get_db)
 ):
     """
-    Actualiza la información de un sensor existente
+    Actualiza un sensor existente
     """
     # Verificar que el sensor existe
     sensor = crud.get_sensor_by_id(db, sensor_id)
     if not sensor:
-        raise HTTPException(status_code=404, detail=f"Sensor con ID {sensor_id} no encontrado")
+        raise HTTPException(status_code=404, detail="Sensor no encontrado")
     
-    # Actualizar los datos del sensor
-    sensor.name = name
-    sensor.description = description
+    # Actualizar los campos proporcionados
+    if name:
+        sensor.name = name
+    if description is not None:
+        sensor.description = description
     if location is not None:
         sensor.location = location
     if type is not None:
         sensor.type = type
-    if machine_id is not None:
-        sensor.machine_id = machine_id
     
-    return crud.update_sensor(db, sensor)
+    # Actualizar machine_id si se proporciona
+    if machine_id is not None:
+        # Si es un valor vacío, establecer como NULL
+        if machine_id == "" or machine_id == 0:
+            sensor.machine_id = None
+        else:
+            # Verificar que la máquina existe
+            machine = crud.get_machine_by_id(db, machine_id)
+            if not machine:
+                raise HTTPException(status_code=404, detail=f"Máquina con ID {machine_id} no encontrada")
+            sensor.machine_id = machine_id
+    
+    # Actualizar model_id si se proporciona
+    if model_id is not None:
+        # Si es un valor vacío, establecer como NULL
+        if model_id == "" or model_id == 0:
+            sensor.model_id = None
+        else:
+            # Verificar que el modelo existe
+            model = crud.get_model_by_id(db, model_id)
+            if not model:
+                raise HTTPException(status_code=404, detail=f"Modelo con ID {model_id} no encontrado")
+            sensor.model_id = model_id
+    
+    # Guardar cambios
+    updated_sensor = crud.update_sensor(db, sensor)
+    
+    return updated_sensor
 
 @app.delete("/api/sensors/{sensor_id}")
 def delete_sensor_info(sensor_id: int, db: Session = Depends(get_db)):
@@ -957,42 +1034,42 @@ def get_machine_info(machine_id: int, db: Session = Depends(get_db)):
     return result
 
 @app.post("/api/machines")
-def create_new_machine(
-    data: dict = Body(...),
-    db: Session = Depends(get_db)
-):
+def create_machine_info(machine_data: Dict[str, Any] = Body(...), db: Session = Depends(get_db)):
     """
     Crea una nueva máquina
     """
-    machine = models.Machine(
-        name=data.get("name"),
-        description=data.get("description"),
-        location=data.get("location"),
-        status=data.get("status"),
-        model_id=data.get("model_id"),
-        route=data.get("route")
+    # Validar datos mínimos necesarios
+    if "name" not in machine_data:
+        raise HTTPException(status_code=400, detail="El nombre de la máquina es obligatorio")
+    
+    # Crear objeto máquina
+    new_machine = models.Machine(
+        name=machine_data.get("name"),
+        description=machine_data.get("description", ""),
+        location=machine_data.get("location", ""),
+        status=machine_data.get("status", "operativo"),
+        route=machine_data.get("route", ""),
+        sensor_id=machine_data.get("sensor_id")
     )
     
-    created_machine = crud.create_machine(db, machine)
+    # Guardar en la BD
+    saved_machine = crud.create_machine(db, new_machine)
     
-    # Si se proporciona sensor_id, actualizar el sensor para asociarlo a esta máquina
-    sensor_id = data.get("sensor_id")
+    # Si se proporciona sensor_id, actualizar ese sensor para asociarlo a esta máquina
+    sensor_id = machine_data.get("sensor_id")
     if sensor_id:
+        # Buscar el sensor especificado
         sensor = crud.get_sensor_by_id(db, sensor_id)
         if sensor:
-            sensor.machine_id = created_machine.machine_id
+            sensor.machine_id = saved_machine.machine_id
             db.commit()
     
-    return created_machine.__dict__
+    return saved_machine.__dict__
 
 @app.put("/api/machines/{machine_id}")
-def update_machine_info(
-    machine_id: int,
-    data: dict = Body(...),
-    db: Session = Depends(get_db)
-):
+def update_machine_info(machine_id: int, data: Dict[str, Any] = Body(...), db: Session = Depends(get_db)):
     """
-    Actualiza información de una máquina existente
+    Actualiza datos de una máquina
     """
     machine = crud.get_machine_by_id(db, machine_id)
     if not machine:
@@ -1002,7 +1079,6 @@ def update_machine_info(
     machine.description = data.get("description", machine.description)
     machine.location = data.get("location", machine.location)
     machine.status = data.get("status", machine.status)
-    machine.model_id = data.get("model_id", machine.model_id)
     machine.route = data.get("route", machine.route)
     
     # Si se proporciona sensor_id, actualizar ese sensor para asociarlo a esta máquina
@@ -1215,15 +1291,15 @@ def delete_model(model_id: int, db: Session = Depends(get_db)):
         if not model:
             raise HTTPException(status_code=404, detail="Modelo no encontrado")
         
-        # Verificar si el modelo está siendo utilizado por alguna máquina
-        machines_using_model = db.query(models.Machine).filter(
-            models.Machine.model_id == model_id
+        # Verificar si el modelo está siendo utilizado por algún sensor
+        sensors_using_model = db.query(models.Sensor).filter(
+            models.Sensor.model_id == model_id
         ).count()
         
-        if machines_using_model > 0:
+        if sensors_using_model > 0:
             raise HTTPException(
                 status_code=400, 
-                detail="No se puede eliminar el modelo porque está siendo utilizado por una o más máquinas"
+                detail="No se puede eliminar el modelo porque está siendo utilizado por uno o más sensores"
             )
         
         # Eliminar archivos asociados
@@ -1524,6 +1600,11 @@ def check_configuration_exists(db: Session) -> bool:
     if models_count == 0:
         return False
     
+    # Verificar si hay al menos un sensor con un modelo asociado
+    sensor_with_model_count = db.query(models.Sensor).filter(models.Sensor.model_id != None).count()
+    if sensor_with_model_count == 0:
+        return False
+    
     return True
 
 @app.get("/api/data")
@@ -1579,14 +1660,24 @@ def get_data_for_dashboard(
             }
         )
     
-    # Obtener el modelo asociado a la máquina
-    model_obj = crud.get_model_by_id(db, machine_obj.model_id)
+    # Verificar que el sensor tiene un modelo asociado
+    if not sensor_obj.model_id:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "status": "error",
+                "message": f"El sensor {sensor_obj.name} no tiene un modelo de predicción asociado. Configure uno en la sección de Configuración."
+            }
+        )
+    
+    # Obtener el modelo asociado al sensor
+    model_obj = crud.get_model_by_id(db, sensor_obj.model_id)
     if not model_obj:
         return JSONResponse(
             status_code=404,
             content={
                 "status": "error",
-                "message": f"Modelo con ID {machine_obj.model_id} no encontrado"
+                "message": f"Modelo con ID {sensor_obj.model_id} no encontrado"
             }
         )
     
@@ -1884,3 +1975,29 @@ def get_simplified_alerts(
             })
     
     return simplified_alerts
+
+@app.get("/api/sensors/{sensor_id}")
+def get_sensor_by_id(sensor_id: int, db: Session = Depends(get_db)):
+    """
+    Obtiene información de un sensor específico por su ID
+    """
+    sensor = crud.get_sensor_by_id(db, sensor_id)
+    if not sensor:
+        raise HTTPException(status_code=404, detail=f"Sensor con ID {sensor_id} no encontrado")
+    
+    # Convertir a diccionario para agregar información adicional
+    sensor_dict = sensor.__dict__.copy()
+    
+    # Agregar información de la máquina asociada si existe
+    if sensor.machine_id:
+        machine = crud.get_machine_by_id(db, sensor.machine_id)
+        if machine:
+            sensor_dict["machine_name"] = machine.name
+    
+    # Agregar información del modelo asociado si existe
+    if sensor.model_id:
+        model = crud.get_model_by_id(db, sensor.model_id)
+        if model:
+            sensor_dict["model_name"] = model.name
+    
+    return sensor_dict
