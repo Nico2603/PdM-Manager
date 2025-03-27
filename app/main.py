@@ -1840,3 +1840,36 @@ def get_machine_sensor_alerts(
             alert_counts["level3"] += 1
     
     return alert_counts
+
+@app.get("/api/alerts/simplified", response_model=List[Dict[str, Any]])
+def get_simplified_alerts(
+    sensor_id: Optional[int] = None,
+    limit: int = 100,
+    db: Session = Depends(get_db)
+):
+    """
+    Obtiene un historial de alertas simplificado que solo incluye los campos:
+    log_id, sensor_id, timestamp y error_type.
+    Opcionalmente se puede filtrar por sensor_id.
+    """
+    query = db.query(models.Alert)
+    
+    if sensor_id is not None:
+        query = query.filter(models.Alert.sensor_id == sensor_id)
+    
+    alerts = query.order_by(models.Alert.timestamp.desc()).limit(limit).all()
+    
+    # Crear una lista simplificada con solo los campos requeridos
+    simplified_alerts = []
+    for alert in alerts:
+        # Verificar que el sensor existe para respetar la relación
+        sensor = crud.get_sensor_by_id(db, alert.sensor_id)
+        if sensor:
+            simplified_alerts.append({
+                "log_id": alert.log_id,
+                "sensor_id": alert.sensor_id,
+                "timestamp": alert.timestamp.isoformat(),
+                "error_type": alert.error_type
+            })
+    
+    return simplified_alerts

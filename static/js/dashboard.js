@@ -465,6 +465,9 @@ function updateDashboardData() {
             fetchAlertsHistoryData();
         }
         
+        // Cargar datos de tabla de alertas simplificada
+        loadSimplifiedAlerts();
+        
         // Actualizar hora de última actualización
         updateLastUpdateTime();
         
@@ -646,9 +649,74 @@ function stopSimulationUpdates() {
     });
 }
 
+// ==========================================================================
+// TABLA DE ALERTAS SIMPLIFICADA
+// ==========================================================================
+
+// Cargar alertas simplificadas
+function loadSimplifiedAlerts() {
+    fetch('/api/alerts/simplified')
+        .then(response => response.json())
+        .then(data => {
+            updateAlertsTable(data);
+        })
+        .catch(error => {
+            console.error('Error al cargar alertas simplificadas:', error);
+        });
+}
+
+// Actualizar tabla de alertas
+function updateAlertsTable(alerts) {
+    const tableBody = document.getElementById('alertsTableBody');
+    if (!tableBody) return;
+    
+    // Limpiar tabla
+    tableBody.innerHTML = '';
+    
+    // Si no hay alertas, mostrar mensaje
+    if (!alerts || alerts.length === 0) {
+        const row = tableBody.insertRow();
+        const cell = row.insertCell();
+        cell.colSpan = 4;
+        cell.textContent = 'No hay alertas registradas';
+        cell.className = 'text-center';
+        return;
+    }
+    
+    // Agregar filas de alertas (máximo 10)
+    const alertsToShow = alerts.slice(0, 10);
+    for (const alert of alertsToShow) {
+        const row = tableBody.insertRow();
+        
+        // ID
+        const idCell = row.insertCell();
+        idCell.textContent = alert.log_id;
+        
+        // Sensor ID
+        const sensorCell = row.insertCell();
+        sensorCell.textContent = alert.sensor_id;
+        
+        // Fecha y hora
+        const timestampCell = row.insertCell();
+        const date = new Date(alert.timestamp);
+        timestampCell.textContent = date.toLocaleString();
+        
+        // Tipo de error
+        const errorTypeCell = row.insertCell();
+        errorTypeCell.textContent = alert.error_type;
+    }
+    
+    // Inicializar el botón de actualizar
+    const refreshBtn = document.getElementById('refreshAlertsTable');
+    if (refreshBtn) {
+        refreshBtn.addEventListener('click', loadSimplifiedAlerts);
+    }
+}
+
 // Exportar funciones para uso global
 window.initDashboard = initDashboard;
 window.updateDashboardData = updateDashboardData;
 window.initCustomUIComponents = initCustomUIComponents;
 window.initVisualFilters = initVisualFilters;
-window.exportToPDF = exportToPDF; 
+window.exportToPDF = exportToPDF;
+window.loadSimplifiedAlerts = loadSimplifiedAlerts; 

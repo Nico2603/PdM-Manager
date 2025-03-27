@@ -419,14 +419,57 @@ function initAlertsHistoryChart() {
 
 // Cargar datos para el gráfico de historial de alertas
 function fetchAlertsHistoryData() {
-    // Simular carga de datos (deberá reemplazarse con llamada API real)
-    setTimeout(() => {
-        const level1Data = [3, 1, 5, 2, 7, 4, 1];
-        const level2Data = [1, 0, 2, 1, 3, 0, 0];
-        const level3Data = [0, 0, 1, 0, 1, 0, 0];
-        
-        updateAlertsHistoryChart(level1Data, level2Data, level3Data);
-    }, 500);
+    // Obtener los datos reales de alertas simplificadas desde el API
+    fetch('/api/alerts/simplified')
+        .then(response => response.json())
+        .then(data => {
+            // Agrupar alertas por día de la semana
+            const days = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+            const alertsByDay = {
+                'Lun': { level1: 0, level2: 0, level3: 0 },
+                'Mar': { level1: 0, level2: 0, level3: 0 },
+                'Mié': { level1: 0, level2: 0, level3: 0 },
+                'Jue': { level1: 0, level2: 0, level3: 0 },
+                'Vie': { level1: 0, level2: 0, level3: 0 },
+                'Sáb': { level1: 0, level2: 0, level3: 0 },
+                'Dom': { level1: 0, level2: 0, level3: 0 }
+            };
+            
+            // Procesar cada alerta
+            data.forEach(alert => {
+                const date = new Date(alert.timestamp);
+                const dayName = days[date.getDay()];
+                
+                // Determinar el nivel según el error_type
+                // Asumimos que error_type puede contener información sobre el nivel
+                if (alert.error_type.includes('Nivel 3') || alert.error_type.includes('Level 3') || alert.error_type.includes('Crítico')) {
+                    alertsByDay[dayName].level3++;
+                } else if (alert.error_type.includes('Nivel 2') || alert.error_type.includes('Level 2')) {
+                    alertsByDay[dayName].level2++;
+                } else {
+                    alertsByDay[dayName].level1++;
+                }
+            });
+            
+            // Extraer datos para las series
+            const level1Data = [];
+            const level2Data = [];
+            const level3Data = [];
+            
+            // Mantener el orden correcto de los días
+            ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'].forEach(day => {
+                level1Data.push(alertsByDay[day].level1);
+                level2Data.push(alertsByDay[day].level2);
+                level3Data.push(alertsByDay[day].level3);
+            });
+            
+            updateAlertsHistoryChart(level1Data, level2Data, level3Data);
+        })
+        .catch(error => {
+            console.error('Error al cargar datos de alertas:', error);
+            // En caso de error, mostrar datos vacíos
+            updateAlertsHistoryChart([0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0]);
+        });
 }
 
 // Actualizar el gráfico de historial de alertas con nuevos datos

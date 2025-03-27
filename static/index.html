@@ -395,6 +395,37 @@
                 <canvas id="alertsHistoryChart"></canvas>
               </div>
             </div>
+            
+            <!-- Tabla de Historial de Alertas Simplificado -->
+            <div class="chart-container animate-slide-up" style="animation-delay: 1.2s">
+              <div class="chart-header">
+                <div class="chart-title">
+                  <span>Registro de Alertas</span>
+                </div>
+                <div class="chart-actions">
+                  <button class="btn-icon" id="refreshAlertsTable" title="Actualizar datos">
+                    <i class="fas fa-sync-alt"></i>
+                  </button>
+                </div>
+              </div>
+              <div class="chart-body">
+                <div class="table-responsive">
+                  <table class="data-table">
+                    <thead>
+                      <tr>
+                        <th>ID</th>
+                        <th>Sensor ID</th>
+                        <th>Fecha y Hora</th>
+                        <th>Tipo de Error</th>
+                      </tr>
+                    </thead>
+                    <tbody id="alertsTableBody">
+                      <!-- Datos cargados dinámicamente -->
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
         
