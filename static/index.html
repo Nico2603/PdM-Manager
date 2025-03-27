@@ -891,7 +891,23 @@
     </div>
   </div>
   
-  <!-- Scripts -->
-  <script src="/static/js/global.js"></script>
+  <!-- Scripts modularizados -->
+  <script src="/static/js/utils.js"></script>
+  <script src="/static/js/navigation.js"></script>
+  <script src="/static/js/charts.js"></script>
+  <script src="/static/js/dashboard.js"></script>
+  <script src="/static/js/config.js"></script>
+  
+  <!-- Inicialización de la aplicación -->
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      // Inicializar componentes globales de la UI
+      initUI();
+      
+      // Inicializar navegación
+      initSidebar();
+      initNavigation();
+    });
+  </script>
 </body>
 </html>
