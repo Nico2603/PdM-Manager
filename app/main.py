@@ -92,7 +92,8 @@ def check_db(db: Session = Depends(get_db)):
     Comprueba la conexión a la base de datos.
     """
     try:
-        db.execute("SELECT 1")
+        from sqlalchemy import text
+        db.execute(text("SELECT 1"))
         return {"status": "ok"}
     except Exception as e:
         return {"status": "error", "error": str(e)}
@@ -268,10 +269,8 @@ def receive_sensor_data(sensor_data: SensorData, db: Session = Depends(get_db)):
         machine = crud.get_machine_by_id(db, sensor.machine_id)
     
     if not machine:
-        # Buscar la máquina que tenga este sensor configurado
-        machines = db.query(models.Machine).filter(models.Machine.sensor_id == sensor.sensor_id).all()
-        if machines:
-            machine = machines[0]  # Tomar la primera máquina que usa este sensor
+        # No se encontró máquina asociada directamente
+        pass
     
     # Si no encontramos máquina o la máquina no tiene modelo asociado, usar el modelo por defecto
     modelo_to_use = modelo
@@ -444,10 +443,8 @@ def receive_sensor_data_batch(batch_data: SensorDataBatch, db: Session = Depends
             machine = crud.get_machine_by_id(db, sensor.machine_id)
         
         if not machine:
-            # Buscar la máquina que tenga este sensor configurado
-            machines = db.query(models.Machine).filter(models.Machine.sensor_id == sensor.sensor_id).all()
-            if machines:
-                machine = machines[0]  # Tomar la primera máquina que usa este sensor
+            # No se encontró máquina asociada directamente
+            pass
         
         # Si no encontramos máquina o la máquina no tiene modelo asociado, usar el modelo por defecto
         modelo_to_use = modelo
@@ -757,19 +754,18 @@ def get_machines_by_sensor(sensor_id: int, db: Session = Depends(get_db)):
     if not sensor:
         raise HTTPException(status_code=404, detail=f"Sensor con ID {sensor_id} no encontrado")
     
-    # Obtener las máquinas que utilizan este sensor
-    machines = db.query(models.Machine).filter(models.Machine.sensor_id == sensor_id).all()
+    # Verificar si el sensor está asignado a una máquina
+    if sensor.machine_id:
+        # Obtener la máquina a la que está asignado este sensor
+        machine = crud.get_machine_by_id(db, sensor.machine_id)
+        if machine:
+            machine_dict = machine.__dict__.copy()
+            # Eliminar atributos internos de SQLAlchemy
+            if '_sa_instance_state' in machine_dict:
+                machine_dict.pop('_sa_instance_state')
+            return [machine_dict]
     
-    # Convertir a diccionarios
-    result = []
-    for machine in machines:
-        machine_dict = machine.__dict__.copy()
-        # Eliminar atributos internos de SQLAlchemy
-        if '_sa_instance_state' in machine_dict:
-            machine_dict.pop('_sa_instance_state')
-        result.append(machine_dict)
-    
-    return result
+    return []
 
 @app.get("/api/vibration-data", response_model=List[Dict[str, Any]])
 def get_all_vibration_data(
@@ -912,12 +908,15 @@ def get_all_machines(db: Session = Depends(get_db)):
     
     for machine in machines:
         machine_dict = machine.__dict__.copy()
+        if '_sa_instance_state' in machine_dict:
+            machine_dict.pop('_sa_instance_state')
         
-        # Obtener información del sensor si existe
-        if machine.sensor_id:
-            sensor = crud.get_sensor_by_id(db, machine.sensor_id)
-            if sensor:
-                machine_dict["sensor_name"] = sensor.name
+        # Obtener sensores que están asociados a esta máquina
+        sensors = db.query(models.Sensor).filter(models.Sensor.machine_id == machine.machine_id).all()
+        if sensors:
+            machine_dict["sensors"] = [
+                {"sensor_id": s.sensor_id, "name": s.name} for s in sensors
+            ]
         
         # Obtener información del modelo si existe
         if machine.model_id:
@@ -939,12 +938,15 @@ def get_machine_info(machine_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail=f"Máquina con ID {machine_id} no encontrada")
     
     result = machine.__dict__.copy()
+    if '_sa_instance_state' in result:
+        result.pop('_sa_instance_state')
     
-    # Obtener información del sensor si existe
-    if machine.sensor_id:
-        sensor = crud.get_sensor_by_id(db, machine.sensor_id)
-        if sensor:
-            result["sensor_name"] = sensor.name
+    # Obtener sensores asociados a esta máquina
+    sensors = db.query(models.Sensor).filter(models.Sensor.machine_id == machine.machine_id).all()
+    if sensors:
+        result["sensors"] = [
+            {"sensor_id": s.sensor_id, "name": s.name} for s in sensors
+        ]
     
     # Obtener información del modelo si existe
     if machine.model_id:
@@ -968,10 +970,20 @@ def create_new_machine(
         location=data.get("location"),
         status=data.get("status"),
         model_id=data.get("model_id"),
-        sensor_id=data.get("sensor_id"),
         route=data.get("route")
     )
-    return crud.create_machine(db, machine).__dict__
+    
+    created_machine = crud.create_machine(db, machine)
+    
+    # Si se proporciona sensor_id, actualizar el sensor para asociarlo a esta máquina
+    sensor_id = data.get("sensor_id")
+    if sensor_id:
+        sensor = crud.get_sensor_by_id(db, sensor_id)
+        if sensor:
+            sensor.machine_id = created_machine.machine_id
+            db.commit()
+    
+    return created_machine.__dict__
 
 @app.put("/api/machines/{machine_id}")
 def update_machine_info(
@@ -991,10 +1003,19 @@ def update_machine_info(
     machine.location = data.get("location", machine.location)
     machine.status = data.get("status", machine.status)
     machine.model_id = data.get("model_id", machine.model_id)
-    machine.sensor_id = data.get("sensor_id", machine.sensor_id)
     machine.route = data.get("route", machine.route)
     
-    return crud.update_machine(db, machine).__dict__
+    # Si se proporciona sensor_id, actualizar ese sensor para asociarlo a esta máquina
+    sensor_id = data.get("sensor_id")
+    if sensor_id is not None:
+        # Buscar el sensor especificado
+        sensor = crud.get_sensor_by_id(db, sensor_id)
+        if sensor:
+            sensor.machine_id = machine_id
+            
+    updated_machine = crud.update_machine(db, machine)
+    
+    return updated_machine.__dict__
 
 @app.delete("/api/machines/{machine_id}")
 def delete_machine_info(machine_id: int, db: Session = Depends(get_db)):
@@ -1330,11 +1351,12 @@ def save_limits(
     db: Session = Depends(get_db)
 ):
     """
-    Guarda los límites personalizados en la tabla LimitConfig
+    Actualiza los límites personalizados en la tabla LimitConfig
+    y retorna los límites actualizados para actualizar el dashboard en tiempo real
     """
     try:
         # Extraer límites de la petición
-        limits = data.get("limits")
+        limits = data
         
         if not limits:
             raise HTTPException(status_code=400, detail="Datos incompletos")
@@ -1361,7 +1383,8 @@ def save_limits(
         # Guardar cambios
         crud.update_limit_config(db, config)
         
-        return {"status": "success", "limits": limits}
+        # Devolver los límites actualizados
+        return limits
     
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al guardar límites: {str(e)}")
@@ -1680,27 +1703,15 @@ def get_default_limits():
 @app.get("/api/machine/{machine_id}/sensors")
 def get_machine_sensors(machine_id: int, db: Session = Depends(get_db)):
     """
-    Obtiene los sensores asociados a una máquina
+    Obtiene la lista de sensores asociados a una máquina
     """
     # Verificar que la máquina existe
     machine = crud.get_machine_by_id(db, machine_id)
     if not machine:
-        return JSONResponse(
-            status_code=404,
-            content={
-                "status": "error",
-                "message": f"Máquina con ID {machine_id} no encontrada"
-            }
-        )
+        raise HTTPException(status_code=404, detail=f"Máquina con ID {machine_id} no encontrada")
     
     # Obtener sensores asociados a la máquina
     sensors = crud.get_sensors_by_machine(db, machine_id)
-    
-    # Si la máquina tiene un sensor_id configurado pero no está en la lista, añadirlo
-    if machine.sensor_id and not any(s.get('sensor_id') == machine.sensor_id for s in sensors):
-        sensor = crud.get_sensor_by_id(db, machine.sensor_id)
-        if sensor:
-            sensors.append(sensor.__dict__)
     
     return {
         "status": "success",

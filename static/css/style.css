@@ -820,40 +820,86 @@ p {
 .stats-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    grid-template-rows: repeat(4, 1fr);
-    grid-auto-flow: column;
-    gap: var(--spacing-md);
+    gap: 1.5rem;
+}
+
+.axis-column {
+    background-color: rgba(255, 255, 255, 0.03);
+    border-radius: var(--border-radius);
+    padding: 1.25rem;
+    border: 1px solid rgba(0, 0, 0, 0.07);
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.axis-header {
+    margin-bottom: 0.5rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.07);
+}
+
+.axis-header h4 {
+    font-size: 1.1rem;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.axis-column.axis-x .axis-indicator {
+    background-color: #ff6384;
+}
+
+.axis-column.axis-y .axis-indicator {
+    background-color: #36a2eb;
+}
+
+.axis-column.axis-z .axis-indicator {
+    background-color: #4bc0c0;
+}
+
+.axis-column .stat-card {
+    background-color: rgba(0, 0, 0, 0.03);
+    transition: transform 0.15s ease-in-out, background-color 0.15s ease-in-out;
+    margin-bottom: 0.5rem;
+}
+
+.axis-column .stat-card:last-child {
+    margin-bottom: 0;
+}
+
+.axis-column .stat-card:hover {
+    transform: translateY(-2px);
+    background-color: rgba(0, 0, 0, 0.05);
 }
 
 .stat-card {
-    background-color: var(--color-background-hover);
-    padding: var(--spacing-md);
     border-radius: var(--border-radius);
-    transition: transform var(--transition-fast);
-}
-
-.stat-card:hover {
-    transform: translateY(-2px);
+    padding: 0.75rem 1rem;
 }
 
 .stat-label {
+    font-size: 0.85rem;
+    opacity: 0.85;
     display: flex;
     align-items: center;
-    gap: var(--spacing-sm);
-    font-size: var(--font-size-sm);
-    color: var(--color-text-secondary);
-    margin-bottom: var(--spacing-sm);
+    gap: 0.5rem;
 }
 
 .stat-value {
-    font-size: var(--font-size-xl);
     font-weight: 600;
+    font-size: 1.4rem;
+    margin-top: 0.25rem;
+    display: flex;
+    align-items: flex-end;
 }
 
 .stat-unit {
-    font-size: var(--font-size-xs);
-    color: var(--color-text-secondary);
-    margin-left: 2px;
+    font-size: 0.75rem;
+    opacity: 0.7;
+    margin-left: 0.25rem;
+    margin-bottom: 0.25rem;
 }
 
 /* ------------------------------
@@ -870,6 +916,63 @@ p {
     border-radius: var(--border-radius);
     padding: var(--spacing-lg);
     box-shadow: var(--shadow-sm);
+    position: relative;
+    margin-bottom: 1.5rem;
+    transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+}
+
+.chart-container:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-md);
+}
+
+/* Estilos específicos para cada eje */
+.chart-container-x {
+    border-left: 4px solid #FF6384;
+}
+
+.chart-container-y {
+    border-left: 4px solid #36A2EB;
+}
+
+.chart-container-z {
+    border-left: 4px solid #4BC0C0;
+}
+
+.chart-title {
+    display: flex;
+    align-items: center;
+    font-weight: 600;
+    font-size: 1.1rem;
+    margin-bottom: 0.5rem;
+}
+
+.axis-indicator {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: white;
+    margin-left: 8px;
+}
+
+.chart-container-x .axis-indicator {
+    background-color: #FF6384;
+    box-shadow: 0 0 8px rgba(255, 99, 132, 0.4);
+}
+
+.chart-container-y .axis-indicator {
+    background-color: #36A2EB;
+    box-shadow: 0 0 8px rgba(54, 162, 235, 0.4);
+}
+
+.chart-container-z .axis-indicator {
+    background-color: #4BC0C0;
+    box-shadow: 0 0 8px rgba(75, 192, 192, 0.4);
 }
 
 .chart-header {
@@ -877,47 +980,13 @@ p {
     justify-content: space-between;
     align-items: center;
     margin-bottom: 1rem;
-}
-
-.chart-title {
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-sm);
-    font-weight: 500;
-}
-
-.chart-container-x .axis-indicator {
-    background-color: #ff6384;
-    color: white;
-}
-
-.chart-container-y .axis-indicator {
-    background-color: #36a2eb;
-    color: white;
-}
-
-.chart-container-z .axis-indicator {
-    background-color: #4bc0c0;
-    color: white;
-}
-
-.axis-indicator {
-    font-size: var(--font-size-xs);
-    font-weight: 700;
-    padding: 2px 6px;
-    border-radius: var(--border-radius-sm);
-    margin-left: var(--spacing-sm);
-}
-
-.chart-actions {
-    display: flex;
-    gap: var(--spacing-sm);
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
 }
 
 .chart-body {
+    height: 250px;
     position: relative;
-    width: 100%;
-    height: 100%;
 }
 
 .chart-legend {
@@ -1056,8 +1125,176 @@ p {
 
 .form-grid {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(3, 1fr);
     gap: var(--spacing-md);
+}
+
+/* ------------------------------
+   TABLAS Y DATOS
+   ------------------------------ */
+.table-responsive {
+    overflow-x: auto;
+    border-radius: var(--border-radius);
+    background-color: var(--color-background-light);
+    box-shadow: var(--shadow-sm);
+    margin-bottom: var(--spacing-lg);
+    transition: box-shadow var(--transition-fast);
+}
+
+.table-responsive:hover {
+    box-shadow: var(--shadow-md);
+}
+
+.data-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: var(--font-size-sm);
+}
+
+.data-table thead {
+    background-color: var(--color-background-hover);
+}
+
+.data-table thead th {
+    padding: 1rem;
+    text-align: left;
+    font-weight: 600;
+    color: var(--color-text);
+    border-bottom: 2px solid var(--color-primary);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.data-table tbody tr {
+    transition: background-color var(--transition-fast);
+}
+
+.data-table tbody tr:hover {
+    background-color: var(--color-background-hover);
+}
+
+.data-table tbody td {
+    padding: 0.9rem 1rem;
+    border-bottom: 1px solid var(--color-border);
+    color: var(--color-text-secondary);
+}
+
+.data-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+/* Estilo para acciones en tablas */
+.table-actions {
+    display: flex;
+    gap: var(--spacing-sm);
+    justify-content: flex-end;
+}
+
+/* Estado vacío */
+.data-table .text-center {
+    text-align: center;
+    padding: 2rem;
+    font-style: italic;
+    color: var(--color-text-muted);
+}
+
+/* Estilos para columnas específicas */
+.data-table .column-icon {
+    width: 40px;
+    text-align: center;
+}
+
+.data-table .column-datetime {
+    min-width: 160px;
+}
+
+.data-table .column-actions {
+    width: 100px;
+    text-align: right;
+}
+
+.data-table .column-id {
+    width: 60px;
+}
+
+/* Highligh para diferentes niveles de alerta */
+.data-table tr.level-1 {
+    background-color: rgba(243, 156, 18, 0.08);
+}
+
+.data-table tr.level-2 {
+    background-color: rgba(255, 152, 0, 0.08);
+}
+
+.data-table tr.level-3 {
+    background-color: rgba(231, 76, 60, 0.08);
+}
+
+.data-table tr.level-1:hover {
+    background-color: rgba(243, 156, 18, 0.15);
+}
+
+.data-table tr.level-2:hover {
+    background-color: rgba(255, 152, 0, 0.15);
+}
+
+.data-table tr.level-3:hover {
+    background-color: rgba(231, 76, 60, 0.15);
+}
+
+/* Badges para las tablas */
+.badge {
+    display: inline-block;
+    padding: 0.35em 0.65em;
+    font-size: 0.75em;
+    font-weight: 700;
+    line-height: 1;
+    text-align: center;
+    white-space: nowrap;
+    vertical-align: baseline;
+    border-radius: 50rem;
+    transition: all var(--transition-fast);
+}
+
+.badge-primary {
+    color: #fff;
+    background-color: var(--color-primary);
+}
+
+.badge-secondary {
+    color: var(--color-text);
+    background-color: var(--color-background-hover);
+}
+
+.badge-info {
+    color: #fff;
+    background-color: var(--color-info);
+}
+
+.badge-success {
+    color: #fff;
+    background-color: var(--color-success);
+}
+
+.badge-warning {
+    color: #fff;
+    background-color: var(--color-warning);
+}
+
+.badge-danger {
+    color: #fff;
+    background-color: var(--color-danger);
+}
+
+/* Filas activas o con información especial */
+.data-table tr.active-sensor {
+    background-color: rgba(67, 97, 238, 0.05);
+}
+
+.data-table tr.active-sensor:hover {
+    background-color: rgba(67, 97, 238, 0.1);
 }
 
 /* ------------------------------
@@ -1256,6 +1493,36 @@ p {
     }
 }
 
+/* Animación para destacar cambios en valores estadísticos */
+@keyframes value-update-pulse {
+    0% {
+        color: var(--color-text);
+    }
+    50% {
+        color: var(--color-accent);
+    }
+    100% {
+        color: var(--color-text);
+    }
+}
+
+.value-updated {
+    animation: value-update-pulse 1s ease-in-out;
+}
+
+/* Ajustes adicionales para los indicadores de eje */
+.axis-indicator {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: white;
+}
+
 /* ------------------------------
    RESPONSIVE Y MEDIA QUERIES
    ------------------------------ */
@@ -1298,7 +1565,7 @@ p {
     }
     
     .form-grid {
-        grid-template-columns: 1fr;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
     }
     
     .content-header {
@@ -1331,4 +1598,373 @@ p {
     .mobile-menu-toggle {
         display: flex;
     }
+}
+
+/* Estilos para tablas y visualización de datos */
+
+/* Badges para estados de máquinas */
+.badge-success {
+  background-color: var(--color-success);
+  color: white;
+}
+
+.badge-warning {
+  background-color: var(--color-warning);
+  color: #333;
+}
+
+.badge-danger {
+  background-color: var(--color-danger);
+  color: white;
+}
+
+.badge-secondary {
+  background-color: var(--color-secondary);
+  color: white;
+}
+
+.badge-info {
+  background-color: var(--color-accent);
+  color: white;
+}
+
+.badge {
+  display: inline-block;
+  padding: 0.25em 0.6em;
+  font-size: 0.75em;
+  font-weight: 600;
+  line-height: 1;
+  text-align: center;
+  white-space: nowrap;
+  vertical-align: baseline;
+  border-radius: 0.25rem;
+}
+
+/* Estilos para estados de severidad en textos */
+.text-warning {
+  color: var(--color-warning) !important;
+}
+
+.text-danger {
+  color: var(--color-danger) !important;
+}
+
+.text-orange {
+  color: #fd7e14 !important;
+}
+
+.text-success {
+  color: var(--color-success) !important;
+}
+
+.text-secondary {
+  color: var(--color-secondary) !important;
+}
+
+/* Truncar texto con elipsis */
+.text-truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Estilos para tablas de datos */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 1.5rem;
+  font-size: 0.9rem;
+}
+
+.data-table th,
+.data-table td {
+  padding: 0.75rem;
+  vertical-align: middle;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.data-table th {
+  font-weight: 600;
+  text-align: left;
+  border-bottom: 2px solid rgba(0, 0, 0, 0.1);
+  color: var(--color-dark);
+  background-color: rgba(0, 0, 0, 0.02);
+}
+
+.data-table tbody tr:hover {
+  background-color: rgba(0, 0, 0, 0.03);
+}
+
+.data-table .column-id {
+  width: 60px;
+  color: var(--color-secondary);
+  font-family: 'Courier New', monospace;
+  font-size: 0.8rem;
+}
+
+.data-table .column-actions {
+  width: 100px;
+  text-align: right;
+}
+
+.data-table .column-datetime {
+  white-space: nowrap;
+}
+
+/* Iconos y botones de acciones */
+.table-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  border: none;
+  background-color: transparent;
+  transition: background-color 0.2s;
+  cursor: pointer;
+  color: var(--color-dark);
+}
+
+.btn-icon:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+.btn-edit:hover {
+  color: var(--color-accent);
+}
+
+.btn-delete:hover {
+  color: var(--color-danger);
+}
+
+.btn-view:hover, 
+.btn-view-alert:hover {
+  color: var(--color-info);
+}
+
+.btn-acknowledge:hover {
+  color: var(--color-success);
+}
+
+/* Estilos para sensores activos (con máquina asignada) */
+.active-sensor {
+  background-color: rgba(var(--color-primary-rgb), 0.05);
+}
+
+/* Estilos para mostrar detalles en grids */
+.details-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1rem;
+}
+
+.detail-item {
+  display: flex;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.detail-label {
+  font-weight: 600;
+  margin-right: 0.5rem;
+  min-width: 120px;
+  color: var(--color-secondary);
+}
+
+.detail-value {
+  flex: 1;
+}
+
+/* Estilos para visualización de archivos */
+.file-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--color-secondary);
+  font-size: 0.85rem;
+}
+
+.file-indicator i {
+  font-size: 1rem;
+}
+
+.file-available {
+  color: var(--color-success);
+}
+
+.custom-file-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.custom-file-input {
+  position: absolute;
+  width: 0.1px;
+  height: 0.1px;
+  opacity: 0;
+  overflow: hidden;
+  z-index: -1;
+}
+
+.custom-file-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.375rem 0.75rem;
+  border-radius: 0.25rem;
+  background-color: var(--color-secondary);
+  color: white;
+  font-size: 0.875rem;
+  cursor: pointer;
+  border: none;
+  transition: background-color 0.2s;
+}
+
+.custom-file-button:hover {
+  background-color: var(--color-dark);
+}
+
+.selected-file-name {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--color-dark);
+}
+
+/* Estilos para modales */
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.3s, visibility 0.3s;
+}
+
+.modal.show {
+  opacity: 1;
+  visibility: visible;
+}
+
+.modal-dialog {
+  width: 100%;
+  max-width: 600px;
+  max-height: 90vh;
+  background-color: var(--color-bg);
+  border-radius: 0.5rem;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+  transform: translateY(20px);
+  transition: transform 0.3s;
+}
+
+.modal.show .modal-dialog {
+  transform: translateY(0);
+}
+
+.modal-content {
+  display: flex;
+  flex-direction: column;
+  max-height: 90vh;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.modal-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.modal-close {
+  background: transparent;
+  border: none;
+  font-size: 1.25rem;
+  cursor: pointer;
+  color: var(--color-dark);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  transition: background-color 0.2s;
+}
+
+.modal-close:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+  color: var(--color-danger);
+}
+
+.modal-body {
+  padding: 1.5rem;
+  overflow-y: auto;
+}
+
+.modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  padding: 1rem 1.5rem;
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+/* Estilos para alertas en tablas */
+.alert-danger {
+  background-color: rgba(var(--color-danger-rgb), 0.08);
+}
+
+.alert-warning {
+  background-color: rgba(var(--color-warning-rgb), 0.08);
+}
+
+.alert-info {
+  background-color: rgba(var(--color-accent-rgb), 0.08);
+}
+
+/* Badge naranja para nivel 2 */
+.badge-orange {
+  background-color: #fd7e14;
+  color: white;
+}
+
+/* Clase para enlaces de datos de vibración */
+.view-vibration-data {
+  color: var(--color-accent);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.view-vibration-data:hover {
+  text-decoration: underline;
+}
+
+/* Espaciado para íconos dentro de badges */
+.mr-1 {
+  margin-right: 0.25rem;
 } 

@@ -78,13 +78,54 @@ function setGlobalState(key, value) {
     return false;
 }
 
-function updateGlobalStats(newStats) {
-    if (newStats && typeof newStats === 'object') {
-        globalState.stats = {...globalState.stats, ...newStats};
-        dispatchGlobalStateChange('stats', globalState.stats);
-        return true;
-    }
-    return false;
+function updateGlobalStats(limits) {
+    if (!limits) return;
+    
+    // Obtener stats actuales o inicializar si no existen
+    const currentStats = getGlobalState('stats') || {};
+    
+    // Actualizar límites para cada eje
+    const updatedStats = {
+        ...currentStats,
+        x: {
+            ...(currentStats.x || {}),
+            sigma2: {
+                lower: limits.x.sigma2.lower,
+                upper: limits.x.sigma2.upper
+            },
+            sigma3: {
+                lower: limits.x.sigma3.lower,
+                upper: limits.x.sigma3.upper
+            }
+        },
+        y: {
+            ...(currentStats.y || {}),
+            sigma2: {
+                lower: limits.y.sigma2.lower,
+                upper: limits.y.sigma2.upper
+            },
+            sigma3: {
+                lower: limits.y.sigma3.lower,
+                upper: limits.y.sigma3.upper
+            }
+        },
+        z: {
+            ...(currentStats.z || {}),
+            sigma2: {
+                lower: limits.z.sigma2.lower,
+                upper: limits.z.sigma2.upper
+            },
+            sigma3: {
+                lower: limits.z.sigma3.lower,
+                upper: limits.z.sigma3.upper
+            }
+        }
+    };
+    
+    // Actualizar el estado global
+    setGlobalState('stats', updatedStats);
+    
+    return updatedStats;
 }
 
 // Evento personalizado para notificar cambios en estado global
@@ -425,12 +466,12 @@ function updateChartsVisibility() {
         typeof updateVibrationChartY === 'function' && 
         typeof updateVibrationChartZ === 'function') {
         
-        // Actualizar configuración global
-        window.chartOptions = {
+        // Actualizar configuración global usando la función correcta
+        setGlobalState('chartOptions', {
             showMean: false,
             show2Sigma: show2Sigma,
             show3Sigma: show3Sigma
-        };
+        });
         
         // Actualizar cada eje del gráfico
         updateVibrationChartX();

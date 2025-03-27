@@ -249,53 +249,72 @@
               
               <div class="stats-grid">
                 <!-- Columna Eje X -->
-                <div class="stat-card">
-                  <div class="stat-label"><i class="fas fa-level-down-alt"></i> Eje X - Límite 2σ Inferior</div>
-                  <div class="stat-value" id="x2SigmaLowerDisplay">-2.36<span class="stat-unit">m/s²</span></div>
+                <div class="axis-column axis-x">
+                  <div class="axis-header">
+                    <h4><span class="axis-indicator">X</span> Eje X</h4>
+                  </div>
+                  <div class="stat-card">
+                    <div class="stat-label"><i class="fas fa-level-down-alt"></i> Límite 2σ Inferior</div>
+                    <div class="stat-value" id="x2SigmaLowerDisplay">-2.36<span class="stat-unit">m/s²</span></div>
+                  </div>
+                  <div class="stat-card">
+                    <div class="stat-label"><i class="fas fa-level-up-alt"></i> Límite 2σ Superior</div>
+                    <div class="stat-value" id="x2SigmaUpperDisplay">2.18<span class="stat-unit">m/s²</span></div>
+                  </div>
+                  <div class="stat-card">
+                    <div class="stat-label"><i class="fas fa-level-down-alt"></i> Límite 3σ Inferior</div>
+                    <div class="stat-value" id="x3SigmaLowerDisplay">-3.50<span class="stat-unit">m/s²</span></div>
+                  </div>
+                  <div class="stat-card">
+                    <div class="stat-label"><i class="fas fa-level-up-alt"></i> Límite 3σ Superior</div>
+                    <div class="stat-value" id="x3SigmaUpperDisplay">3.32<span class="stat-unit">m/s²</span></div>
+                  </div>
                 </div>
-                <div class="stat-card">
-                  <div class="stat-label"><i class="fas fa-level-down-alt"></i> Eje Y - Límite 2σ Inferior</div>
-                  <div class="stat-value" id="y2SigmaLowerDisplay">7.18<span class="stat-unit">m/s²</span></div>
+                
+                <!-- Columna Eje Y -->
+                <div class="axis-column axis-y">
+                  <div class="axis-header">
+                    <h4><span class="axis-indicator">Y</span> Eje Y</h4>
+                  </div>
+                  <div class="stat-card">
+                    <div class="stat-label"><i class="fas fa-level-down-alt"></i> Límite 2σ Inferior</div>
+                    <div class="stat-value" id="y2SigmaLowerDisplay">7.18<span class="stat-unit">m/s²</span></div>
+                  </div>
+                  <div class="stat-card">
+                    <div class="stat-label"><i class="fas fa-level-up-alt"></i> Límite 2σ Superior</div>
+                    <div class="stat-value" id="y2SigmaUpperDisplay">12.09<span class="stat-unit">m/s²</span></div>
+                  </div>
+                  <div class="stat-card">
+                    <div class="stat-label"><i class="fas fa-level-down-alt"></i> Límite 3σ Inferior</div>
+                    <div class="stat-value" id="y3SigmaLowerDisplay">5.95<span class="stat-unit">m/s²</span></div>
+                  </div>
+                  <div class="stat-card">
+                    <div class="stat-label"><i class="fas fa-level-up-alt"></i> Límite 3σ Superior</div>
+                    <div class="stat-value" id="y3SigmaUpperDisplay">13.32<span class="stat-unit">m/s²</span></div>
+                  </div>
                 </div>
-                <div class="stat-card">
-                  <div class="stat-label"><i class="fas fa-level-down-alt"></i> Eje Z - Límite 2σ Inferior</div>
-                  <div class="stat-value" id="z2SigmaLowerDisplay">-2.39<span class="stat-unit">m/s²</span></div>
-                </div>
-                <div class="stat-card">
-                  <div class="stat-label"><i class="fas fa-level-up-alt"></i> Eje X - Límite 2σ Superior</div>
-                  <div class="stat-value" id="x2SigmaUpperDisplay">2.18<span class="stat-unit">m/s²</span></div>
-                </div>
-                <div class="stat-card">
-                  <div class="stat-label"><i class="fas fa-level-up-alt"></i> Eje Y - Límite 2σ Superior</div>
-                  <div class="stat-value" id="y2SigmaUpperDisplay">12.09<span class="stat-unit">m/s²</span></div>
-                </div>
-                <div class="stat-card">
-                  <div class="stat-label"><i class="fas fa-level-up-alt"></i> Eje Z - Límite 2σ Superior</div>
-                  <div class="stat-value" id="z2SigmaUpperDisplay">1.11<span class="stat-unit">m/s²</span></div>
-                </div>
-                <div class="stat-card">
-                  <div class="stat-label"><i class="fas fa-level-down-alt"></i> Eje X - Límite 3σ Inferior</div>
-                  <div class="stat-value" id="x3SigmaLowerDisplay">-3.50<span class="stat-unit">m/s²</span></div>
-                </div>
-                <div class="stat-card">
-                  <div class="stat-label"><i class="fas fa-level-down-alt"></i> Eje Y - Límite 3σ Inferior</div>
-                  <div class="stat-value" id="y3SigmaLowerDisplay">5.95<span class="stat-unit">m/s²</span></div>
-                </div>
-                <div class="stat-card">
-                  <div class="stat-label"><i class="fas fa-level-down-alt"></i> Eje Z - Límite 3σ Inferior</div>
-                  <div class="stat-value" id="z3SigmaLowerDisplay">-3.26<span class="stat-unit">m/s²</span></div>
-                </div>
-                <div class="stat-card">
-                  <div class="stat-label"><i class="fas fa-level-up-alt"></i> Eje X - Límite 3σ Superior</div>
-                  <div class="stat-value" id="x3SigmaUpperDisplay">3.32<span class="stat-unit">m/s²</span></div>
-                </div>
-                <div class="stat-card">
-                  <div class="stat-label"><i class="fas fa-level-up-alt"></i> Eje Y - Límite 3σ Superior</div>
-                  <div class="stat-value" id="y3SigmaUpperDisplay">13.32<span class="stat-unit">m/s²</span></div>
-                </div>
-                <div class="stat-card">
-                  <div class="stat-label"><i class="fas fa-level-up-alt"></i> Eje Z - Límite 3σ Superior</div>
-                  <div class="stat-value" id="z3SigmaUpperDisplay">1.98<span class="stat-unit">m/s²</span></div>
+                
+                <!-- Columna Eje Z -->
+                <div class="axis-column axis-z">
+                  <div class="axis-header">
+                    <h4><span class="axis-indicator">Z</span> Eje Z</h4>
+                  </div>
+                  <div class="stat-card">
+                    <div class="stat-label"><i class="fas fa-level-down-alt"></i> Límite 2σ Inferior</div>
+                    <div class="stat-value" id="z2SigmaLowerDisplay">-2.39<span class="stat-unit">m/s²</span></div>
+                  </div>
+                  <div class="stat-card">
+                    <div class="stat-label"><i class="fas fa-level-up-alt"></i> Límite 2σ Superior</div>
+                    <div class="stat-value" id="z2SigmaUpperDisplay">1.11<span class="stat-unit">m/s²</span></div>
+                  </div>
+                  <div class="stat-card">
+                    <div class="stat-label"><i class="fas fa-level-down-alt"></i> Límite 3σ Inferior</div>
+                    <div class="stat-value" id="z3SigmaLowerDisplay">-3.26<span class="stat-unit">m/s²</span></div>
+                  </div>
+                  <div class="stat-card">
+                    <div class="stat-label"><i class="fas fa-level-up-alt"></i> Límite 3σ Superior</div>
+                    <div class="stat-value" id="z3SigmaUpperDisplay">1.98<span class="stat-unit">m/s²</span></div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -392,7 +411,26 @@
               </div>
               
               <div class="chart-body">
-                <canvas id="alertsHistoryChart"></canvas>
+                <div class="table-responsive">
+                  <table class="data-table">
+                    <thead>
+                      <tr>
+                        <th>ID</th>
+                        <th>Sensor ID</th>
+                        <th>Fecha y Hora</th>
+                        <th>Tipo de Error</th>
+                        <th>Severidad</th>
+                        <th>Mensaje</th>
+                        <th>Datos Vibración</th>
+                        <th>Estado</th>
+                        <th>Acciones</th>
+                      </tr>
+                    </thead>
+                    <tbody id="alertsTableBody">
+                      <!-- Datos cargados dinámicamente -->
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
             
@@ -456,6 +494,9 @@
                       <th>ID</th>
                       <th>Nombre</th>
                       <th>Descripción</th>
+                      <th>Ubicación</th>
+                      <th>Estado</th>
+                      <th>Ruta</th>
                       <th>Sensor</th>
                       <th>Modelo</th>
                       <th>Acciones</th>
@@ -486,7 +527,9 @@
                       <th>ID</th>
                       <th>Nombre</th>
                       <th>Descripción</th>
-                      <th>Máquinas Asociadas</th>
+                      <th>Ubicación</th>
+                      <th>Tipo</th>
+                      <th>Máquina Asociada</th>
                       <th>Acciones</th>
                     </tr>
                   </thead>
@@ -515,6 +558,10 @@
                       <th>ID</th>
                       <th>Nombre</th>
                       <th>Descripción</th>
+                      <th>Archivo .h5</th>
+                      <th>Escalador</th>
+                      <th>Exactitud</th>
+                      <th>Parámetros</th>
                       <th>Última Actualización</th>
                       <th>Acciones</th>
                     </tr>
@@ -551,63 +598,68 @@
               </div>
 
               <div class="limits-form mt-4">
-                <h6 class="form-section-title">Eje X</h6>
                 <div class="form-grid">
-                  <div class="form-group">
-                    <label class="form-label">X - Límite 2σ Inferior:</label>
-                    <input type="number" class="form-control" id="x2SigmaLower" step="0.01">
+                  <!-- Columna del Eje X -->
+                  <div>
+                    <h6 class="form-section-title">Eje X</h6>
+                    <div class="form-group">
+                      <label class="form-label">X - Límite 2σ Inferior:</label>
+                      <input type="number" class="form-control" id="x2SigmaLower" step="0.01">
+                    </div>
+                    <div class="form-group">
+                      <label class="form-label">X - Límite 2σ Superior:</label>
+                      <input type="number" class="form-control" id="x2SigmaUpper" step="0.01">
+                    </div>
+                    <div class="form-group">
+                      <label class="form-label">X - Límite 3σ Inferior:</label>
+                      <input type="number" class="form-control" id="x3SigmaLower" step="0.01">
+                    </div>
+                    <div class="form-group">
+                      <label class="form-label">X - Límite 3σ Superior:</label>
+                      <input type="number" class="form-control" id="x3SigmaUpper" step="0.01">
+                    </div>
                   </div>
-                  <div class="form-group">
-                    <label class="form-label">X - Límite 2σ Superior:</label>
-                    <input type="number" class="form-control" id="x2SigmaUpper" step="0.01">
+                  
+                  <!-- Columna del Eje Y -->
+                  <div>
+                    <h6 class="form-section-title">Eje Y</h6>
+                    <div class="form-group">
+                      <label class="form-label">Y - Límite 2σ Inferior:</label>
+                      <input type="number" class="form-control" id="y2SigmaLower" step="0.01">
+                    </div>
+                    <div class="form-group">
+                      <label class="form-label">Y - Límite 2σ Superior:</label>
+                      <input type="number" class="form-control" id="y2SigmaUpper" step="0.01">
+                    </div>
+                    <div class="form-group">
+                      <label class="form-label">Y - Límite 3σ Inferior:</label>
+                      <input type="number" class="form-control" id="y3SigmaLower" step="0.01">
+                    </div>
+                    <div class="form-group">
+                      <label class="form-label">Y - Límite 3σ Superior:</label>
+                      <input type="number" class="form-control" id="y3SigmaUpper" step="0.01">
+                    </div>
                   </div>
-                  <div class="form-group">
-                    <label class="form-label">X - Límite 3σ Inferior:</label>
-                    <input type="number" class="form-control" id="x3SigmaLower" step="0.01">
-                  </div>
-                  <div class="form-group">
-                    <label class="form-label">X - Límite 3σ Superior:</label>
-                    <input type="number" class="form-control" id="x3SigmaUpper" step="0.01">
-                  </div>
-                </div>
-                
-                <h6 class="form-section-title">Eje Y</h6>
-                <div class="form-grid">
-                  <div class="form-group">
-                    <label class="form-label">Y - Límite 2σ Inferior:</label>
-                    <input type="number" class="form-control" id="y2SigmaLower" step="0.01">
-                  </div>
-                  <div class="form-group">
-                    <label class="form-label">Y - Límite 2σ Superior:</label>
-                    <input type="number" class="form-control" id="y2SigmaUpper" step="0.01">
-                  </div>
-                  <div class="form-group">
-                    <label class="form-label">Y - Límite 3σ Inferior:</label>
-                    <input type="number" class="form-control" id="y3SigmaLower" step="0.01">
-                  </div>
-                  <div class="form-group">
-                    <label class="form-label">Y - Límite 3σ Superior:</label>
-                    <input type="number" class="form-control" id="y3SigmaUpper" step="0.01">
-                  </div>
-                </div>
-                
-                <h6 class="form-section-title">Eje Z</h6>
-                <div class="form-grid">
-                  <div class="form-group">
-                    <label class="form-label">Z - Límite 2σ Inferior:</label>
-                    <input type="number" class="form-control" id="z2SigmaLower" step="0.01">
-                  </div>
-                  <div class="form-group">
-                    <label class="form-label">Z - Límite 2σ Superior:</label>
-                    <input type="number" class="form-control" id="z2SigmaUpper" step="0.01">
-                  </div>
-                  <div class="form-group">
-                    <label class="form-label">Z - Límite 3σ Inferior:</label>
-                    <input type="number" class="form-control" id="z3SigmaLower" step="0.01">
-                  </div>
-                  <div class="form-group">
-                    <label class="form-label">Z - Límite 3σ Superior:</label>
-                    <input type="number" class="form-control" id="z3SigmaUpper" step="0.01">
+                  
+                  <!-- Columna del Eje Z -->
+                  <div>
+                    <h6 class="form-section-title">Eje Z</h6>
+                    <div class="form-group">
+                      <label class="form-label">Z - Límite 2σ Inferior:</label>
+                      <input type="number" class="form-control" id="z2SigmaLower" step="0.01">
+                    </div>
+                    <div class="form-group">
+                      <label class="form-label">Z - Límite 2σ Superior:</label>
+                      <input type="number" class="form-control" id="z2SigmaUpper" step="0.01">
+                    </div>
+                    <div class="form-group">
+                      <label class="form-label">Z - Límite 3σ Inferior:</label>
+                      <input type="number" class="form-control" id="z3SigmaLower" step="0.01">
+                    </div>
+                    <div class="form-group">
+                      <label class="form-label">Z - Límite 3σ Superior:</label>
+                      <input type="number" class="form-control" id="z3SigmaUpper" step="0.01">
+                    </div>
                   </div>
                 </div>
                 
@@ -619,6 +671,76 @@
                     <i class="fas fa-save mr-2"></i> Guardar
                   </button>
                 </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Apartado de Vibration Data -->
+          <div class="card animate-slide-up" style="animation-delay: 0.35s">
+            <div class="card-header">
+              <h5><i class="fas fa-wave-square"></i> Datos de Vibración</h5>
+              <button class="btn-icon" id="refreshVibrationDataBtn" title="Refrescar datos">
+                <i class="fas fa-sync-alt"></i>
+              </button>
+            </div>
+            <div class="card-body">
+              <div class="filters-row mb-3">
+                <div class="form-group d-inline-block mr-3">
+                  <label class="form-label">Sensor:</label>
+                  <select class="form-select" id="vibrationDataSensorFilter">
+                    <option value="">Todos los sensores</option>
+                    <!-- Opciones cargadas dinámicamente -->
+                  </select>
+                </div>
+                <div class="form-group d-inline-block mr-3">
+                  <label class="form-label">Severidad:</label>
+                  <select class="form-select" id="vibrationDataSeverityFilter">
+                    <option value="">Todas</option>
+                    <option value="0">Normal (0)</option>
+                    <option value="1">Nivel 1</option>
+                    <option value="2">Nivel 2</option>
+                    <option value="3">Nivel 3</option>
+                  </select>
+                </div>
+                <div class="form-group d-inline-block">
+                  <label class="form-label">Fecha:</label>
+                  <input type="date" class="form-control" id="vibrationDataDateFilter">
+                </div>
+                <button class="btn ml-3" id="applyVibrationFiltersBtn">
+                  <i class="fas fa-filter mr-2"></i> Filtrar
+                </button>
+              </div>
+              
+              <div class="table-responsive">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>Sensor</th>
+                      <th>Fecha y Hora</th>
+                      <th>Acel. X</th>
+                      <th>Acel. Y</th>
+                      <th>Acel. Z</th>
+                      <th>Severidad</th>
+                      <th>Magnitud</th>
+                      <th>Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody id="vibrationDataTableBody">
+                    <!-- Datos cargados dinámicamente -->
+                  </tbody>
+                </table>
+              </div>
+              
+              <div class="pagination-controls mt-3" id="vibrationDataPagination">
+                <!-- Paginación -->
+                <button class="btn-icon" id="prevVibrationPageBtn">
+                  <i class="fas fa-chevron-left"></i>
+                </button>
+                <span id="vibrationDataPageInfo">Página 1 de 1</span>
+                <button class="btn-icon" id="nextVibrationPageBtn">
+                  <i class="fas fa-chevron-right"></i>
+                </button>
               </div>
             </div>
           </div>
@@ -642,63 +764,68 @@
         </div>
         <div class="modal-body">
           <form id="adjustLimitsForm">
-            <h6 class="form-section-title">Eje X</h6>
             <div class="form-grid">
-              <div class="form-group">
-                <label class="form-label">X - Límite 2σ Inferior:</label>
-                <input type="number" class="form-control" id="x2SigmaLowerInput" step="0.000001">
+              <!-- Columna del Eje X -->
+              <div>
+                <h6 class="form-section-title">Eje X</h6>
+                <div class="form-group">
+                  <label class="form-label">X - Límite 2σ Inferior:</label>
+                  <input type="number" class="form-control" id="x2SigmaLowerInput" step="0.000001">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">X - Límite 2σ Superior:</label>
+                  <input type="number" class="form-control" id="x2SigmaUpperInput" step="0.000001">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">X - Límite 3σ Inferior:</label>
+                  <input type="number" class="form-control" id="x3SigmaLowerInput" step="0.000001">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">X - Límite 3σ Superior:</label>
+                  <input type="number" class="form-control" id="x3SigmaUpperInput" step="0.000001">
+                </div>
               </div>
-              <div class="form-group">
-                <label class="form-label">X - Límite 2σ Superior:</label>
-                <input type="number" class="form-control" id="x2SigmaUpperInput" step="0.000001">
+              
+              <!-- Columna del Eje Y -->
+              <div>
+                <h6 class="form-section-title">Eje Y</h6>
+                <div class="form-group">
+                  <label class="form-label">Y - Límite 2σ Inferior:</label>
+                  <input type="number" class="form-control" id="y2SigmaLowerInput" step="0.000001">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Y - Límite 2σ Superior:</label>
+                  <input type="number" class="form-control" id="y2SigmaUpperInput" step="0.000001">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Y - Límite 3σ Inferior:</label>
+                  <input type="number" class="form-control" id="y3SigmaLowerInput" step="0.000001">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Y - Límite 3σ Superior:</label>
+                  <input type="number" class="form-control" id="y3SigmaUpperInput" step="0.000001">
+                </div>
               </div>
-              <div class="form-group">
-                <label class="form-label">X - Límite 3σ Inferior:</label>
-                <input type="number" class="form-control" id="x3SigmaLowerInput" step="0.000001">
-              </div>
-              <div class="form-group">
-                <label class="form-label">X - Límite 3σ Superior:</label>
-                <input type="number" class="form-control" id="x3SigmaUpperInput" step="0.000001">
-              </div>
-            </div>
-            
-            <h6 class="form-section-title">Eje Y</h6>
-            <div class="form-grid">
-              <div class="form-group">
-                <label class="form-label">Y - Límite 2σ Inferior:</label>
-                <input type="number" class="form-control" id="y2SigmaLowerInput" step="0.000001">
-              </div>
-              <div class="form-group">
-                <label class="form-label">Y - Límite 2σ Superior:</label>
-                <input type="number" class="form-control" id="y2SigmaUpperInput" step="0.000001">
-              </div>
-              <div class="form-group">
-                <label class="form-label">Y - Límite 3σ Inferior:</label>
-                <input type="number" class="form-control" id="y3SigmaLowerInput" step="0.000001">
-              </div>
-              <div class="form-group">
-                <label class="form-label">Y - Límite 3σ Superior:</label>
-                <input type="number" class="form-control" id="y3SigmaUpperInput" step="0.000001">
-              </div>
-            </div>
-            
-            <h6 class="form-section-title">Eje Z</h6>
-            <div class="form-grid">
-              <div class="form-group">
-                <label class="form-label">Z - Límite 2σ Inferior:</label>
-                <input type="number" class="form-control" id="z2SigmaLowerInput" step="0.000001">
-              </div>
-              <div class="form-group">
-                <label class="form-label">Z - Límite 2σ Superior:</label>
-                <input type="number" class="form-control" id="z2SigmaUpperInput" step="0.000001">
-              </div>
-              <div class="form-group">
-                <label class="form-label">Z - Límite 3σ Inferior:</label>
-                <input type="number" class="form-control" id="z3SigmaLowerInput" step="0.000001">
-              </div>
-              <div class="form-group">
-                <label class="form-label">Z - Límite 3σ Superior:</label>
-                <input type="number" class="form-control" id="z3SigmaUpperInput" step="0.000001">
+              
+              <!-- Columna del Eje Z -->
+              <div>
+                <h6 class="form-section-title">Eje Z</h6>
+                <div class="form-group">
+                  <label class="form-label">Z - Límite 2σ Inferior:</label>
+                  <input type="number" class="form-control" id="z2SigmaLowerInput" step="0.000001">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Z - Límite 2σ Superior:</label>
+                  <input type="number" class="form-control" id="z2SigmaUpperInput" step="0.000001">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Z - Límite 3σ Inferior:</label>
+                  <input type="number" class="form-control" id="z3SigmaLowerInput" step="0.000001">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Z - Límite 3σ Superior:</label>
+                  <input type="number" class="form-control" id="z3SigmaUpperInput" step="0.000001">
+                </div>
               </div>
             </div>
           </form>
@@ -748,6 +875,21 @@
             <div class="form-group">
               <label class="form-label">Descripción:</label>
               <textarea class="form-control" id="machineDescription" name="description" rows="3"></textarea>
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">Ubicación:</label>
+              <input type="text" class="form-control" id="machineLocation" name="location" placeholder="Ej: Planta A - Sección 1">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">Estado:</label>
+              <select class="form-select" id="machineStatus" name="status">
+                <option value="operativo">Operativo</option>
+                <option value="mantenimiento">En Mantenimiento</option>
+                <option value="apagado">Apagado</option>
+                <option value="error">Error</option>
+              </select>
             </div>
             
             <div class="form-group">
@@ -802,6 +944,24 @@
             <div class="form-group">
               <label class="form-label">Descripción:</label>
               <textarea class="form-control" id="sensorDescription" name="description" rows="3"></textarea>
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">Ubicación:</label>
+              <input type="text" class="form-control" id="sensorLocation" name="location">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">Tipo:</label>
+              <input type="text" class="form-control" id="sensorType" name="type" placeholder="vibración, temperatura, etc.">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">Máquina:</label>
+              <select class="form-select" id="sensorMachine" name="machine_id">
+                <option value="">Ninguna</option>
+                <!-- Opciones cargadas dinámicamente -->
+              </select>
             </div>
           </form>
         </div>
@@ -883,6 +1043,16 @@
               </div>
               <div class="form-note">* Opcional</div>
             </div>
+            
+            <div class="form-group">
+              <label class="form-label">Exactitud (%):</label>
+              <input type="number" class="form-control" id="modelAccuracy" step="0.01" min="0" max="100" placeholder="Ej: 95.5">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">Parámetros de Configuración:</label>
+              <textarea class="form-control" id="modelConfigParams" rows="3" placeholder="JSON con parámetros (ej: {'batch_size': 32})"></textarea>
+            </div>
           </form>
         </div>
         <div class="modal-footer">
@@ -915,6 +1085,64 @@
     </div>
   </div>
   
+  <!-- Modal para detalles de alerta -->
+  <div class="modal" id="alertDetailsModal">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Detalles de Alerta</h5>
+          <button type="button" class="modal-close" data-dismiss="modal">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="details-grid">
+            <div class="detail-item">
+              <div class="detail-label">ID:</div>
+              <div class="detail-value" id="alertDetailId"></div>
+            </div>
+            <div class="detail-item">
+              <div class="detail-label">Sensor ID:</div>
+              <div class="detail-value" id="alertDetailSensorId"></div>
+            </div>
+            <div class="detail-item">
+              <div class="detail-label">Datos de Vibración ID:</div>
+              <div class="detail-value" id="alertDetailVibrationDataId"></div>
+            </div>
+            <div class="detail-item">
+              <div class="detail-label">Fecha y Hora:</div>
+              <div class="detail-value" id="alertDetailTimestamp"></div>
+            </div>
+            <div class="detail-item">
+              <div class="detail-label">Tipo de Error:</div>
+              <div class="detail-value" id="alertDetailErrorType"></div>
+            </div>
+            <div class="detail-item">
+              <div class="detail-label">Severidad:</div>
+              <div class="detail-value" id="alertDetailSeverity"></div>
+            </div>
+            <div class="detail-item">
+              <div class="detail-label">Mensaje:</div>
+              <div class="detail-value" id="alertDetailMessage"></div>
+            </div>
+            <div class="detail-item">
+              <div class="detail-label">Estado:</div>
+              <div class="detail-value" id="alertDetailAcknowledged"></div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="viewVibrationDataBtn">
+            Ver Datos de Vibración
+          </button>
+          <button type="button" class="btn" id="acknowledgeAlertBtn">
+            Reconocer Alerta
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+  
   <!-- Scripts modularizados -->
   <script src="/static/js/utils.js"></script>
   <script src="/static/js/navigation.js"></script>
@@ -931,6 +1159,37 @@
       // Inicializar navegación
       initSidebar();
       initNavigation();
+      
+      // Inicializar componentes del dashboard cuando la página activa sea dashboard
+      document.addEventListener('pageChanged', (e) => {
+        const page = e.detail.page;
+        
+        if (page === 'dashboard') {
+          // Inicializar funcionalidades del dashboard
+          initDashboard();
+          initVibrationDataSection();
+          loadAlerts();
+        } else if (page === 'configuracion') {
+          // Inicializar funcionalidades de configuración
+          initConfig();
+          initMachineManagement();
+          initSensorManagement();
+          initModelManagement();
+        }
+      });
+      
+      // Inicializar página actual
+      const currentPage = document.querySelector('.nav-link.active').getAttribute('data-page');
+      if (currentPage === 'dashboard') {
+        initDashboard();
+        initVibrationDataSection();
+        loadAlerts();
+      } else if (currentPage === 'configuracion') {
+        initConfig();
+        initMachineManagement();
+        initSensorManagement();
+        initModelManagement();
+      }
     });
   </script>
 </body>

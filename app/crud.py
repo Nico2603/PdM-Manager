@@ -164,9 +164,9 @@ def get_alerts_by_sensor_and_dates(
     """Obtiene alertas para un sensor y rango de fechas"""
     return db.query(Alert).filter(
         Alert.sensor_id == sensor_id,
-        Alert.date >= start_date,
-        Alert.date <= end_date
-    ).order_by(Alert.date).all()
+        Alert.timestamp >= start_date,
+        Alert.timestamp <= end_date
+    ).order_by(Alert.timestamp).all()
 
 # --- Funciones CRUD para Máquinas ---
 
@@ -184,7 +184,7 @@ def get_machines_with_status(db: Session, skip: int = 0, limit: int = 100) -> Li
     result = []
     
     for machine in machines:
-        # Obtener sensores asociados
+        # Obtener sensores asociados a esta máquina
         sensors = db.query(Sensor).filter(Sensor.machine_id == machine.machine_id).all()
         sensor_ids = [s.sensor_id for s in sensors]
         

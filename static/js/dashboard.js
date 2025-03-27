@@ -392,11 +392,13 @@ function updateSensorDropdown(sensors) {
 
 // Actualizar datos del dashboard
 function updateDashboardData() {
+    // Verificar que se han seleccionado machine y sensor
     const selectedMachine = getGlobalState('selectedMachine');
     const selectedSensor = getGlobalState('selectedSensor');
-    const timeRange = getGlobalState('timeRange');
+    const timeRange = getGlobalState('timeRange') || '24h';
     
     if (!selectedMachine || !selectedSensor) {
+        console.warn('No se ha seleccionado máquina o sensor');
         return Promise.resolve();
     }
     
@@ -436,22 +438,25 @@ function updateDashboardData() {
         alertsResponse.json()
     ]))
     .then(([data, alerts]) => {
-        // Actualizar gráficos si están disponibles
-        if (typeof updateVibrationChartX === 'function' && 
-            typeof updateVibrationChartY === 'function' && 
-            typeof updateVibrationChartZ === 'function') {
+        // Verificar que hay datos
+        if (data && data.length > 0) {
+            console.log('Datos recibidos para actualizar gráficos:', data.length);
             
             // Actualizar datos de gráficos
             chartData.timestamps = data.map(item => new Date(item.timestamp).toLocaleTimeString());
-            chartData.x = data.map(item => item.x);
-            chartData.y = data.map(item => item.y);
-            chartData.z = data.map(item => item.z);
-            chartData.status = data.map(item => item.status);
             
-            // Actualizar gráficos
-            updateVibrationChartX();
-            updateVibrationChartY();
-            updateVibrationChartZ();
+            // Asegurar que cada gráfica utiliza sus datos específicos del eje
+            chartData.x = data.map(item => parseFloat(item.x) || null);  // Datos específicos del eje X
+            chartData.y = data.map(item => parseFloat(item.y) || null);  // Datos específicos del eje Y
+            chartData.z = data.map(item => parseFloat(item.z) || null);  // Datos específicos del eje Z
+            chartData.status = data.map(item => item.status || 0);  // Usar 0 (normal) si no hay status
+            
+            // Actualizar gráficos si están disponibles
+            if (typeof updateVibrationChartX === 'function') updateVibrationChartX();
+            if (typeof updateVibrationChartY === 'function') updateVibrationChartY();
+            if (typeof updateVibrationChartZ === 'function') updateVibrationChartZ();
+        } else {
+            console.warn('No hay datos para actualizar gráficos');
         }
         
         // Actualizar contadores de alertas
@@ -496,29 +501,62 @@ function updateAlertCounters(alerts) {
         (alerts.level1 || 0) + (alerts.level2 || 0) + (alerts.level3 || 0);
 }
 
-// Actualizar valores estadísticos mostrados
+// Actualizar valores de parámetros estadísticos
 function updateStatisticalDisplayValues() {
-    const machine = cache.machines.find(m => m.machine_id === getGlobalState('selectedMachine'));
-    const sensors = cache.sensors[getGlobalState('selectedMachine')] || [];
-    const sensor = sensors.find(s => s.sensor_id === getGlobalState('selectedSensor'));
+    // Obtener valores actuales del localStorage o usar valores predeterminados
+    const limits = JSON.parse(localStorage.getItem('limitConfig')) || {
+        x_2sigma_lower: -2.36,
+        x_2sigma_upper: 2.18,
+        x_3sigma_lower: -3.50,
+        x_3sigma_upper: 3.32,
+        y_2sigma_lower: 7.18,
+        y_2sigma_upper: 12.09,
+        y_3sigma_lower: 5.95,
+        y_3sigma_upper: 13.32,
+        z_2sigma_lower: -2.39,
+        z_2sigma_upper: 1.11,
+        z_3sigma_lower: -3.26,
+        z_3sigma_upper: 1.98
+    };
     
-    if (!machine || !sensor) return;
-    
-    // Obtener los límites
-    const stats = getGlobalState('stats');
-    
-    // Actualizar texto de valores estadísticos
-    document.querySelectorAll('.stat-value').forEach(element => {
-        const axis = element.dataset.axis;
-        const type = element.dataset.type;
+    // Actualizar elementos del DOM
+    // Eje X
+    document.getElementById('x2SigmaLowerDisplay').innerHTML = 
+        limits.x_2sigma_lower.toFixed(2) + '<span class="stat-unit">m/s²</span>';
+    document.getElementById('x2SigmaUpperDisplay').innerHTML = 
+        limits.x_2sigma_upper.toFixed(2) + '<span class="stat-unit">m/s²</span>';
+    document.getElementById('x3SigmaLowerDisplay').innerHTML = 
+        limits.x_3sigma_lower.toFixed(2) + '<span class="stat-unit">m/s²</span>';
+    document.getElementById('x3SigmaUpperDisplay').innerHTML = 
+        limits.x_3sigma_upper.toFixed(2) + '<span class="stat-unit">m/s²</span>';
         
-        if (axis && type && stats[axis] && stats[axis][type]) {
-            if (element.dataset.bound === 'upper') {
-                element.textContent = stats[axis][type].upper.toFixed(3);
-            } else if (element.dataset.bound === 'lower') {
-                element.textContent = stats[axis][type].lower.toFixed(3);
-            }
-        }
+    // Eje Y
+    document.getElementById('y2SigmaLowerDisplay').innerHTML = 
+        limits.y_2sigma_lower.toFixed(2) + '<span class="stat-unit">m/s²</span>';
+    document.getElementById('y2SigmaUpperDisplay').innerHTML = 
+        limits.y_2sigma_upper.toFixed(2) + '<span class="stat-unit">m/s²</span>';
+    document.getElementById('y3SigmaLowerDisplay').innerHTML = 
+        limits.y_3sigma_lower.toFixed(2) + '<span class="stat-unit">m/s²</span>';
+    document.getElementById('y3SigmaUpperDisplay').innerHTML = 
+        limits.y_3sigma_upper.toFixed(2) + '<span class="stat-unit">m/s²</span>';
+        
+    // Eje Z
+    document.getElementById('z2SigmaLowerDisplay').innerHTML = 
+        limits.z_2sigma_lower.toFixed(2) + '<span class="stat-unit">m/s²</span>';
+    document.getElementById('z2SigmaUpperDisplay').innerHTML = 
+        limits.z_2sigma_upper.toFixed(2) + '<span class="stat-unit">m/s²</span>';
+    document.getElementById('z3SigmaLowerDisplay').innerHTML = 
+        limits.z_3sigma_lower.toFixed(2) + '<span class="stat-unit">m/s²</span>';
+    document.getElementById('z3SigmaUpperDisplay').innerHTML = 
+        limits.z_3sigma_upper.toFixed(2) + '<span class="stat-unit">m/s²</span>';
+    
+    // Añadir animación para destacar cambios
+    const statValues = document.querySelectorAll('.stat-value');
+    statValues.forEach(el => {
+        el.classList.add('value-updated');
+        setTimeout(() => {
+            el.classList.remove('value-updated');
+        }, 1000);
     });
 }
 
@@ -688,9 +726,22 @@ function updateAlertsTable(alerts) {
     for (const alert of alertsToShow) {
         const row = tableBody.insertRow();
         
+        // Determinar el nivel de alerta y aplicar clase
+        let alertLevel = 1;
+        if (alert.error_type.includes('Nivel 3') || alert.error_type.includes('Level 3') || alert.error_type.includes('Crítico')) {
+            alertLevel = 3;
+            row.classList.add('level-3');
+        } else if (alert.error_type.includes('Nivel 2') || alert.error_type.includes('Level 2')) {
+            alertLevel = 2;
+            row.classList.add('level-2');
+        } else {
+            row.classList.add('level-1');
+        }
+        
         // ID
         const idCell = row.insertCell();
         idCell.textContent = alert.log_id;
+        idCell.className = 'column-id';
         
         // Sensor ID
         const sensorCell = row.insertCell();
@@ -700,6 +751,7 @@ function updateAlertsTable(alerts) {
         const timestampCell = row.insertCell();
         const date = new Date(alert.timestamp);
         timestampCell.textContent = date.toLocaleString();
+        timestampCell.className = 'column-datetime';
         
         // Tipo de error
         const errorTypeCell = row.insertCell();
@@ -709,8 +761,554 @@ function updateAlertsTable(alerts) {
     // Inicializar el botón de actualizar
     const refreshBtn = document.getElementById('refreshAlertsTable');
     if (refreshBtn) {
+        refreshBtn.removeEventListener('click', loadSimplifiedAlerts);
         refreshBtn.addEventListener('click', loadSimplifiedAlerts);
     }
+}
+
+// Cargar datos de vibración
+function loadVibrationData(page = 1, filters = {}) {
+    showLoadingIndicator('Cargando datos de vibración...');
+    
+    // Construir parámetros de consulta
+    const queryParams = new URLSearchParams();
+    queryParams.append('page', page);
+    queryParams.append('limit', 10); // Mostrar 10 registros por página
+    
+    // Añadir filtros si existen
+    if (filters.sensor_id) {
+        queryParams.append('sensor_id', filters.sensor_id);
+    }
+    if (filters.severity) {
+        queryParams.append('severity', filters.severity);
+    }
+    if (filters.date) {
+        queryParams.append('date', filters.date);
+    }
+    
+    fetch(`/api/vibration-data?${queryParams.toString()}`)
+        .then(response => response.json())
+        .then(data => {
+            const tableBody = document.getElementById('vibrationDataTableBody');
+            if (!tableBody) return;
+            
+            tableBody.innerHTML = '';
+            
+            if (!data.items || data.items.length === 0) {
+                tableBody.innerHTML = `
+                    <tr>
+                        <td colspan="9" class="text-center">No hay datos de vibración disponibles</td>
+                    </tr>
+                `;
+                return;
+            }
+            
+            // Actualizar información de paginación
+            const pageInfo = document.getElementById('vibrationDataPageInfo');
+            if (pageInfo) {
+                pageInfo.textContent = `Página ${data.page} de ${data.total_pages || 1}`;
+            }
+            
+            // Habilitar/deshabilitar botones de paginación
+            const prevBtn = document.getElementById('prevVibrationPageBtn');
+            const nextBtn = document.getElementById('nextVibrationPageBtn');
+            
+            if (prevBtn) {
+                prevBtn.disabled = data.page <= 1;
+            }
+            if (nextBtn) {
+                nextBtn.disabled = data.page >= (data.total_pages || 1);
+            }
+            
+            // Poblar la tabla con datos
+            data.items.forEach(item => {
+                const row = document.createElement('tr');
+                
+                // Formatear fecha
+                const date = new Date(item.date);
+                const formattedDate = date.toLocaleDateString() + ' ' + 
+                                      date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'});
+                
+                // Obtener clase CSS según severidad
+                let severityClass = '';
+                let severityText = '';
+                
+                switch(item.severity) {
+                    case 0:
+                        severityClass = 'text-success';
+                        severityText = 'Normal';
+                        break;
+                    case 1:
+                        severityClass = 'text-warning';
+                        severityText = 'Nivel 1';
+                        break;
+                    case 2:
+                        severityClass = 'text-orange';
+                        severityText = 'Nivel 2';
+                        break;
+                    case 3:
+                        severityClass = 'text-danger';
+                        severityText = 'Nivel 3';
+                        break;
+                    default:
+                        severityClass = 'text-secondary';
+                        severityText = 'Desconocido';
+                }
+                
+                row.innerHTML = `
+                    <td class="column-id">${item.data_id}</td>
+                    <td>${item.sensor_id}</td>
+                    <td>${formattedDate}</td>
+                    <td>${item.acceleration_x !== null ? item.acceleration_x.toFixed(4) : '-'}</td>
+                    <td>${item.acceleration_y !== null ? item.acceleration_y.toFixed(4) : '-'}</td>
+                    <td>${item.acceleration_z !== null ? item.acceleration_z.toFixed(4) : '-'}</td>
+                    <td class="${severityClass}"><strong>${severityText}</strong></td>
+                    <td>${item.magnitude !== null ? item.magnitude.toFixed(4) : '-'}</td>
+                    <td class="column-actions">
+                        <div class="table-actions">
+                            <button class="btn-icon btn-view" title="Ver detalles" data-id="${item.data_id}">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </div>
+                    </td>
+                `;
+                
+                tableBody.appendChild(row);
+            });
+            
+            // Configurar eventos para botones de detalle
+            const viewButtons = tableBody.querySelectorAll('.btn-view');
+            viewButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    const dataId = button.getAttribute('data-id');
+                    viewVibrationDetails(dataId);
+                });
+            });
+        })
+        .catch(error => {
+            console.error('Error al cargar datos de vibración:', error);
+            showToast('Error al cargar datos de vibración', 'error');
+        })
+        .finally(() => {
+            hideLoadingIndicator();
+        });
+}
+
+// Cargar alertas con todos los campos
+function loadAlerts() {
+    fetch('/api/alerts')
+        .then(response => response.json())
+        .then(alerts => {
+            const tableBody = document.getElementById('alertsTableBody');
+            if (!tableBody) return;
+            
+            tableBody.innerHTML = '';
+            
+            if (alerts.length === 0) {
+                tableBody.innerHTML = `
+                    <tr>
+                        <td colspan="8" class="text-center">No hay alertas registradas</td>
+                    </tr>
+                `;
+                return;
+            }
+            
+            alerts.forEach(alert => {
+                const row = document.createElement('tr');
+                
+                // Añadir clase según severidad
+                if (alert.severity === 3) {
+                    row.classList.add('alert-danger');
+                } else if (alert.severity === 2) {
+                    row.classList.add('alert-warning');
+                } else if (alert.severity === 1) {
+                    row.classList.add('alert-info');
+                }
+                
+                // Formatear fecha
+                const timestamp = new Date(alert.timestamp);
+                const formattedDate = timestamp.toLocaleDateString() + ' ' + 
+                                     timestamp.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                
+                // Obtener clase CSS e icono según severidad
+                let severityClass = '';
+                let severityIcon = '';
+                let severityText = '';
+                
+                switch(alert.severity) {
+                    case 1:
+                        severityClass = 'badge-warning';
+                        severityIcon = 'fa-exclamation-circle';
+                        severityText = 'Nivel 1';
+                        break;
+                    case 2:
+                        severityClass = 'badge-orange';
+                        severityIcon = 'fa-exclamation-triangle';
+                        severityText = 'Nivel 2';
+                        break;
+                    case 3:
+                        severityClass = 'badge-danger';
+                        severityIcon = 'fa-radiation-alt';
+                        severityText = 'Nivel 3';
+                        break;
+                    default:
+                        severityClass = 'badge-secondary';
+                        severityIcon = 'fa-info-circle';
+                        severityText = 'Desconocido';
+                }
+                
+                // Estado de reconocimiento con icono
+                const acknowledgedStatus = alert.acknowledged ? 
+                    `<span class="badge badge-success"><i class="fas fa-check-circle mr-1"></i>Reconocida</span>` : 
+                    `<span class="badge badge-warning"><i class="fas fa-exclamation-circle mr-1"></i>Pendiente</span>`;
+                
+                // ID de datos de vibración
+                const vibrationDataIdDisplay = alert.vibration_data_id ? 
+                    `<a href="#" class="view-vibration-data" data-id="${alert.vibration_data_id}" title="Ver datos de vibración">${alert.vibration_data_id}</a>` : 
+                    '-';
+                
+                row.innerHTML = `
+                    <td class="column-id">${alert.log_id}</td>
+                    <td>${alert.sensor_id}</td>
+                    <td>${formattedDate}</td>
+                    <td>${alert.error_type}</td>
+                    <td><span class="badge ${severityClass}"><i class="fas ${severityIcon} mr-1"></i>${severityText}</span></td>
+                    <td><span class="text-truncate d-inline-block" style="max-width: 150px;" title="${alert.message || ''}">${alert.message || '-'}</span></td>
+                    <td>${vibrationDataIdDisplay}</td>
+                    <td>${acknowledgedStatus}</td>
+                    <td class="column-actions">
+                        <div class="table-actions">
+                            <button class="btn-icon btn-view-alert" title="Ver detalles" data-id="${alert.log_id}">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                            ${!alert.acknowledged ? 
+                              `<button class="btn-icon btn-acknowledge" title="Reconocer alerta" data-id="${alert.log_id}">
+                                <i class="fas fa-check"></i>
+                               </button>` : ''}
+                        </div>
+                    </td>
+                `;
+                
+                tableBody.appendChild(row);
+            });
+            
+            // Configurar eventos para botones y enlaces
+            const viewButtons = tableBody.querySelectorAll('.btn-view-alert');
+            viewButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    const alertId = button.getAttribute('data-id');
+                    viewAlertDetails(alertId);
+                });
+            });
+            
+            const acknowledgeButtons = tableBody.querySelectorAll('.btn-acknowledge');
+            acknowledgeButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    const alertId = button.getAttribute('data-id');
+                    acknowledgeAlert(alertId);
+                });
+            });
+            
+            const vibrationDataLinks = tableBody.querySelectorAll('.view-vibration-data');
+            vibrationDataLinks.forEach(link => {
+                link.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const dataId = link.getAttribute('data-id');
+                    viewVibrationDetails(dataId);
+                });
+            });
+        })
+        .catch(error => {
+            console.error('Error al cargar alertas:', error);
+            showToast('Error al cargar alertas', 'error');
+        });
+}
+
+// Ver detalles de una alerta
+function viewAlertDetails(alertId) {
+    fetch(`/api/alerts/${alertId}`)
+        .then(response => response.json())
+        .then(alert => {
+            // Poblar el modal con los detalles
+            document.getElementById('alertDetailId').textContent = alert.log_id;
+            document.getElementById('alertDetailSensorId').textContent = alert.sensor_id;
+            document.getElementById('alertDetailVibrationDataId').textContent = alert.vibration_data_id || 'N/A';
+            
+            // Formatear fecha
+            const timestamp = new Date(alert.timestamp);
+            document.getElementById('alertDetailTimestamp').textContent = timestamp.toLocaleString();
+            
+            document.getElementById('alertDetailErrorType').textContent = alert.error_type;
+            document.getElementById('alertDetailSeverity').textContent = `Nivel ${alert.severity}`;
+            document.getElementById('alertDetailMessage').textContent = alert.message || 'Sin mensaje';
+            document.getElementById('alertDetailAcknowledged').textContent = alert.acknowledged ? 'Reconocida' : 'Pendiente';
+            
+            // Configurar botón para ver datos de vibración asociados
+            const viewDataBtn = document.getElementById('viewVibrationDataBtn');
+            if (viewDataBtn) {
+                if (alert.vibration_data_id) {
+                    viewDataBtn.classList.remove('disabled');
+                    viewDataBtn.onclick = () => {
+                        // Cerrar modal actual
+                        document.getElementById('alertDetailsModal').classList.remove('show');
+                        // Abrir modal de datos de vibración
+                        viewVibrationDetails(alert.vibration_data_id);
+                    };
+                } else {
+                    viewDataBtn.classList.add('disabled');
+                    viewDataBtn.onclick = null;
+                }
+            }
+            
+            // Configurar botón para reconocer alerta
+            const acknowledgeBtn = document.getElementById('acknowledgeAlertBtn');
+            if (acknowledgeBtn) {
+                if (alert.acknowledged) {
+                    acknowledgeBtn.classList.add('disabled');
+                    acknowledgeBtn.textContent = 'Alerta Reconocida';
+                } else {
+                    acknowledgeBtn.classList.remove('disabled');
+                    acknowledgeBtn.textContent = 'Reconocer Alerta';
+                    acknowledgeBtn.onclick = () => {
+                        acknowledgeAlert(alert.log_id);
+                    };
+                }
+            }
+            
+            // Mostrar modal
+            document.getElementById('alertDetailsModal').classList.add('show');
+        })
+        .catch(error => {
+            console.error('Error al cargar detalles de alerta:', error);
+            showToast('Error al cargar detalles de alerta', 'error');
+        });
+}
+
+// Reconocer una alerta
+function acknowledgeAlert(alertId) {
+    showLoadingIndicator('Reconociendo alerta...');
+    
+    fetch(`/api/alerts/${alertId}/acknowledge`, {
+        method: 'PUT'
+    })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Error al reconocer alerta');
+            }
+            return response.json();
+        })
+        .then(result => {
+            showToast('Alerta reconocida correctamente', 'success');
+            
+            // Cerrar modal si está abierto
+            document.getElementById('alertDetailsModal').classList.remove('show');
+            
+            // Recargar datos de alertas
+            loadAlerts();
+            
+            // Actualizar contadores del dashboard
+            updateDashboardAlertCounts();
+        })
+        .catch(error => {
+            console.error('Error al reconocer alerta:', error);
+            showToast('Error al reconocer alerta', 'error');
+        })
+        .finally(() => {
+            hideLoadingIndicator();
+        });
+}
+
+// Inicializar filtros y paginación para datos de vibración
+function initVibrationDataSection() {
+    // Botón de aplicar filtros
+    const applyFiltersBtn = document.getElementById('applyVibrationFiltersBtn');
+    if (applyFiltersBtn) {
+        applyFiltersBtn.addEventListener('click', () => {
+            const filters = {
+                sensor_id: document.getElementById('vibrationDataSensorFilter').value,
+                severity: document.getElementById('vibrationDataSeverityFilter').value,
+                date: document.getElementById('vibrationDataDateFilter').value
+            };
+            
+            loadVibrationData(1, filters);
+        });
+    }
+    
+    // Botones de paginación
+    const prevBtn = document.getElementById('prevVibrationPageBtn');
+    const nextBtn = document.getElementById('nextVibrationPageBtn');
+    
+    if (prevBtn && nextBtn) {
+        prevBtn.addEventListener('click', () => {
+            const currentPage = parseInt(document.getElementById('vibrationDataPageInfo').textContent.split(' ')[1]);
+            if (currentPage > 1) {
+                loadVibrationData(currentPage - 1, getVibrationFilters());
+            }
+        });
+        
+        nextBtn.addEventListener('click', () => {
+            const pageInfo = document.getElementById('vibrationDataPageInfo').textContent;
+            const [currentPage, totalPages] = pageInfo.split(' ')[1].split(' de ');
+            
+            if (parseInt(currentPage) < parseInt(totalPages)) {
+                loadVibrationData(parseInt(currentPage) + 1, getVibrationFilters());
+            }
+        });
+    }
+    
+    // Botón de refrescar
+    const refreshBtn = document.getElementById('refreshVibrationDataBtn');
+    if (refreshBtn) {
+        refreshBtn.addEventListener('click', () => {
+            loadVibrationData(1, getVibrationFilters());
+        });
+    }
+    
+    // Cargar datos iniciales
+    loadVibrationData();
+}
+
+// Obtener filtros actuales para los datos de vibración
+function getVibrationFilters() {
+    return {
+        sensor_id: document.getElementById('vibrationDataSensorFilter').value,
+        severity: document.getElementById('vibrationDataSeverityFilter').value,
+        date: document.getElementById('vibrationDataDateFilter').value
+    };
+}
+
+// Ver detalles de datos de vibración
+function viewVibrationDetails(dataId) {
+    fetch(`/api/vibration-data/${dataId}`)
+        .then(response => response.json())
+        .then(data => {
+            // Crear un modal dinámico para mostrar los detalles
+            const modalHtml = `
+                <div class="modal" id="vibrationDetailModal">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">Detalles de Datos de Vibración</h5>
+                                <button type="button" class="modal-close" id="closeVibrationDetailBtn">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="details-grid">
+                                    <div class="detail-item">
+                                        <div class="detail-label">ID:</div>
+                                        <div class="detail-value">${data.data_id}</div>
+                                    </div>
+                                    <div class="detail-item">
+                                        <div class="detail-label">Sensor ID:</div>
+                                        <div class="detail-value">${data.sensor_id}</div>
+                                    </div>
+                                    <div class="detail-item">
+                                        <div class="detail-label">Fecha y Hora:</div>
+                                        <div class="detail-value">${new Date(data.date).toLocaleString()}</div>
+                                    </div>
+                                    <div class="detail-item">
+                                        <div class="detail-label">Aceleración X:</div>
+                                        <div class="detail-value">${data.acceleration_x !== null ? data.acceleration_x.toFixed(6) : 'N/A'}</div>
+                                    </div>
+                                    <div class="detail-item">
+                                        <div class="detail-label">Aceleración Y:</div>
+                                        <div class="detail-value">${data.acceleration_y !== null ? data.acceleration_y.toFixed(6) : 'N/A'}</div>
+                                    </div>
+                                    <div class="detail-item">
+                                        <div class="detail-label">Aceleración Z:</div>
+                                        <div class="detail-value">${data.acceleration_z !== null ? data.acceleration_z.toFixed(6) : 'N/A'}</div>
+                                    </div>
+                                    <div class="detail-item">
+                                        <div class="detail-label">Severidad:</div>
+                                        <div class="detail-value">${getSeverityText(data.severity)}</div>
+                                    </div>
+                                    <div class="detail-item">
+                                        <div class="detail-label">Magnitud:</div>
+                                        <div class="detail-value">${data.magnitude !== null ? data.magnitude.toFixed(6) : 'N/A'}</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn" id="closeVibrationDetailModalBtn">
+                                    Cerrar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // Eliminar modal anterior si existe
+            const oldModal = document.getElementById('vibrationDetailModal');
+            if (oldModal) {
+                oldModal.remove();
+            }
+            
+            // Añadir el nuevo modal al DOM
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+            
+            // Configurar eventos de cierre
+            const modal = document.getElementById('vibrationDetailModal');
+            const closeBtn = document.getElementById('closeVibrationDetailBtn');
+            const closeModalBtn = document.getElementById('closeVibrationDetailModalBtn');
+            
+            const closeModal = () => {
+                modal.classList.remove('show');
+                setTimeout(() => {
+                    modal.remove();
+                }, 300);
+            };
+            
+            if (closeBtn) {
+                closeBtn.addEventListener('click', closeModal);
+            }
+            
+            if (closeModalBtn) {
+                closeModalBtn.addEventListener('click', closeModal);
+            }
+            
+            // Mostrar el modal
+            setTimeout(() => {
+                modal.classList.add('show');
+            }, 10);
+        })
+        .catch(error => {
+            console.error('Error al cargar detalles de datos de vibración:', error);
+            showToast('Error al cargar detalles de datos de vibración', 'error');
+        });
+}
+
+// Obtener texto descriptivo de severidad
+function getSeverityText(severity) {
+    switch(severity) {
+        case 0:
+            return 'Normal';
+        case 1:
+            return 'Nivel 1 - Advertencia';
+        case 2:
+            return 'Nivel 2 - Atención Requerida';
+        case 3:
+            return 'Nivel 3 - Crítico';
+        default:
+            return 'Desconocido';
+    }
+}
+
+// Actualizar contadores de alertas en el dashboard
+function updateDashboardAlertCounts() {
+    fetch('/api/alerts/counts')
+        .then(response => response.json())
+        .then(counts => {
+            document.getElementById('level1Count').textContent = counts.level1 || 0;
+            document.getElementById('level2Count').textContent = counts.level2 || 0;
+            document.getElementById('level3Count').textContent = counts.level3 || 0;
+            document.getElementById('totalCount').textContent = 
+                (counts.level1 || 0) + (counts.level2 || 0) + (counts.level3 || 0);
+        })
+        .catch(error => {
+            console.error('Error al actualizar contadores de alertas:', error);
+        });
 }
 
 // Exportar funciones para uso global
@@ -719,4 +1317,13 @@ window.updateDashboardData = updateDashboardData;
 window.initCustomUIComponents = initCustomUIComponents;
 window.initVisualFilters = initVisualFilters;
 window.exportToPDF = exportToPDF;
-window.loadSimplifiedAlerts = loadSimplifiedAlerts; 
+window.loadSimplifiedAlerts = loadSimplifiedAlerts;
+window.loadVibrationData = loadVibrationData;
+window.loadAlerts = loadAlerts;
+window.viewAlertDetails = viewAlertDetails;
+window.acknowledgeAlert = acknowledgeAlert;
+window.initVibrationDataSection = initVibrationDataSection;
+window.getVibrationFilters = getVibrationFilters;
+window.viewVibrationDetails = viewVibrationDetails;
+window.getSeverityText = getSeverityText;
+window.updateDashboardAlertCounts = updateDashboardAlertCounts; 

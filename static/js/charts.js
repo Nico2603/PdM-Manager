@@ -63,7 +63,7 @@ function initAxisChart(canvasId, title, axis) {
     // Conjuntos de datos base
     const datasets = [
         {
-            label: `Aceleración eje ${axis.toUpperCase()}`,
+            label: `Aceleración eje ${axis.toUpperCase()} (m/s²)`,
             data: chartData[axis],
             borderColor: chartColors[axis],
             borderWidth: 2,
@@ -77,9 +77,9 @@ function initAxisChart(canvasId, title, axis) {
     // Añadir líneas estadísticas si están disponibles y activadas
     if (stats && stats[axis]) {
         // Límites 2-sigma
-        if (chartOptions.show2Sigma && stats[axis].sigma2) {
+        if (chartOptions && chartOptions.show2Sigma && stats[axis].sigma2) {
             datasets.push({
-                label: '+2σ',
+                label: `+2σ (${axis.toUpperCase()})`,
                 data: Array(chartData.timestamps.length).fill(stats[axis].sigma2.upper),
                 borderColor: 'rgba(255, 159, 64, 0.5)',
                 borderWidth: 1,
@@ -89,7 +89,7 @@ function initAxisChart(canvasId, title, axis) {
             });
             
             datasets.push({
-                label: '-2σ',
+                label: `-2σ (${axis.toUpperCase()})`,
                 data: Array(chartData.timestamps.length).fill(stats[axis].sigma2.lower),
                 borderColor: 'rgba(255, 159, 64, 0.5)',
                 borderWidth: 1,
@@ -100,9 +100,9 @@ function initAxisChart(canvasId, title, axis) {
         }
         
         // Límites 3-sigma
-        if (chartOptions.show3Sigma && stats[axis].sigma3) {
+        if (chartOptions && chartOptions.show3Sigma && stats[axis].sigma3) {
             datasets.push({
-                label: '+3σ',
+                label: `+3σ (${axis.toUpperCase()})`,
                 data: Array(chartData.timestamps.length).fill(stats[axis].sigma3.upper),
                 borderColor: 'rgba(255, 99, 132, 0.5)',
                 borderWidth: 1,
@@ -112,7 +112,7 @@ function initAxisChart(canvasId, title, axis) {
             });
             
             datasets.push({
-                label: '-3σ',
+                label: `-3σ (${axis.toUpperCase()})`,
                 data: Array(chartData.timestamps.length).fill(stats[axis].sigma3.lower),
                 borderColor: 'rgba(255, 99, 132, 0.5)',
                 borderWidth: 1,
@@ -241,18 +241,21 @@ function initAxisChart(canvasId, title, axis) {
     return chart;
 }
 
-// Actualizar datos del gráfico X
+// Actualizar gráfico para eje X
 function updateVibrationChartX() {
+    if (!vibrationChartX) return;
     updateAxisChart(vibrationChartX, 'x');
 }
 
-// Actualizar datos del gráfico Y
+// Actualizar gráfico para eje Y
 function updateVibrationChartY() {
+    if (!vibrationChartY) return;
     updateAxisChart(vibrationChartY, 'y');
 }
 
-// Actualizar datos del gráfico Z
+// Actualizar gráfico para eje Z
 function updateVibrationChartZ() {
+    if (!vibrationChartZ) return;
     updateAxisChart(vibrationChartZ, 'z');
 }
 
@@ -260,8 +263,8 @@ function updateVibrationChartZ() {
 function updateAxisChart(chart, axis) {
     if (!chart) return;
     
-    // Obtener datos actualizados
-    const values = chartData[axis];
+    // Obtener datos actualizados para el eje específico
+    const values = chartData[axis]; // Datos del eje específico (x, y o z)
     const timestamps = chartData.timestamps;
     
     // Actualizar datos principales
@@ -280,9 +283,9 @@ function updateAxisChart(chart, axis) {
     // Añadir líneas estadísticas si están disponibles y activadas
     if (stats && stats[axis]) {
         // Límites 2-sigma
-        if (chartOptions.show2Sigma && stats[axis].sigma2) {
+        if (chartOptions && chartOptions.show2Sigma && stats[axis].sigma2) {
             chart.data.datasets.push({
-                label: '+2σ',
+                label: `+2σ (${axis.toUpperCase()})`,
                 data: Array(timestamps.length).fill(stats[axis].sigma2.upper),
                 borderColor: 'rgba(255, 159, 64, 0.5)',
                 borderWidth: 1,
@@ -292,7 +295,7 @@ function updateAxisChart(chart, axis) {
             });
             
             chart.data.datasets.push({
-                label: '-2σ',
+                label: `-2σ (${axis.toUpperCase()})`,
                 data: Array(timestamps.length).fill(stats[axis].sigma2.lower),
                 borderColor: 'rgba(255, 159, 64, 0.5)',
                 borderWidth: 1,
@@ -303,9 +306,9 @@ function updateAxisChart(chart, axis) {
         }
         
         // Límites 3-sigma
-        if (chartOptions.show3Sigma && stats[axis].sigma3) {
+        if (chartOptions && chartOptions.show3Sigma && stats[axis].sigma3) {
             chart.data.datasets.push({
-                label: '+3σ',
+                label: `+3σ (${axis.toUpperCase()})`,
                 data: Array(timestamps.length).fill(stats[axis].sigma3.upper),
                 borderColor: 'rgba(255, 99, 132, 0.5)',
                 borderWidth: 1,
@@ -315,7 +318,7 @@ function updateAxisChart(chart, axis) {
             });
             
             chart.data.datasets.push({
-                label: '-3σ',
+                label: `-3σ (${axis.toUpperCase()})`,
                 data: Array(timestamps.length).fill(stats[axis].sigma3.lower),
                 borderColor: 'rgba(255, 99, 132, 0.5)',
                 borderWidth: 1,
@@ -521,21 +524,85 @@ function downloadChart(chartId, filename) {
 
 // Actualizar gráficos con nuevos límites
 function updateChartsWithNewLimits(limits) {
+    console.log('Actualizando gráficos con nuevos límites:', limits);
+    
     // Actualizar variable global de stats
     if (limits && typeof limits === 'object') {
-        // Actualizar el estado global
-        updateGlobalStats(limits);
-        
-        // Actualizar los gráficos
-        if (vibrationChartX) updateVibrationChartX();
-        if (vibrationChartY) updateVibrationChartY();
-        if (vibrationChartZ) updateVibrationChartZ();
-        
-        // Actualizar los valores estadísticos mostrados
-        if (typeof updateStatisticalDisplayValues === 'function') {
-            updateStatisticalDisplayValues();
+        try {
+            // Actualizar el estado global
+            updateGlobalStats(limits);
+            
+            // Verificar que las variables de los gráficos existen
+            if (typeof vibrationChartX === 'undefined' || 
+                typeof vibrationChartY === 'undefined' || 
+                typeof vibrationChartZ === 'undefined') {
+                console.warn('Alguno de los gráficos no está inicializado:', {
+                    x: typeof vibrationChartX !== 'undefined',
+                    y: typeof vibrationChartY !== 'undefined',
+                    z: typeof vibrationChartZ !== 'undefined'
+                });
+            }
+            
+            // Actualizar los gráficos inmediatamente
+            if (vibrationChartX) {
+                updateAxisChartLimits(vibrationChartX, 'x', limits);
+                vibrationChartX.update('none'); // Actualizar sin animación para mejor rendimiento
+            }
+            
+            if (vibrationChartY) {
+                updateAxisChartLimits(vibrationChartY, 'y', limits);
+                vibrationChartY.update('none');
+            }
+            
+            if (vibrationChartZ) {
+                updateAxisChartLimits(vibrationChartZ, 'z', limits);
+                vibrationChartZ.update('none');
+            }
+            
+            // Actualizar los valores estadísticos mostrados
+            if (typeof updateStatisticalDisplayValues === 'function') {
+                updateStatisticalDisplayValues();
+            }
+        } catch (error) {
+            console.error('Error al actualizar gráficos con nuevos límites:', error);
         }
+    } else {
+        console.warn('Límites inválidos o no proporcionados:', limits);
     }
+}
+
+// Función auxiliar para actualizar límites en un gráfico específico
+function updateAxisChartLimits(chart, axis, limits) {
+    if (!chart || !chart.data || !chart.data.datasets || !limits || !limits[axis]) {
+        console.warn(`No se pueden actualizar límites para eje ${axis}:`, { 
+            chartExists: !!chart, 
+            limitsExist: !!limits, 
+            axisLimitsExist: limits && !!limits[axis] 
+        });
+        return;
+    }
+    
+    const chartOptions = getGlobalState('chartOptions') || { show2Sigma: true, show3Sigma: true };
+    console.log(`Actualizando límites para eje ${axis}:`, limits[axis]);
+    
+    // Buscar datasets de límites por su nombre (etiqueta)
+    chart.data.datasets.forEach(dataset => {
+        // Actualizar límites sigma 2
+        if (dataset.label === '+2σ' && chartOptions.show2Sigma) {
+            dataset.data = Array(chart.data.labels.length).fill(limits[axis].sigma2.upper);
+        }
+        if (dataset.label === '-2σ' && chartOptions.show2Sigma) {
+            dataset.data = Array(chart.data.labels.length).fill(limits[axis].sigma2.lower);
+        }
+        
+        // Actualizar límites sigma 3
+        if (dataset.label === '+3σ' && chartOptions.show3Sigma) {
+            dataset.data = Array(chart.data.labels.length).fill(limits[axis].sigma3.upper);
+        }
+        if (dataset.label === '-3σ' && chartOptions.show3Sigma) {
+            dataset.data = Array(chart.data.labels.length).fill(limits[axis].sigma3.lower);
+        }
+    });
 }
 
 // Función para actualizar la visibilidad de los gráficos
@@ -564,6 +631,7 @@ window.updateVibrationChartX = updateVibrationChartX;
 window.updateVibrationChartY = updateVibrationChartY;
 window.updateVibrationChartZ = updateVibrationChartZ;
 window.updateAxisChart = updateAxisChart;
+window.updateAxisChartLimits = updateAxisChartLimits;
 window.initAlertsHistoryChart = initAlertsHistoryChart;
 window.initChartDownloadButtons = initChartDownloadButtons;
 window.downloadChart = downloadChart;
@@ -574,12 +642,24 @@ window.stats = getGlobalState('stats');
 // Inicializar estado global para opciones de gráficos
 document.addEventListener('DOMContentLoaded', function() {
     // Establecer las opciones iniciales de los gráficos
-    const show2Sigma = document.getElementById('show2Sigma')?.checked || false;
-    const show3Sigma = document.getElementById('show3Sigma')?.checked || false;
+    const show2Sigma = document.getElementById('show2Sigma')?.checked || true; // Por defecto mostrar los límites
+    const show3Sigma = document.getElementById('show3Sigma')?.checked || true; // Por defecto mostrar los límites
     
+    // Actualizar el estado de los checkboxes si existen en el DOM
+    if (document.getElementById('show2Sigma') && show2Sigma !== document.getElementById('show2Sigma').checked) {
+        document.getElementById('show2Sigma').checked = show2Sigma;
+    }
+    
+    if (document.getElementById('show3Sigma') && show3Sigma !== document.getElementById('show3Sigma').checked) {
+        document.getElementById('show3Sigma').checked = show3Sigma;
+    }
+    
+    // Establecer opciones en el estado global
     setGlobalState('chartOptions', {
         showMean: false,
         show2Sigma: show2Sigma, 
         show3Sigma: show3Sigma
     });
+    
+    console.log('Opciones de gráficos inicializadas:', getGlobalState('chartOptions'));
 }); 

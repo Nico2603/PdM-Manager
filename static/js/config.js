@@ -19,7 +19,7 @@ function initConfig() {
     // Inicializar gestión de sensores
     initSensorManagement();
     
-    // Inicializar gestión de modelos predictivos
+    // Inicializar gestión de modelos
     initModelManagement();
     
     // Inicializar formulario de configuración general
@@ -111,7 +111,7 @@ function loadMachinesTable() {
             if (machines.length === 0) {
                 tableBody.innerHTML = `
                     <tr>
-                        <td colspan="6" class="text-center">No hay máquinas registradas</td>
+                        <td colspan="9" class="text-center">No hay máquinas registradas</td>
                     </tr>
                 `;
                 return;
@@ -124,19 +124,43 @@ function loadMachinesTable() {
                 const sensorName = machine.sensor_name || 'No asignado';
                 const modelName = machine.model_name || 'No asignado';
                 
+                // Crear badge para el estado
+                let statusBadge = '';
+                switch(machine.status) {
+                    case 'operativo':
+                        statusBadge = '<span class="badge badge-success">Operativo</span>';
+                        break;
+                    case 'mantenimiento':
+                        statusBadge = '<span class="badge badge-warning">En Mantenimiento</span>';
+                        break;
+                    case 'apagado':
+                        statusBadge = '<span class="badge badge-secondary">Apagado</span>';
+                        break;
+                    case 'error':
+                        statusBadge = '<span class="badge badge-danger">Error</span>';
+                        break;
+                    default:
+                        statusBadge = '<span class="badge badge-secondary">No definido</span>';
+                }
+                
                 row.innerHTML = `
-                    <td>${machine.machine_id}</td>
-                    <td>${machine.name}</td>
+                    <td class="column-id">${machine.machine_id}</td>
+                    <td><strong>${machine.name}</strong></td>
                     <td>${machine.description || '-'}</td>
-                    <td>${sensorName}</td>
-                    <td>${modelName}</td>
-                    <td class="actions-cell">
-                        <button class="btn-icon btn-edit" data-id="${machine.machine_id}">
-                            <i class="fas fa-edit"></i>
-                        </button>
-                        <button class="btn-icon btn-delete" data-id="${machine.machine_id}">
-                            <i class="fas fa-trash"></i>
-                        </button>
+                    <td>${machine.location || '-'}</td>
+                    <td>${statusBadge}</td>
+                    <td><span class="text-truncate d-inline-block" style="max-width: 100px;" title="${machine.route || ''}">${machine.route || '-'}</span></td>
+                    <td><span class="badge-info">${sensorName}</span></td>
+                    <td><span class="badge-secondary">${modelName}</span></td>
+                    <td class="column-actions">
+                        <div class="table-actions">
+                            <button class="btn-icon btn-edit" title="Editar máquina" data-id="${machine.machine_id}">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="btn-icon btn-delete" title="Eliminar máquina" data-id="${machine.machine_id}">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
                     </td>
                 `;
                 
@@ -221,6 +245,14 @@ function editMachine(machineId) {
             document.getElementById('machineId').value = machine.machine_id;
             document.getElementById('machineName').value = machine.name;
             document.getElementById('machineDescription').value = machine.description || '';
+            document.getElementById('machineLocation').value = machine.location || '';
+            document.getElementById('machineRoute').value = machine.route || '';
+            
+            // Seleccionar estado si está definido
+            const statusSelect = document.getElementById('machineStatus');
+            if (statusSelect) {
+                statusSelect.value = machine.status || 'operativo';
+            }
             
             // Seleccionar sensor y modelo si están asignados
             const sensorSelect = document.getElementById('machineSensor');
@@ -246,35 +278,44 @@ function editMachine(machineId) {
         });
 }
 
-// Guardar máquina (crear o actualizar)
+// Guardar máquina (crear nueva o actualizar existente)
 function saveMachine() {
-    // Obtener datos del formulario
+    // Obtener valores del formulario
     const machineId = document.getElementById('machineId').value;
-    const name = document.getElementById('machineName').value;
-    const description = document.getElementById('machineDescription').value;
+    const machineName = document.getElementById('machineName').value;
+    const machineDescription = document.getElementById('machineDescription').value;
+    const machineLocation = document.getElementById('machineLocation').value;
+    const machineStatus = document.getElementById('machineStatus').value;
+    const machineRoute = document.getElementById('machineRoute').value;
     const sensorId = document.getElementById('machineSensor').value;
     const modelId = document.getElementById('machineModel').value;
     
-    // Validar nombre
-    if (!name) {
+    // Verificar campo obligatorio
+    if (!machineName) {
         showToast('El nombre de la máquina es obligatorio', 'warning');
         return;
     }
     
-    // Preparar datos
+    // Preparar datos para envío
     const machineData = {
-        name: name,
-        description: description,
-        sensor_id: sensorId || null,
-        model_id: modelId || null
+        name: machineName,
+        description: machineDescription || '',
+        location: machineLocation || '',
+        status: machineStatus || 'operativo',
+        route: machineRoute || '',
+        sensor_id: sensorId ? parseInt(sensorId) : null,
+        model_id: modelId ? parseInt(modelId) : null
     };
     
     // Determinar si es creación o actualización
-    const isUpdate = !!machineId;
-    const method = isUpdate ? 'PUT' : 'POST';
+    const isUpdate = machineId && machineId !== '';
     const url = isUpdate ? `/api/machines/${machineId}` : '/api/machines';
+    const method = isUpdate ? 'PUT' : 'POST';
     
-    // Enviar solicitud
+    // Mostrar indicador de carga
+    showLoadingIndicator(isUpdate ? 'Actualizando máquina...' : 'Creando máquina...');
+    
+    // Enviar solicitud al servidor
     fetch(url, {
         method: method,
         headers: {
@@ -284,27 +325,81 @@ function saveMachine() {
     })
         .then(response => {
             if (!response.ok) {
-                throw new Error('Error al guardar máquina');
+                throw new Error(`Error al ${isUpdate ? 'actualizar' : 'crear'} máquina`);
             }
             return response.json();
         })
-        .then(result => {
-            // Actualizar UI
-            loadMachinesTable();
-            
+        .then(data => {
             // Cerrar modal
             const modal = document.getElementById('machineModal');
-            modal.classList.remove('show');
+            if (modal) modal.classList.remove('show');
             
-            // Mostrar mensaje
+            // Mostrar mensaje de éxito
             showToast(
-                isUpdate ? 'Máquina actualizada correctamente' : 'Máquina creada correctamente',
+                `Máquina ${isUpdate ? 'actualizada' : 'creada'} correctamente`,
                 'success'
             );
+            
+            // Refrescar tabla de máquinas
+            loadMachinesTable();
+            
+            // Si se asignó un sensor a esta máquina, actualizar ese sensor
+            if (sensorId) {
+                updateSensorMachineAssociation(sensorId, data.machine_id);
+            }
         })
         .catch(error => {
-            console.error('Error al guardar máquina:', error);
-            showToast('Error al guardar máquina', 'error');
+            console.error('Error:', error);
+            showToast(
+                `Error al ${isUpdate ? 'actualizar' : 'crear'} la máquina: ${error.message}`,
+                'error'
+            );
+        })
+        .finally(() => {
+            hideLoadingIndicator();
+        });
+}
+
+// Actualizar la asociación entre sensor y máquina
+function updateSensorMachineAssociation(sensorId, machineId) {
+    // Obtener datos actuales del sensor
+    fetch(`/api/sensors/${sensorId}`)
+        .then(response => response.json())
+        .then(sensor => {
+            // Si el sensor ya está asignado a otra máquina, no hacer nada
+            if (sensor.machine_id && sensor.machine_id === machineId) {
+                return; // Ya está correctamente asociado
+            }
+            
+            // Actualizar el sensor con la nueva asignación de máquina
+            const formData = new FormData();
+            formData.append('name', sensor.name);
+            formData.append('description', sensor.description || '');
+            formData.append('location', sensor.location || '');
+            formData.append('type', sensor.type || '');
+            formData.append('machine_id', machineId);
+            
+            // Actualizar el sensor
+            fetch(`/api/sensors/${sensorId}`, {
+                method: 'PUT',
+                body: formData
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Error al actualizar asociación del sensor');
+                    }
+                    
+                    // Actualizar la tabla de sensores
+                    loadSensorsTable();
+                })
+                .catch(error => {
+                    console.error('Error al actualizar asociación de sensor:', error);
+                    showToast('Error al actualizar asociación de sensor', 'error');
+                });
+        })
+        .catch(error => {
+            console.error('Error al obtener datos del sensor:', error);
+            showToast('Error al obtener datos del sensor', 'error');
         });
 }
 
@@ -344,8 +439,11 @@ function deleteMachine(machineId) {
 
 // Inicializar gestión de sensores
 function initSensorManagement() {
-    // Cargar tabla de sensores
+    // Cargar lista de sensores
     loadSensorsTable();
+    
+    // Cargar selectores para el modal (máquinas disponibles)
+    loadMachinesForSelect();
     
     // Configurar evento para añadir nuevo sensor
     const addSensorBtn = document.getElementById('addSensorBtn');
@@ -355,6 +453,10 @@ function initSensorManagement() {
             document.getElementById('sensorForm').reset();
             document.getElementById('sensorId').value = '';
             document.getElementById('sensorModalTitle').textContent = 'Nuevo Sensor';
+            
+            // Limpiar campo oculto de máquina actual si existe
+            const hiddenField = document.getElementById('currentMachineId');
+            if (hiddenField) hiddenField.value = '';
             
             // Mostrar el modal
             const modal = document.getElementById('sensorModal');
@@ -367,6 +469,29 @@ function initSensorManagement() {
     if (saveSensorBtn) {
         saveSensorBtn.addEventListener('click', saveSensor);
     }
+}
+
+// Cargar máquinas para el selector en el formulario de sensores
+function loadMachinesForSelect() {
+    fetch('/api/machines')
+        .then(response => response.json())
+        .then(machines => {
+            const machineSelect = document.getElementById('sensorMachine');
+            if (!machineSelect) return;
+            
+            // Mantener la opción "Ninguna"
+            machineSelect.innerHTML = '<option value="">Ninguna</option>';
+            
+            machines.forEach(machine => {
+                const option = document.createElement('option');
+                option.value = machine.machine_id;
+                option.textContent = machine.name;
+                machineSelect.appendChild(option);
+            });
+        })
+        .catch(error => {
+            console.error('Error al cargar máquinas:', error);
+        });
 }
 
 // Cargar tabla de sensores
@@ -382,7 +507,7 @@ function loadSensorsTable() {
             if (sensors.length === 0) {
                 tableBody.innerHTML = `
                     <tr>
-                        <td colspan="5" class="text-center">No hay sensores registrados</td>
+                        <td colspan="7" class="text-center">No hay sensores registrados</td>
                     </tr>
                 `;
                 return;
@@ -391,22 +516,52 @@ function loadSensorsTable() {
             sensors.forEach(sensor => {
                 const row = document.createElement('tr');
                 
+                // Obtener nombre de máquina asociada
+                const machineName = sensor.machine_name || 'No asignado';
+                
+                // Clase para filas según si está asociado a una máquina
+                if (sensor.machine_id) {
+                    row.classList.add('active-sensor');
+                }
+                
                 row.innerHTML = `
-                    <td>${sensor.sensor_id}</td>
-                    <td>${sensor.name}</td>
+                    <td class="column-id">${sensor.sensor_id}</td>
+                    <td><strong>${sensor.name}</strong></td>
                     <td>${sensor.description || '-'}</td>
+                    <td>${sensor.location || '-'}</td>
                     <td>${sensor.type || '-'}</td>
-                    <td class="actions-cell">
-                        <button class="btn-icon btn-edit" data-id="${sensor.sensor_id}">
-                            <i class="fas fa-edit"></i>
-                        </button>
-                        <button class="btn-icon btn-delete" data-id="${sensor.sensor_id}">
-                            <i class="fas fa-trash"></i>
-                        </button>
+                    <td>
+                        <span class="badge ${sensor.machine_id ? 'badge-primary' : 'badge-secondary'}">
+                            ${machineName}
+                        </span>
+                    </td>
+                    <td class="column-actions">
+                        <div class="table-actions">
+                            <button class="btn-icon btn-edit" title="Editar sensor" data-id="${sensor.sensor_id}">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="btn-icon btn-delete" title="Eliminar sensor" data-id="${sensor.sensor_id}">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
                     </td>
                 `;
                 
                 tableBody.appendChild(row);
+            });
+            
+            // Configurar eventos para ver máquinas asociadas
+            const viewMachinesLinks = tableBody.querySelectorAll('.view-machines-link');
+            viewMachinesLinks.forEach(link => {
+                link.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const sensorId = link.getAttribute('data-id');
+                    const count = parseInt(link.getAttribute('data-count'));
+                    
+                    if (count > 0) {
+                        showSensorMachines(sensorId);
+                    }
+                });
             });
             
             // Configurar eventos para editar y eliminar
@@ -432,87 +587,177 @@ function loadSensorsTable() {
         });
 }
 
-// Editar sensor
+// Editar sensor existente
 function editSensor(sensorId) {
+    // Cargar datos del sensor para edición
     fetch(`/api/sensors/${sensorId}`)
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Error al cargar datos del sensor');
+            }
+            return response.json();
+        })
         .then(sensor => {
-            // Cargar datos en el formulario
-            document.getElementById('sensorId').value = sensor.sensor_id;
-            document.getElementById('sensorName').value = sensor.name;
-            document.getElementById('sensorDescription').value = sensor.description || '';
-            document.getElementById('sensorType').value = sensor.type || '';
-            
-            // Actualizar título del modal
+            // Actualizar UI y formulario
             document.getElementById('sensorModalTitle').textContent = 'Editar Sensor';
             
-            // Mostrar el modal
+            // Cargar valores en el formulario
+            document.getElementById('sensorId').value = sensor.sensor_id;
+            document.getElementById('sensorName').value = sensor.name || '';
+            document.getElementById('sensorDescription').value = sensor.description || '';
+            document.getElementById('sensorLocation').value = sensor.location || '';
+            document.getElementById('sensorType').value = sensor.type || '';
+            
+            // Seleccionar máquina si está asociada
+            if (document.getElementById('sensorMachine')) {
+                document.getElementById('sensorMachine').value = sensor.machine_id || '';
+            }
+            
+            // Almacenar id de máquina actual para comparación posterior
+            const hiddenField = document.getElementById('currentMachineId') || document.createElement('input');
+            hiddenField.type = 'hidden';
+            hiddenField.id = 'currentMachineId';
+            hiddenField.value = sensor.machine_id || '';
+            document.getElementById('sensorForm').appendChild(hiddenField);
+            
+            // Mostrar modal
             const modal = document.getElementById('sensorModal');
-            modal.classList.add('show');
+            if (modal) modal.classList.add('show');
         })
         .catch(error => {
-            console.error('Error al cargar datos del sensor:', error);
+            console.error('Error al cargar sensor:', error);
             showToast('Error al cargar datos del sensor', 'error');
         });
 }
 
-// Guardar sensor (crear o actualizar)
+// Guardar sensor (crear nuevo o actualizar existente)
 function saveSensor() {
-    // Obtener datos del formulario
-    const sensorId = document.getElementById('sensorId').value;
-    const name = document.getElementById('sensorName').value;
-    const description = document.getElementById('sensorDescription').value;
-    const type = document.getElementById('sensorType').value;
+    // Crear objeto FormData para envío de datos
+    const formData = new FormData();
     
-    // Validar nombre
-    if (!name) {
+    // Obtener valores del formulario
+    const sensorId = document.getElementById('sensorId').value;
+    const sensorName = document.getElementById('sensorName').value;
+    const sensorDescription = document.getElementById('sensorDescription').value;
+    const sensorLocation = document.getElementById('sensorLocation').value;
+    const sensorType = document.getElementById('sensorType').value;
+    const machineId = document.getElementById('sensorMachine').value;
+    
+    // Verificar campo obligatorio
+    if (!sensorName) {
         showToast('El nombre del sensor es obligatorio', 'warning');
         return;
     }
     
-    // Preparar datos
-    const sensorData = {
-        name: name,
-        description: description,
-        type: type
-    };
+    // Añadir datos al FormData
+    formData.append('name', sensorName);
+    formData.append('description', sensorDescription || '');
+    formData.append('location', sensorLocation || '');
+    formData.append('type', sensorType || '');
+    formData.append('machine_id', machineId || '');
     
     // Determinar si es creación o actualización
-    const isUpdate = !!sensorId;
-    const method = isUpdate ? 'PUT' : 'POST';
+    const isUpdate = sensorId && sensorId !== '';
     const url = isUpdate ? `/api/sensors/${sensorId}` : '/api/sensors';
+    const method = isUpdate ? 'PUT' : 'POST';
     
-    // Enviar solicitud
+    // Mostrar indicador de carga
+    showLoadingIndicator(isUpdate ? 'Actualizando sensor...' : 'Creando sensor...');
+    
+    // Enviar solicitud al servidor
     fetch(url, {
         method: method,
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(sensorData)
+        body: formData
     })
         .then(response => {
             if (!response.ok) {
-                throw new Error('Error al guardar sensor');
+                throw new Error(`Error al ${isUpdate ? 'actualizar' : 'crear'} sensor`);
             }
             return response.json();
         })
-        .then(result => {
-            // Actualizar UI
-            loadSensorsTable();
-            
+        .then(data => {
             // Cerrar modal
             const modal = document.getElementById('sensorModal');
-            modal.classList.remove('show');
+            if (modal) modal.classList.remove('show');
             
-            // Mostrar mensaje
+            // Mostrar mensaje de éxito
             showToast(
-                isUpdate ? 'Sensor actualizado correctamente' : 'Sensor creado correctamente',
+                `Sensor ${isUpdate ? 'actualizado' : 'creado'} correctamente`,
                 'success'
             );
+            
+            // Refrescar tabla de sensores y selectores
+            loadSensorsTable();
+            
+            // Actualizar selectores en formularios de máquinas
+            if (typeof loadSensorsForSelect === 'function') {
+                loadSensorsForSelect();
+            }
+            
+            // Si hay un cambio en la asignación de máquina, verificar referencias
+            if (machineId) {
+                const oldMachineId = document.getElementById('currentMachineId')?.value;
+                if (oldMachineId !== machineId) {
+                    ensureMachineSensorReference(data.sensor_id, machineId);
+                }
+            }
         })
         .catch(error => {
-            console.error('Error al guardar sensor:', error);
-            showToast('Error al guardar sensor', 'error');
+            console.error('Error:', error);
+            showToast(
+                `Error al ${isUpdate ? 'actualizar' : 'crear'} el sensor: ${error.message}`,
+                'error'
+            );
+        })
+        .finally(() => {
+            hideLoadingIndicator();
+        });
+}
+
+// Asegurar que la máquina tenga correcta referencia al sensor
+function ensureMachineSensorReference(sensorId, machineId) {
+    if (!sensorId || !machineId) return;
+    
+    // Obtener datos actuales de la máquina
+    fetch(`/api/machines/${machineId}`)
+        .then(response => response.json())
+        .then(machine => {
+            // Si la máquina ya tiene este sensor asignado, no hacer nada
+            if (machine.sensor_id && machine.sensor_id === parseInt(sensorId)) {
+                return; // Ya está correctamente asociado
+            }
+            
+            // Actualizar la máquina para que se referencie a este sensor
+            const machineData = {
+                name: machine.name,
+                description: machine.description || '',
+                location: machine.location || '',
+                sensor_id: parseInt(sensorId),
+                model_id: machine.model_id || null
+            };
+            
+            // Actualizar la máquina
+            fetch(`/api/machines/${machineId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(machineData)
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Error al actualizar asociación de la máquina');
+                    }
+                    
+                    // Actualizar la tabla de máquinas si es necesario
+                    loadMachinesTable();
+                })
+                .catch(error => {
+                    console.error('Error al actualizar asociación de máquina:', error);
+                });
+        })
+        .catch(error => {
+            console.error('Error al obtener datos de la máquina:', error);
         });
 }
 
@@ -547,7 +792,7 @@ function deleteSensor(sensorId) {
 }
 
 // ==========================================================================
-// GESTIÓN DE MODELOS PREDICTIVOS
+// GESTIÓN DE MODELOS
 // ==========================================================================
 
 // Inicializar gestión de modelos
@@ -564,6 +809,14 @@ function initModelManagement() {
             document.getElementById('modelId').value = '';
             document.getElementById('modelModalTitle').textContent = 'Nuevo Modelo';
             
+            // Mostrar elementos necesarios para un nuevo modelo
+            document.getElementById('modelFileRequired').style.display = 'block';
+            document.getElementById('modelFileOptional').style.display = 'none';
+            
+            // Resetear los nombres de archivos seleccionados
+            document.getElementById('modelFileName').textContent = 'Ningún archivo seleccionado';
+            document.getElementById('scalerFileName').textContent = 'Ningún archivo seleccionado';
+            
             // Mostrar el modal
             const modal = document.getElementById('modelModal');
             modal.classList.add('show');
@@ -575,6 +828,341 @@ function initModelManagement() {
     if (saveModelBtn) {
         saveModelBtn.addEventListener('click', saveModel);
     }
+    
+    // Configurar evento para confirmar eliminación de modelo
+    const confirmDeleteModelBtn = document.getElementById('confirmDeleteModelBtn');
+    if (confirmDeleteModelBtn) {
+        confirmDeleteModelBtn.addEventListener('click', () => {
+            const modelId = document.getElementById('deleteModelId').value;
+            if (modelId) {
+                deleteModel(modelId);
+            }
+        });
+    }
+    
+    // Configurar eventos para los inputs de archivo
+    setupFileInputs();
+}
+
+// Configurar inputs de archivo personalizados
+function setupFileInputs() {
+    // Configurar input de archivo del modelo
+    const modelFileInput = document.getElementById('modelFile');
+    const modelFileButton = modelFileInput.nextElementSibling;
+    const modelFileName = document.getElementById('modelFileName');
+    
+    modelFileButton.addEventListener('click', () => {
+        modelFileInput.click();
+    });
+    
+    modelFileInput.addEventListener('change', (event) => {
+        if (event.target.files.length > 0) {
+            modelFileName.textContent = event.target.files[0].name;
+        } else {
+            modelFileName.textContent = 'Ningún archivo seleccionado';
+        }
+    });
+    
+    // Configurar input de archivo del escalador
+    const scalerFileInput = document.getElementById('scalerFile');
+    const scalerFileButton = scalerFileInput.nextElementSibling;
+    const scalerFileName = document.getElementById('scalerFileName');
+    
+    scalerFileButton.addEventListener('click', () => {
+        scalerFileInput.click();
+    });
+    
+    scalerFileInput.addEventListener('change', (event) => {
+        if (event.target.files.length > 0) {
+            scalerFileName.textContent = event.target.files[0].name;
+        } else {
+            scalerFileName.textContent = 'Ningún archivo seleccionado';
+        }
+    });
+}
+
+// Cargar tabla de modelos
+function loadModelsTable() {
+    fetch('/api/models')
+        .then(response => response.json())
+        .then(models => {
+            const tableBody = document.getElementById('modelsTableBody');
+            if (!tableBody) return;
+            
+            tableBody.innerHTML = '';
+            
+            if (models.length === 0) {
+                tableBody.innerHTML = `
+                    <tr>
+                        <td colspan="9" class="text-center">No hay modelos registrados</td>
+                    </tr>
+                `;
+                return;
+            }
+            
+            models.forEach(model => {
+                const row = document.createElement('tr');
+                
+                // Formatear fecha
+                const lastUpdate = new Date(model.last_update);
+                const formattedDate = lastUpdate.toLocaleDateString() + ' ' + 
+                                     lastUpdate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                
+                // Obtener nombre de archivo para h5 y pkl
+                const h5FileName = model.route_h5 ? model.route_h5.split('/').pop() : '-';
+                const hasScaler = model.route_pkl ? true : false;
+                const scalerLabel = hasScaler ? 
+                    `<span class="badge badge-success" title="${model.route_pkl.split('/').pop()}"><i class="fas fa-check-circle mr-1"></i>Disponible</span>` : 
+                    `<span class="badge badge-secondary"><i class="fas fa-times-circle mr-1"></i>No disponible</span>`;
+                
+                // Formatear exactitud
+                const accuracyDisplay = model.accuracy ? 
+                    `<span class="badge ${parseFloat(model.accuracy) > 90 ? 'badge-success' : 'badge-warning'}">${parseFloat(model.accuracy).toFixed(2)}%</span>` : 
+                    '<span class="badge badge-secondary">No especificada</span>';
+                
+                // Formatear config_params
+                let configParamsDisplay = '-';
+                if (model.config_params) {
+                    try {
+                        // Intentar parsear si es JSON
+                        const params = typeof model.config_params === 'string' ? 
+                            JSON.parse(model.config_params) : model.config_params;
+                        
+                        // Muestra los primeros 2-3 parámetros con un indicador de más si hay más
+                        const paramCount = Object.keys(params).length;
+                        if (paramCount > 0) {
+                            const firstKeys = Object.keys(params).slice(0, 2);
+                            const paramsList = firstKeys.map(key => `${key}: ${params[key]}`).join(', ');
+                            configParamsDisplay = `<span title="${JSON.stringify(params, null, 2)}">${paramsList}${paramCount > 2 ? '...' : ''}</span>`;
+                        }
+                    } catch (e) {
+                        // Si no es JSON válido, mostrar texto truncado
+                        configParamsDisplay = `<span title="${model.config_params}">${model.config_params.substring(0, 20)}${model.config_params.length > 20 ? '...' : ''}</span>`;
+                    }
+                }
+                
+                row.innerHTML = `
+                    <td class="column-id">${model.model_id}</td>
+                    <td><strong>${model.name}</strong></td>
+                    <td>${model.description || '-'}</td>
+                    <td>
+                        <div class="file-indicator ${model.route_h5 ? 'file-available' : ''}">
+                            <i class="fas fa-file-code"></i>
+                            <span class="text-truncate d-inline-block" style="max-width: 150px;" title="${model.route_h5 || ''}">${h5FileName}</span>
+                        </div>
+                    </td>
+                    <td>${scalerLabel}</td>
+                    <td>${accuracyDisplay}</td>
+                    <td>${configParamsDisplay}</td>
+                    <td>${formattedDate}</td>
+                    <td class="column-actions">
+                        <div class="table-actions">
+                            <button class="btn-icon btn-edit" title="Editar modelo" data-id="${model.model_id}">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="btn-icon btn-delete" title="Eliminar modelo" data-id="${model.model_id}">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </td>
+                `;
+                
+                tableBody.appendChild(row);
+            });
+            
+            // Configurar eventos para los botones de acción
+            const editButtons = tableBody.querySelectorAll('.btn-edit');
+            editButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    const modelId = button.getAttribute('data-id');
+                    editModel(modelId);
+                });
+            });
+            
+            const deleteButtons = tableBody.querySelectorAll('.btn-delete');
+            deleteButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    const modelId = button.getAttribute('data-id');
+                    document.getElementById('deleteModelId').value = modelId;
+                    
+                    // Mostrar modal de confirmación
+                    const modal = document.getElementById('deleteModelModal');
+                    modal.classList.add('show');
+                });
+            });
+        })
+        .catch(error => {
+            console.error('Error al cargar modelos:', error);
+            showToast('Error al cargar la lista de modelos', 'error');
+        });
+}
+
+// Editar modelo
+function editModel(modelId) {
+    fetch(`/api/models/${modelId}`)
+        .then(response => response.json())
+        .then(model => {
+            // Cargar datos en el formulario
+            document.getElementById('modelId').value = model.model_id;
+            document.getElementById('modelName').value = model.name;
+            document.getElementById('modelDescription').value = model.description || '';
+            document.getElementById('modelAccuracy').value = model.accuracy || '';
+            document.getElementById('modelConfigParams').value = model.config_params || '';
+            
+            // Actualizar UI para edición
+            document.getElementById('modelFileRequired').style.display = 'none';
+            document.getElementById('modelFileOptional').style.display = 'block';
+            
+            // Mostrar nombres de archivo actuales
+            const h5FileName = model.route_h5 ? model.route_h5.split('/').pop() : 'No seleccionado';
+            const pklFileName = model.route_pkl ? model.route_pkl.split('/').pop() : 'No seleccionado';
+            
+            document.getElementById('modelFileName').textContent = h5FileName;
+            document.getElementById('scalerFileName').textContent = pklFileName;
+            
+            // Actualizar título del modal
+            document.getElementById('modelModalTitle').textContent = 'Editar Modelo';
+            
+            // Mostrar el modal
+            const modal = document.getElementById('modelModal');
+            modal.classList.add('show');
+        })
+        .catch(error => {
+            console.error('Error al cargar datos del modelo:', error);
+            showToast('Error al cargar datos del modelo', 'error');
+        });
+}
+
+// Guardar modelo (crear o actualizar)
+function saveModel() {
+    // Obtener datos del formulario
+    const modelId = document.getElementById('modelId').value;
+    const name = document.getElementById('modelName').value;
+    const description = document.getElementById('modelDescription').value;
+    const accuracy = document.getElementById('modelAccuracy').value;
+    const configParams = document.getElementById('modelConfigParams').value;
+    const modelFile = document.getElementById('modelFile').files[0];
+    const scalerFile = document.getElementById('scalerFile').files[0];
+    
+    // Validar nombre
+    if (!name) {
+        showToast('El nombre del modelo es obligatorio', 'warning');
+        return;
+    }
+    
+    // Validar archivo del modelo para nuevos modelos
+    if (!modelId && !modelFile) {
+        showToast('El archivo del modelo es obligatorio para nuevos modelos', 'warning');
+        return;
+    }
+    
+    // Preparar datos del formulario
+    const formData = new FormData();
+    formData.append('name', name);
+    
+    if (description) {
+        formData.append('description', description);
+    }
+    
+    if (accuracy) {
+        formData.append('accuracy', accuracy);
+    }
+    
+    if (configParams) {
+        formData.append('config_params', configParams);
+    }
+    
+    if (modelFile) {
+        formData.append('model_file', modelFile);
+    }
+    
+    if (scalerFile) {
+        formData.append('scaler_file', scalerFile);
+    }
+    
+    // Determinar si es creación o actualización
+    const isUpdate = !!modelId;
+    const method = isUpdate ? 'PUT' : 'POST';
+    const url = isUpdate ? `/api/models/${modelId}` : '/api/models';
+    
+    // Mostrar indicador de carga
+    showLoadingIndicator(isUpdate ? 'Actualizando modelo...' : 'Creando modelo...');
+    
+    // Enviar solicitud
+    fetch(url, {
+        method: method,
+        body: formData
+    })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`Error HTTP: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(result => {
+            // Cerrar modal
+            const modal = document.getElementById('modelModal');
+            modal.classList.remove('show');
+            
+            // Actualizar UI
+            loadModelsTable();
+            
+            // Recargar selectores
+            if (typeof loadModelsForSelect === 'function') {
+                loadModelsForSelect();
+            }
+            
+            // Mostrar mensaje
+            const action = isUpdate ? 'actualizado' : 'creado';
+            showToast(`Modelo ${action} correctamente`, 'success');
+        })
+        .catch(error => {
+            console.error('Error al guardar modelo:', error);
+            showToast(`Error al guardar modelo: ${error.message}`, 'error');
+        })
+        .finally(() => {
+            hideLoadingIndicator();
+        });
+}
+
+// Eliminar modelo
+function deleteModel(modelId) {
+    // Mostrar indicador de carga
+    showLoadingIndicator('Eliminando modelo...');
+    
+    // Enviar solicitud de eliminación
+    fetch(`/api/models/${modelId}`, {
+        method: 'DELETE'
+    })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Error al eliminar modelo');
+            }
+            return response.json();
+        })
+        .then(result => {
+            // Cerrar modal de confirmación
+            const modal = document.getElementById('deleteModelModal');
+            modal.classList.remove('show');
+            
+            // Actualizar UI
+            loadModelsTable();
+            
+            // Recargar selectores
+            if (typeof loadModelsForSelect === 'function') {
+                loadModelsForSelect();
+            }
+            
+            // Mostrar mensaje
+            showToast('Modelo eliminado correctamente', 'success');
+        })
+        .catch(error => {
+            console.error('Error al eliminar modelo:', error);
+            showToast(`Error al eliminar modelo: ${error.message}`, 'error');
+        })
+        .finally(() => {
+            hideLoadingIndicator();
+        });
 }
 
 // ==========================================================================
@@ -685,6 +1273,9 @@ function saveLimits() {
         }
     }
     
+    // Mostrar indicador de carga
+    showLoadingIndicator('Actualizando límites...');
+    
     // Enviar solicitud para guardar límites
     fetch('/api/limits', {
         method: 'PUT',
@@ -699,14 +1290,14 @@ function saveLimits() {
             }
             return response.json();
         })
-        .then(result => {
+        .then(updatedLimits => {
             // Cerrar modal
             const modal = document.getElementById('limitsModal');
             if (modal) modal.classList.remove('show');
             
             // Actualizar gráficos con nuevos límites
             if (typeof updateChartsWithNewLimits === 'function') {
-                updateChartsWithNewLimits(limits);
+                updateChartsWithNewLimits(updatedLimits);
             }
             
             // Mostrar mensaje
@@ -715,11 +1306,17 @@ function saveLimits() {
         .catch(error => {
             console.error('Error al guardar límites:', error);
             showToast('Error al guardar límites', 'error');
+        })
+        .finally(() => {
+            hideLoadingIndicator();
         });
 }
 
 // Restablecer límites a valores por defecto
 function resetLimits() {
+    // Mostrar indicador de carga
+    showLoadingIndicator('Restableciendo límites...');
+    
     fetch('/api/limits/reset', {
         method: 'POST'
     })
@@ -729,8 +1326,10 @@ function resetLimits() {
             }
             return response.json();
         })
-        .then(limits => {
+        .then(result => {
             // Actualizar campos del formulario con los límites por defecto
+            const limits = result.limits || {};
+            
             for (const axis of ['x', 'y', 'z']) {
                 document.getElementById(`${axis}Sigma2Lower`).value = limits[axis]?.sigma2?.lower || '';
                 document.getElementById(`${axis}Sigma2Upper`).value = limits[axis]?.sigma2?.upper || '';
@@ -738,87 +1337,19 @@ function resetLimits() {
                 document.getElementById(`${axis}Sigma3Upper`).value = limits[axis]?.sigma3?.upper || '';
             }
             
-            // Actualizar gráficos con límites por defecto
+            // Actualizar gráficos con nuevos límites
             if (typeof updateChartsWithNewLimits === 'function') {
                 updateChartsWithNewLimits(limits);
             }
             
             // Mostrar mensaje
-            showToast('Límites restablecidos a valores por defecto', 'success');
+            showToast('Límites restablecidos correctamente', 'success');
         })
         .catch(error => {
             console.error('Error al restablecer límites:', error);
             showToast('Error al restablecer límites', 'error');
+        })
+        .finally(() => {
+            hideLoadingIndicator();
         });
 }
-
-// Inicializar formulario de configuración
-function initConfigForm() {
-    const configForm = document.getElementById('configForm');
-    if (!configForm) return;
-    
-    configForm.addEventListener('submit', (event) => {
-        event.preventDefault();
-        
-        // Obtener valores del formulario
-        const updateInterval = document.getElementById('updateInterval').value;
-        const autoSave = document.getElementById('autoSave').checked;
-        const notificationsEnabled = document.getElementById('notificationsEnabled').checked;
-        
-        // Preparar datos
-        const configData = {
-            update_interval: parseInt(updateInterval),
-            auto_save: autoSave,
-            notifications_enabled: notificationsEnabled
-        };
-        
-        // Enviar solicitud
-        fetch('/api/config', {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(configData)
-        })
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('Error al guardar configuración');
-                }
-                return response.json();
-            })
-            .then(result => {
-                showToast('Configuración guardada correctamente', 'success');
-            })
-            .catch(error => {
-                console.error('Error al guardar configuración:', error);
-                showToast('Error al guardar configuración', 'error');
-            });
-    });
-    
-    // Cargar configuración actual
-    loadCurrentConfig();
-}
-
-// Cargar configuración actual
-function loadCurrentConfig() {
-    fetch('/api/config')
-        .then(response => response.json())
-        .then(config => {
-            // Actualizar campos del formulario
-            document.getElementById('updateInterval').value = config.update_interval || 5;
-            document.getElementById('autoSave').checked = config.auto_save || false;
-            document.getElementById('notificationsEnabled').checked = config.notifications_enabled || true;
-        })
-        .catch(error => {
-            console.error('Error al cargar configuración:', error);
-        });
-}
-
-// Exportar funciones para uso global
-window.initConfig = initConfig;
-window.initMachineManagement = initMachineManagement;
-window.initSensorManagement = initSensorManagement;
-window.initModelManagement = initModelManagement;
-window.openAdjustLimitsModal = openAdjustLimitsModal;
-window.saveLimits = saveLimits;
-window.resetLimits = resetLimits; 
