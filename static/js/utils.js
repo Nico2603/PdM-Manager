@@ -417,8 +417,6 @@ function initSwitches() {
 // Actualizar visibilidad de elementos en gráficos
 function updateChartsVisibility() {
     // Obtener estados de los switches
-    const showMean = document.getElementById('showMean')?.checked || false;
-    const show1Sigma = document.getElementById('show1Sigma')?.checked || false;
     const show2Sigma = document.getElementById('show2Sigma')?.checked || false;
     const show3Sigma = document.getElementById('show3Sigma')?.checked || false;
     
@@ -428,8 +426,11 @@ function updateChartsVisibility() {
         typeof updateVibrationChartZ === 'function') {
         
         // Actualizar configuración global
-        window.showMean = showMean;
-        window.showSigmaLines = show1Sigma || show2Sigma || show3Sigma;
+        window.chartOptions = {
+            showMean: false,
+            show2Sigma: show2Sigma,
+            show3Sigma: show3Sigma
+        };
         
         // Actualizar cada eje del gráfico
         updateVibrationChartX();

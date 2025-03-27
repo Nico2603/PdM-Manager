@@ -151,14 +151,12 @@ function initCollapseFilters() {
 // Inicializar filtros visuales
 function initVisualFilters() {
     // Inicializar switches de visualización
-    const showMeanSwitch = document.getElementById('showMean');
-    const show1SigmaSwitch = document.getElementById('show1Sigma');
     const show2SigmaSwitch = document.getElementById('show2Sigma');
     const show3SigmaSwitch = document.getElementById('show3Sigma');
     
-    if (showMeanSwitch && show1SigmaSwitch && show2SigmaSwitch && show3SigmaSwitch) {
+    if (show2SigmaSwitch && show3SigmaSwitch) {
         // Configurar evento de cambio para actualizar visualización
-        [showMeanSwitch, show1SigmaSwitch, show2SigmaSwitch, show3SigmaSwitch].forEach(switchEl => {
+        [show2SigmaSwitch, show3SigmaSwitch].forEach(switchEl => {
             switchEl.addEventListener('change', () => {
                 if (typeof updateChartsVisibility === 'function') {
                     updateChartsVisibility();
