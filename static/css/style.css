@@ -1,9 +1,12 @@
 /**
- * PdM-Manager - Estilos CSS Unificados v1.1.0
+ * PdM-Manager - Estilos CSS Unificados v1.2.0
  * Tema oscuro minimalista con alta legibilidad y contrastes optimizados
  * Última actualización: 2023-09-15
  */
 
+/* ------------------------------
+   VARIABLES Y CONFIGURACIONES
+   ------------------------------ */
 :root {
     /* Colores base */
     --color-background: #1e1e2d;
@@ -64,7 +67,9 @@
     --transition-slow: 0.5s ease;
 }
 
-/* Reset */
+/* ------------------------------
+   RESET Y ESTILOS BASE
+   ------------------------------ */
 *, *::before, *::after {
     box-sizing: border-box;
     margin: 0;
@@ -109,7 +114,9 @@ p {
     margin-bottom: 1rem;
 }
 
-/* Layout principal */
+/* ------------------------------
+   LAYOUT PRINCIPAL
+   ------------------------------ */
 .app-container {
     display: flex;
     height: 100vh;
@@ -131,7 +138,9 @@ p {
     flex-direction: column;
 }
 
-/* Sidebar */
+/* ------------------------------
+   SIDEBAR Y NAVEGACIÓN
+   ------------------------------ */
 .sidebar {
     width: 260px;
     height: 100%;
@@ -248,7 +257,47 @@ p {
     font-size: var(--font-size-sm);
 }
 
-/* Header y navegación */
+/* ------------------------------
+   MENSAJES DE CONFIGURACIÓN 
+   (Integrado desde styles.css)
+   ------------------------------ */
+/* Mensaje de No Configuración */
+.no-config-message {
+    margin: 20px;
+    padding: 20px;
+    border-radius: 8px;
+}
+
+.no-config-message .alert {
+    margin-bottom: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+}
+
+.no-config-message .alert-heading {
+    font-size: 1.5rem;
+    margin-bottom: 15px;
+    display: flex;
+    align-items: center;
+}
+
+.no-config-message .alert-heading i {
+    margin-right: 10px;
+}
+
+.no-config-message .alert-link {
+    font-weight: 600;
+    text-decoration: underline;
+}
+
+.no-config-message .alert-link:hover {
+    color: #0056b3;
+}
+
+/* ------------------------------
+   HEADER Y NAVEGACIÓN
+   ------------------------------ */
 .content-header {
     display: flex;
     justify-content: space-between;
@@ -292,7 +341,9 @@ p {
     font-size: var(--font-size-sm);
 }
 
-/* Botones */
+/* ------------------------------
+   COMPONENTES Y BOTONES
+   ------------------------------ */
 .btn {
     display: inline-flex;
     align-items: center;
@@ -344,6 +395,9 @@ p {
     color: var(--color-text);
 }
 
+/* ------------------------------
+   UTILIDADES Y ESPACIADO
+   ------------------------------ */
 .mr-1 {
     margin-right: var(--spacing-xs);
 }
@@ -406,7 +460,9 @@ p {
     justify-content: space-between;
 }
 
-/* Secciones de contenido */
+/* ------------------------------
+   SECCIONES DE CONTENIDO
+   ------------------------------ */
 .content-section {
     display: none;
 }
@@ -431,7 +487,9 @@ p {
     margin: 0;
 }
 
-/* Cards */
+/* ------------------------------
+   TARJETAS Y CONTENEDORES
+   ------------------------------ */
 .card {
     background-color: var(--color-background-light);
     border-radius: var(--border-radius);
@@ -464,7 +522,9 @@ p {
     padding: var(--spacing-lg);
 }
 
-/* Tarjetas de alerta */
+/* ------------------------------
+   TARJETAS DE ALERTA
+   ------------------------------ */
 .alert-cards-grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
@@ -553,7 +613,9 @@ p {
     margin: 0;
 }
 
-/* Dashboard Grid */
+/* ------------------------------
+   DASHBOARD Y LAYOUT DE GRILLA
+   ------------------------------ */
 .dashboard-grid {
     display: grid;
     grid-template-columns: 1fr 2fr;
@@ -561,7 +623,9 @@ p {
     margin-bottom: 2.5rem;
 }
 
-/* Filtros */
+/* ------------------------------
+   FILTROS Y CONTROLES
+   ------------------------------ */
 .filter-card {
     background-color: var(--color-background-light);
     border-radius: var(--border-radius);
@@ -667,7 +731,9 @@ p {
     margin-top: var(--spacing-lg);
 }
 
-/* Switches */
+/* ------------------------------
+   CONTROLES Y SWITCHES
+   ------------------------------ */
 .switch-group {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
@@ -727,7 +793,9 @@ p {
     transform: translateX(16px);
 }
 
-/* Estadísticas */
+/* ------------------------------
+   COMPONENTES DE ESTADÍSTICA
+   ------------------------------ */
 .stats-container {
     background-color: var(--color-background-light);
     border-radius: var(--border-radius);
@@ -786,7 +854,9 @@ p {
     margin-left: 2px;
 }
 
-/* Gráficos */
+/* ------------------------------
+   GRÁFICOS Y VISUALIZACIONES
+   ------------------------------ */
 .charts-container {
     display: flex;
     flex-direction: column;
@@ -868,7 +938,9 @@ p {
     border-radius: 50%;
 }
 
-/* Modal */
+/* ------------------------------
+   MODALES Y DIÁLOGOS
+   ------------------------------ */
 .modal {
     position: fixed;
     top: 0;
@@ -947,7 +1019,9 @@ p {
     border-top: 1px solid var(--color-border);
 }
 
-/* Formularios */
+/* ------------------------------
+   FORMULARIOS Y CONTROLES
+   ------------------------------ */
 .form-group {
     margin-bottom: var(--spacing-md);
 }
@@ -984,7 +1058,9 @@ p {
     gap: var(--spacing-md);
 }
 
-/* Loading overlay */
+/* ------------------------------
+   INDICADORES DE CARGA
+   ------------------------------ */
 #loadingOverlay {
     position: fixed;
     top: 0;
@@ -1028,7 +1104,9 @@ p {
     }
 }
 
-/* Toast notifications */
+/* ------------------------------
+   NOTIFICACIONES Y MENSAJES
+   ------------------------------ */
 .toast-container {
     position: fixed;
     bottom: 2rem;
@@ -1103,7 +1181,9 @@ p {
     color: var(--color-text);
 }
 
-/* Tooltip personalizado */
+/* ------------------------------
+   TOOLTIPS Y AYUDAS VISUALES
+   ------------------------------ */
 .tooltip {
     position: fixed;
     background-color: var(--color-background-light);
@@ -1125,7 +1205,9 @@ p {
     visibility: visible;
 }
 
-/* Animaciones */
+/* ------------------------------
+   ANIMACIONES Y TRANSICIONES
+   ------------------------------ */
 @keyframes fadeIn {
     from {
         opacity: 0;
@@ -1172,7 +1254,9 @@ p {
     }
 }
 
-/* Media queries para responsive */
+/* ------------------------------
+   RESPONSIVE Y MEDIA QUERIES
+   ------------------------------ */
 @media (max-width: 1200px) {
     .alert-cards-grid {
         grid-template-columns: repeat(2, 1fr);
