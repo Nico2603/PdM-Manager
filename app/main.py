@@ -262,6 +262,46 @@ def receive_sensor_data(sensor_data: SensorData, db: Session = Depends(get_db)):
             detail=f"Sensor con ID {sensor_data.sensor_id} no encontrado"
         )
     
+    # Buscar la máquina asociada al sensor
+    machine = None
+    if sensor.machine_id:
+        machine = crud.get_machine_by_id(db, sensor.machine_id)
+    
+    if not machine:
+        # Buscar la máquina que tenga este sensor configurado
+        machines = db.query(models.Machine).filter(models.Machine.sensor_id == sensor.sensor_id).all()
+        if machines:
+            machine = machines[0]  # Tomar la primera máquina que usa este sensor
+    
+    # Si no encontramos máquina o la máquina no tiene modelo asociado, usar el modelo por defecto
+    modelo_to_use = modelo
+    scaler_to_use = scaler
+    
+    if machine and machine.model_id:
+        # Cargar el modelo y escalador específicos de la máquina
+        model_info = crud.get_model_by_id(db, machine.model_id)
+        if model_info:
+            try:
+                # Cargar modelo desde la ruta especificada
+                custom_model_path = model_info.route_h5
+                if not os.path.isabs(custom_model_path):
+                    custom_model_path = os.path.join(BASE_DIR, custom_model_path)
+                
+                # Cargar modelo
+                if os.path.exists(custom_model_path):
+                    modelo_to_use = load_model(custom_model_path)
+                    
+                    # Cargar escalador si existe
+                    if model_info.route_pkl:
+                        custom_scaler_path = model_info.route_pkl
+                        if not os.path.isabs(custom_scaler_path):
+                            custom_scaler_path = os.path.join(BASE_DIR, custom_scaler_path)
+                        
+                        if os.path.exists(custom_scaler_path):
+                            scaler_to_use = joblib.load(custom_scaler_path)
+            except Exception as e:
+                print(f"Error al cargar modelo personalizado: {str(e)}. Usando modelo por defecto.")
+    
     # Preparar los datos para el modelo (triaxial)
     data_array = np.array([[
         sensor_data.acceleration_x,
@@ -270,16 +310,21 @@ def receive_sensor_data(sensor_data: SensorData, db: Session = Depends(get_db)):
     ]], dtype=np.float32)
     
     # Escalar datos si el escalador está disponible
-    if scaler:
-        data_array = scaler.transform(data_array)
+    if scaler_to_use:
+        data_array = scaler_to_use.transform(data_array)
     
     # Ajustar forma para el modelo RNN (1, timesteps, features)
     rnn_input = data_array.reshape(1, 1, 3)
     
     # Hacer predicción con el modelo
-    prediction = modelo.predict(rnn_input, verbose=0)
-    severity = int(np.argmax(prediction[0]))
-    confidence = float(np.max(prediction)) * 100
+    if modelo_to_use:
+        prediction = modelo_to_use.predict(rnn_input, verbose=0)
+        severity = int(np.argmax(prediction[0]))
+        confidence = float(np.max(prediction)) * 100
+    else:
+        # Si no hay modelo disponible, poner severidad neutral
+        severity = 0
+        confidence = 0
     
     # Calcular magnitud
     magnitude = np.sqrt(
@@ -288,7 +333,52 @@ def receive_sensor_data(sensor_data: SensorData, db: Session = Depends(get_db)):
         sensor_data.acceleration_z**2
     )
     
-    # Verificar si aplica condición de Nivel 3
+    # Verificar límites configurados para este sensor
+    if machine:
+        # Obtener límites configurados para este sensor
+        config_name = f"limits_sensor_{sensor_data.sensor_id}"
+        config = crud.get_config_by_name(db, config_name)
+        
+        if config:
+            try:
+                limits = json.loads(config.value)
+                # Verificar si los valores exceden los límites configurados
+                if severity < 3:  # Solo elevar si no es ya nivel 3
+                    # Verificar límites configurados
+                    if 'sigma3_factor' in limits:
+                        # Calcular límites basados en datos históricos
+                        recent_data = db.query(models.VibrationData).filter(
+                            models.VibrationData.sensor_id == sensor_data.sensor_id
+                        ).order_by(models.VibrationData.date.desc()).limit(100).all()
+                        
+                        if recent_data:
+                            # Extraer valores x, y, z
+                            values_x = [float(d.acceleration_x) for d in recent_data if d.acceleration_x is not None]
+                            values_y = [float(d.acceleration_y) for d in recent_data if d.acceleration_y is not None]
+                            values_z = [float(d.acceleration_z) for d in recent_data if d.acceleration_z is not None]
+                            
+                            # Calcular medias y desviaciones
+                            if values_x and values_y and values_z:
+                                mean_x = np.mean(values_x)
+                                mean_y = np.mean(values_y)
+                                mean_z = np.mean(values_z)
+                                std_x = np.std(values_x)
+                                std_y = np.std(values_y)
+                                std_z = np.std(values_z)
+                                
+                                # Calcular límites
+                                sigma3_factor = float(limits.get('sigma3_factor', 3))
+                                
+                                # Verificar si los valores actuales exceden los límites de 3-sigma
+                                if (abs(sensor_data.acceleration_x - mean_x) > sigma3_factor * std_x or
+                                    abs(sensor_data.acceleration_y - mean_y) > sigma3_factor * std_y or
+                                    abs(sensor_data.acceleration_z - mean_z) > sigma3_factor * std_z):
+                                    # Elevar a nivel 3 si excede límites configurados
+                                    severity = 3
+            except Exception as e:
+                print(f"Error al procesar límites: {str(e)}")
+    
+    # Verificar si aplica condición de Nivel 3 basada en histórico
     elevated_to_level3 = False
     if severity == 2:  # Si ya es nivel 2, verificar si pasa a nivel 3
         elevated_to_level3 = check_level3_condition(db, sensor_data.sensor_id)
@@ -306,26 +396,28 @@ def receive_sensor_data(sensor_data: SensorData, db: Session = Depends(get_db)):
         magnitude=magnitude
     )
     
-    # Si la severidad es mayor a 0, crear alerta
-    if severity > 0:
+    # Crear alerta si es nivel 1 o superior
+    if severity >= 1:
+        message = f"Alerta de nivel {severity}: {SEVERITY_MAPPING.get(severity, 'Desconocido')}"
+        if severity == 3:
+            message += " - ¡REQUIERE ATENCIÓN INMEDIATA!"
+            
         alert = models.Alert(
             sensor_id=sensor_data.sensor_id,
-            error_type=f"Severidad {severity}",
+            error_type=f"Nivel {severity}",
             vibration_data_id=vibration_data.data_id,
             severity=severity,
-            message=f"Alerta de vibración {SEVERITY_MAPPING[severity]}"
+            message=message
         )
-        db.add(alert)
-        db.commit()
+        crud.create_alert(db, alert)
     
     return {
-        "status": "ok",
-        "vibration_data_id": vibration_data.data_id,
+        "status": "success",
+        "data_id": vibration_data.data_id,
         "severity": severity,
-        "severity_text": SEVERITY_MAPPING[severity],
+        "severity_text": SEVERITY_MAPPING.get(severity, "Desconocido"),
         "confidence": confidence,
-        "magnitude": magnitude,
-        "elevated_to_level3": elevated_to_level3
+        "magnitude": magnitude
     }
 
 @app.post("/api/sensor_data_batch")
@@ -346,6 +438,46 @@ def receive_sensor_data_batch(batch_data: SensorDataBatch, db: Session = Depends
             })
             continue
         
+        # Buscar la máquina asociada al sensor
+        machine = None
+        if sensor.machine_id:
+            machine = crud.get_machine_by_id(db, sensor.machine_id)
+        
+        if not machine:
+            # Buscar la máquina que tenga este sensor configurado
+            machines = db.query(models.Machine).filter(models.Machine.sensor_id == sensor.sensor_id).all()
+            if machines:
+                machine = machines[0]  # Tomar la primera máquina que usa este sensor
+        
+        # Si no encontramos máquina o la máquina no tiene modelo asociado, usar el modelo por defecto
+        modelo_to_use = modelo
+        scaler_to_use = scaler
+        
+        if machine and machine.model_id:
+            # Cargar el modelo y escalador específicos de la máquina
+            model_info = crud.get_model_by_id(db, machine.model_id)
+            if model_info:
+                try:
+                    # Cargar modelo desde la ruta especificada
+                    custom_model_path = model_info.route_h5
+                    if not os.path.isabs(custom_model_path):
+                        custom_model_path = os.path.join(BASE_DIR, custom_model_path)
+                    
+                    # Cargar modelo
+                    if os.path.exists(custom_model_path):
+                        modelo_to_use = load_model(custom_model_path)
+                        
+                        # Cargar escalador si existe
+                        if model_info.route_pkl:
+                            custom_scaler_path = model_info.route_pkl
+                            if not os.path.isabs(custom_scaler_path):
+                                custom_scaler_path = os.path.join(BASE_DIR, custom_scaler_path)
+                            
+                            if os.path.exists(custom_scaler_path):
+                                scaler_to_use = joblib.load(custom_scaler_path)
+                except Exception as e:
+                    print(f"Error al cargar modelo personalizado: {str(e)}. Usando modelo por defecto.")
+        
         # Preparar los datos para el modelo (triaxial)
         data_array = np.array([[
             record.acceleration_x,
@@ -354,16 +486,21 @@ def receive_sensor_data_batch(batch_data: SensorDataBatch, db: Session = Depends
         ]], dtype=np.float32)
         
         # Escalar datos si el escalador está disponible
-        if scaler:
-            data_array = scaler.transform(data_array)
+        if scaler_to_use:
+            data_array = scaler_to_use.transform(data_array)
         
         # Ajustar forma para el modelo RNN
         rnn_input = data_array.reshape(1, 1, 3)
         
         # Hacer predicción con el modelo
-        prediction = modelo.predict(rnn_input, verbose=0)
-        severity = int(np.argmax(prediction[0]))
-        confidence = float(np.max(prediction)) * 100
+        if modelo_to_use:
+            prediction = modelo_to_use.predict(rnn_input, verbose=0)
+            severity = int(np.argmax(prediction[0]))
+            confidence = float(np.max(prediction)) * 100
+        else:
+            # Si no hay modelo disponible, poner severidad neutral
+            severity = 0
+            confidence = 0
         
         # Calcular magnitud
         magnitude = np.sqrt(
@@ -371,6 +508,51 @@ def receive_sensor_data_batch(batch_data: SensorDataBatch, db: Session = Depends
             record.acceleration_y**2 + 
             record.acceleration_z**2
         )
+        
+        # Verificar límites configurados para este sensor
+        if machine:
+            # Obtener límites configurados para este sensor
+            config_name = f"limits_sensor_{record.sensor_id}"
+            config = crud.get_config_by_name(db, config_name)
+            
+            if config:
+                try:
+                    limits = json.loads(config.value)
+                    # Verificar si los valores exceden los límites configurados
+                    if severity < 3:  # Solo elevar si no es ya nivel 3
+                        # Verificar límites configurados
+                        if 'sigma3_factor' in limits:
+                            # Calcular límites basados en datos históricos
+                            recent_data = db.query(models.VibrationData).filter(
+                                models.VibrationData.sensor_id == record.sensor_id
+                            ).order_by(models.VibrationData.date.desc()).limit(100).all()
+                            
+                            if recent_data:
+                                # Extraer valores x, y, z
+                                values_x = [float(d.acceleration_x) for d in recent_data if d.acceleration_x is not None]
+                                values_y = [float(d.acceleration_y) for d in recent_data if d.acceleration_y is not None]
+                                values_z = [float(d.acceleration_z) for d in recent_data if d.acceleration_z is not None]
+                                
+                                # Calcular medias y desviaciones
+                                if values_x and values_y and values_z:
+                                    mean_x = np.mean(values_x)
+                                    mean_y = np.mean(values_y)
+                                    mean_z = np.mean(values_z)
+                                    std_x = np.std(values_x)
+                                    std_y = np.std(values_y)
+                                    std_z = np.std(values_z)
+                                    
+                                    # Calcular límites
+                                    sigma3_factor = float(limits.get('sigma3_factor', 3))
+                                    
+                                    # Verificar si los valores actuales exceden los límites de 3-sigma
+                                    if (abs(record.acceleration_x - mean_x) > sigma3_factor * std_x or
+                                        abs(record.acceleration_y - mean_y) > sigma3_factor * std_y or
+                                        abs(record.acceleration_z - mean_z) > sigma3_factor * std_z):
+                                        # Elevar a nivel 3 si excede límites configurados
+                                        severity = 3
+                except Exception as e:
+                    print(f"Error al procesar límites: {str(e)}")
         
         # Verificar si aplica condición de Nivel 3
         elevated_to_level3 = False
@@ -390,30 +572,37 @@ def receive_sensor_data_batch(batch_data: SensorDataBatch, db: Session = Depends
             magnitude=magnitude
         )
         
-        # Si la severidad es mayor a 0, crear alerta
-        if severity > 0:
+        # Crear alerta si es nivel 1 o superior
+        if severity >= 1:
+            message = f"Alerta de nivel {severity}: {SEVERITY_MAPPING.get(severity, 'Desconocido')}"
+            if severity == 3:
+                message += " - ¡REQUIERE ATENCIÓN INMEDIATA!"
+                
             alert = models.Alert(
                 sensor_id=record.sensor_id,
-                error_type=f"Severidad {severity}",
+                error_type=f"Nivel {severity}",
                 vibration_data_id=vibration_data.data_id,
                 severity=severity,
-                message=f"Alerta de vibración {SEVERITY_MAPPING[severity]}"
+                message=message
             )
-            db.add(alert)
-            db.commit()
+            crud.create_alert(db, alert)
         
+        # Agregar resultado
         results.append({
             "sensor_id": record.sensor_id,
-            "status": "ok",
-            "vibration_data_id": vibration_data.data_id,
+            "status": "success",
+            "data_id": vibration_data.data_id,
             "severity": severity,
-            "severity_text": SEVERITY_MAPPING[severity],
+            "severity_text": SEVERITY_MAPPING.get(severity, "Desconocido"),
             "confidence": confidence,
-            "magnitude": magnitude,
-            "elevated_to_level3": elevated_to_level3
+            "magnitude": magnitude
         })
     
-    return {"results": results}
+    return {
+        "status": "success",
+        "procesados": len(results),
+        "resultados": results
+    }
 
 @app.get("/reload_model")
 def reload_model(db: Session = Depends(get_db)):
@@ -1178,3 +1367,235 @@ def reset_limits(
     
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al restablecer límites: {str(e)}")
+
+# Función auxiliar para verificar si hay configuración
+def check_configuration_exists(db: Session) -> bool:
+    """Verifica si existe al menos una configuración básica para el funcionamiento del dashboard"""
+    # Verificar si hay al menos una máquina configurada
+    machines_count = db.query(models.Machine).count()
+    if machines_count == 0:
+        return False
+    
+    # Verificar si hay al menos un sensor configurado
+    sensors_count = db.query(models.Sensor).count()
+    if sensors_count == 0:
+        return False
+    
+    # Verificar si hay al menos un modelo configurado
+    models_count = db.query(models.Model).count()
+    if models_count == 0:
+        return False
+    
+    return True
+
+@app.get("/api/data")
+def get_data_for_dashboard(
+    machine: int,
+    sensor: int,
+    timeRange: str = "day",
+    db: Session = Depends(get_db)
+):
+    """
+    Endpoint principal para obtener datos para el dashboard.
+    Verifica configuración y carga datos específicos de la máquina y sensor seleccionados.
+    """
+    # Verificar que existe configuración
+    if not check_configuration_exists(db):
+        return JSONResponse(
+            status_code=400,
+            content={
+                "status": "error",
+                "message": "No existe configuración. Por favor, configure al menos una máquina, sensor y modelo en la sección de Configuración."
+            }
+        )
+    
+    # Obtener la máquina seleccionada
+    machine_obj = crud.get_machine_by_id(db, machine)
+    if not machine_obj:
+        return JSONResponse(
+            status_code=404,
+            content={
+                "status": "error",
+                "message": f"Máquina con ID {machine} no encontrada"
+            }
+        )
+    
+    # Verificar que la máquina tiene un modelo asociado
+    if not machine_obj.model_id:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "status": "error",
+                "message": f"La máquina {machine_obj.name} no tiene un modelo de predicción asociado. Configure uno en la sección de Configuración."
+            }
+        )
+    
+    # Obtener el sensor seleccionado
+    sensor_obj = crud.get_sensor_by_id(db, sensor)
+    if not sensor_obj:
+        return JSONResponse(
+            status_code=404,
+            content={
+                "status": "error",
+                "message": f"Sensor con ID {sensor} no encontrado"
+            }
+        )
+    
+    # Obtener el modelo asociado a la máquina
+    model_obj = crud.get_model_by_id(db, machine_obj.model_id)
+    if not model_obj:
+        return JSONResponse(
+            status_code=404,
+            content={
+                "status": "error",
+                "message": f"Modelo con ID {machine_obj.model_id} no encontrado"
+            }
+        )
+    
+    # Determinar el rango de fechas según el parámetro timeRange
+    now = datetime.now()
+    if timeRange == "hour":
+        start_date = now - timedelta(hours=1)
+    elif timeRange == "day":
+        start_date = now - timedelta(days=1)
+    elif timeRange == "week":
+        start_date = now - timedelta(days=7)
+    elif timeRange == "month":
+        start_date = now - timedelta(days=30)
+    else:
+        start_date = now - timedelta(days=1)  # Default: 1 día
+    
+    # Obtener datos de vibración
+    vibration_data = crud.get_vibration_data_by_sensor_and_dates(db, sensor, start_date, now)
+    
+    # Obtener límites configurados para este sensor
+    limits = get_limits(machine, sensor, db)
+    
+    # Formatear datos para el dashboard
+    timestamps = []
+    values_x = []
+    values_y = []
+    values_z = []
+    status = []
+    
+    for data in vibration_data:
+        timestamps.append(data.date.isoformat())
+        values_x.append(float(data.acceleration_x) if data.acceleration_x is not None else None)
+        values_y.append(float(data.acceleration_y) if data.acceleration_y is not None else None)
+        values_z.append(float(data.acceleration_z) if data.acceleration_z is not None else None)
+        status.append(data.severity)
+    
+    # Calcular estadísticas
+    stats = {
+        "x": calculate_statistics(values_x, limits),
+        "y": calculate_statistics(values_y, limits),
+        "z": calculate_statistics(values_z, limits)
+    }
+    
+    # Obtener alertas
+    alerts = crud.get_alert_counts(db, sensor)
+    
+    return {
+        "status": "success",
+        "chartData": {
+            "timestamps": timestamps,
+            "x": values_x,
+            "y": values_y,
+            "z": values_z,
+            "status": status
+        },
+        "stats": stats,
+        "alerts": alerts,
+        "machine": {
+            "id": machine_obj.machine_id,
+            "name": machine_obj.name,
+            "model": {
+                "id": model_obj.model_id,
+                "name": model_obj.name,
+                "route_h5": model_obj.route_h5,
+                "route_pkl": model_obj.route_pkl
+            }
+        }
+    }
+
+def calculate_statistics(values, limits):
+    """Calcula estadísticas para los valores de aceleración"""
+    if not values:
+        return {
+            "mean": 0,
+            "std": 0,
+            "min": 0,
+            "max": 0,
+            "sigma2": {"upper": 0, "lower": 0},
+            "sigma3": {"upper": 0, "lower": 0}
+        }
+    
+    # Calcular estadísticas básicas
+    mean = np.mean(values)
+    std = np.std(values)
+    min_val = np.min(values)
+    max_val = np.max(values)
+    
+    # Límites sigma personalizados o calculados
+    sigma2_factor = limits.get("sigma2_factor", 2)
+    sigma3_factor = limits.get("sigma3_factor", 3)
+    
+    sigma2_upper = mean + (sigma2_factor * std)
+    sigma2_lower = mean - (sigma2_factor * std)
+    sigma3_upper = mean + (sigma3_factor * std)
+    sigma3_lower = mean - (sigma3_factor * std)
+    
+    return {
+        "mean": float(mean),
+        "std": float(std),
+        "min": float(min_val),
+        "max": float(max_val),
+        "sigma2": {"upper": float(sigma2_upper), "lower": float(sigma2_lower)},
+        "sigma3": {"upper": float(sigma3_upper), "lower": float(sigma3_lower)}
+    }
+
+def get_default_limits():
+    """Devuelve configuración de límites por defecto"""
+    return {
+        "sigma2_factor": 2,
+        "sigma3_factor": 3,
+        "use_dynamic_limits": True
+    }
+
+@app.get("/api/machine/{machine_id}/sensors")
+def get_machine_sensors(machine_id: int, db: Session = Depends(get_db)):
+    """
+    Obtiene los sensores asociados a una máquina
+    """
+    # Verificar que la máquina existe
+    machine = crud.get_machine_by_id(db, machine_id)
+    if not machine:
+        return JSONResponse(
+            status_code=404,
+            content={
+                "status": "error",
+                "message": f"Máquina con ID {machine_id} no encontrada"
+            }
+        )
+    
+    # Obtener sensores asociados a la máquina
+    sensors = crud.get_sensors_by_machine(db, machine_id)
+    
+    # Si la máquina tiene un sensor_id configurado pero no está en la lista, añadirlo
+    if machine.sensor_id and not any(s.get('sensor_id') == machine.sensor_id for s in sensors):
+        sensor = crud.get_sensor_by_id(db, machine.sensor_id)
+        if sensor:
+            sensors.append(sensor.__dict__)
+    
+    return {
+        "status": "success",
+        "machine_id": machine_id,
+        "machine_name": machine.name,
+        "sensors": [{
+            "id": sensor.get('sensor_id'),
+            "name": sensor.get('name'),
+            "description": sensor.get('description'),
+            "location": sensor.get('location'),
+            "type": sensor.get('type')
+        } for sensor in sensors]
+    }

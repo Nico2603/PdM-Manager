@@ -959,11 +959,64 @@ function initVisualFilters() {
  * Carga los datos iniciales para el dashboard
  */
 function loadInitialData() {
-    // Cargar máquinas disponibles
-    loadMachines();
+    // Mostrar indicador de carga
+    showLoadingToast('Verificando configuración...');
     
-    // Actualizar datos del dashboard
-    updateDashboardData();
+    // Verificar si existe configuración
+    fetch('/api/machines')
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Error al cargar las máquinas');
+            }
+            return response.json();
+        })
+        .then(data => {
+            hideLoadingToast();
+            
+            // Verificar si hay máquinas configuradas
+            if (!data.machines || data.machines.length === 0) {
+                // Mostrar mensaje al usuario
+                showNoConfigurationMessage();
+                return;
+            }
+            
+            // Si hay configuración, cargar máquinas
+            loadMachines();
+        })
+        .catch(error => {
+            console.error('Error al cargar configuración inicial:', error);
+            hideLoadingToast();
+            showToast('danger', 'Error al cargar la configuración: ' + error.message);
+        });
+}
+
+/**
+ * Muestra un mensaje indicando que no hay configuración
+ */
+function showNoConfigurationMessage() {
+    const mainContent = document.querySelector('.main-content');
+    if (mainContent) {
+        // Crear mensaje
+        const noConfigMessage = document.createElement('div');
+        noConfigMessage.className = 'no-config-message';
+        noConfigMessage.innerHTML = `
+            <div class="alert alert-warning" role="alert">
+                <h4 class="alert-heading"><i class="fas fa-exclamation-triangle"></i> Configuración no encontrada</h4>
+                <p>No hay máquinas, sensores o modelos configurados en el sistema.</p>
+                <hr>
+                <p class="mb-0">Por favor, vaya a la sección de <a href="#configuracion" class="alert-link">Configuración</a> para configurar al menos una máquina, sensor y modelo antes de usar el Dashboard.</p>
+            </div>
+        `;
+        
+        // Insertar al principio del contenido principal
+        mainContent.insertBefore(noConfigMessage, mainContent.firstChild);
+        
+        // Ocultar elementos del dashboard que requieren configuración
+        const dashboardElements = document.querySelectorAll('.dashboard-card, .dashboard-chart');
+        dashboardElements.forEach(element => {
+            element.style.display = 'none';
+        });
+    }
 }
 
 /**
@@ -981,6 +1034,11 @@ function loadMachines() {
         })
         .then(data => {
             hideLoadingToast();
+            
+            if (!data.machines || data.machines.length === 0) {
+                showNoConfigurationMessage();
+                return;
+            }
             
             const machineDropdown = document.getElementById('machineDropdown');
             const menu = machineDropdown?.querySelector('.filter-dropdown-menu');
@@ -1022,6 +1080,11 @@ function loadMachines() {
             
             // Reinicializar eventos
             initCustomDropdowns();
+            
+            // Una vez que tenemos máquinas y sensores, actualizar dashboard
+            if (selectedMachine && selectedSensor) {
+                updateDashboardData();
+            }
         })
         .catch(error => {
             console.error('Error:', error);
@@ -1034,11 +1097,9 @@ function loadMachines() {
  * Carga los sensores disponibles para una máquina
  */
 function loadSensors(machineId) {
-    if (!machineId) return;
-    
     showLoadingToast('Cargando sensores...');
     
-    fetch(`/api/machines/${machineId}/sensors`)
+    fetch(`/api/machine/${machineId}/sensors`)
         .then(response => {
             if (!response.ok) {
                 throw new Error('Error al cargar los sensores');
@@ -1056,7 +1117,26 @@ function loadSensors(machineId) {
             // Limpiar menú
             menu.innerHTML = '';
             
-            // Añadir sensores
+            // Verificar si hay sensores disponibles
+            if (!data.sensors || data.sensors.length === 0) {
+                const noSensorsItem = document.createElement('div');
+                noSensorsItem.className = 'filter-dropdown-item disabled';
+                noSensorsItem.textContent = 'No hay sensores configurados';
+                menu.appendChild(noSensorsItem);
+                
+                // Restablecer selección de sensor
+                selectedSensor = null;
+                const selectedText = sensorDropdown.querySelector('span');
+                if (selectedText) {
+                    selectedText.textContent = 'Sin sensores';
+                }
+                
+                // Mostrar mensaje al usuario
+                showToast('warning', 'La máquina seleccionada no tiene sensores configurados. Configure sensores en la sección de Configuración.');
+                return;
+            }
+            
+            // Añadir sensores al menú
             data.sensors.forEach(sensor => {
                 const item = document.createElement('div');
                 item.className = 'filter-dropdown-item';
@@ -1074,13 +1154,18 @@ function loadSensors(machineId) {
                 menu.appendChild(item);
             });
             
-            // Si no hay sensor seleccionado, seleccionar el primero
-            if (!selectedSensor && data.sensors.length > 0) {
+            // Si no hay sensor seleccionado o el sensor seleccionado no está en la lista,
+            // seleccionar el primero
+            const sensorIds = data.sensors.map(s => s.id);
+            if (!selectedSensor || !sensorIds.includes(selectedSensor)) {
                 selectedSensor = data.sensors[0].id;
                 const selectedText = sensorDropdown.querySelector('span');
                 if (selectedText) {
                     selectedText.textContent = data.sensors[0].name;
                 }
+                
+                // Actualizar datos del dashboard con el nuevo sensor
+                updateDashboardData();
             }
             
             // Reinicializar eventos
@@ -1097,19 +1182,33 @@ function loadSensors(machineId) {
  * Actualiza los datos del dashboard
  */
 function updateDashboardData() {
-    if (!selectedMachine || !selectedSensor) return;
+    if (!selectedMachine || !selectedSensor) {
+        // Si no hay máquina o sensor seleccionado pero hay config message,
+        // probablemente es porque no hay configuración
+        if (!document.querySelector('.no-config-message')) {
+            showToast('warning', 'Seleccione una máquina y un sensor para ver los datos');
+        }
+        return;
+    }
     
     showLoadingToast('Actualizando datos...');
     
     fetch(`/api/data?machine=${selectedMachine}&sensor=${selectedSensor}&timeRange=${timeRange}`)
         .then(response => {
             if (!response.ok) {
-                throw new Error('Error al cargar los datos');
+                return response.json().then(errorData => {
+                    throw new Error(errorData.message || 'Error al cargar los datos');
+                });
             }
             return response.json();
         })
         .then(data => {
             hideLoadingToast();
+            
+            if (data.status === 'error') {
+                showToast('danger', data.message);
+                return;
+            }
             
             // Actualizar datos de los gráficos
             chartData = data.chartData;
@@ -1127,6 +1226,9 @@ function updateDashboardData() {
             
             // Actualizar valores estadísticos en la interfaz
             updateStatisticalDisplayValues();
+            
+            // Actualizar última actualización
+            document.getElementById('lastUpdateTime').textContent = new Date().toLocaleTimeString();
         })
         .catch(error => {
             console.error('Error:', error);
