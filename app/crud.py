@@ -155,6 +155,19 @@ def acknowledge_alert(db: Session, alert_id: int) -> bool:
         return True
     return False
 
+def get_alerts_by_sensor_and_dates(
+    db: Session,
+    sensor_id: int,
+    start_date: datetime,
+    end_date: datetime
+) -> List[Alert]:
+    """Obtiene alertas para un sensor y rango de fechas"""
+    return db.query(Alert).filter(
+        Alert.sensor_id == sensor_id,
+        Alert.date >= start_date,
+        Alert.date <= end_date
+    ).order_by(Alert.date).all()
+
 # --- Funciones CRUD para Máquinas ---
 
 def get_machines(db: Session, skip: int = 0, limit: int = 100) -> List[Machine]:

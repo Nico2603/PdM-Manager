@@ -60,145 +60,223 @@ function initAxisChart(canvasId, title, axis) {
     const stats = getGlobalState('stats');
     const chartOptions = getGlobalState('chartOptions');
     
-    // Configuración del gráfico
+    // Configuración de colores y opciones
+    const chartColors = {
+        x: '#FF6384',
+        y: '#36A2EB',
+        z: '#4BC0C0'
+    };
+    
+    // Conjuntos de datos base
+    const datasets = [
+        {
+            label: `Aceleración eje ${axis.toUpperCase()}`,
+            data: chartData[axis],
+            borderColor: chartColors[axis],
+            borderWidth: 2,
+            fill: false,
+            tension: 0.4,
+            pointRadius: 0,
+            pointHoverRadius: 4
+        }
+    ];
+    
+    // Añadir líneas estadísticas si están disponibles y activadas
+    if (stats && stats[axis] && chartOptions) {
+        // Línea de media si está habilitada
+        if (chartOptions.showMean) {
+            if (stats[axis].mean) {
+                const meanValue = stats[axis].mean.value;
+                datasets.push({
+                    label: 'Media',
+                    data: Array(chartData.timestamps.length).fill(meanValue),
+                    borderColor: 'rgba(255, 255, 0, 0.5)',
+                    borderWidth: 1,
+                    borderDash: [5, 5],
+                    pointRadius: 0,
+                    fill: false
+                });
+            }
+        }
+        
+        // Líneas de límites sigma
+        if (chartOptions.showSigmaLines) {
+            if (stats[axis].sigma1) {
+                // Límites 1-sigma
+                datasets.push({
+                    label: '+1σ',
+                    data: Array(chartData.timestamps.length).fill(stats[axis].sigma1.upper),
+                    borderColor: 'rgba(75, 192, 192, 0.3)',
+                    borderWidth: 1,
+                    borderDash: [10, 5],
+                    pointRadius: 0,
+                    fill: false
+                });
+                
+                datasets.push({
+                    label: '-1σ',
+                    data: Array(chartData.timestamps.length).fill(stats[axis].sigma1.lower),
+                    borderColor: 'rgba(75, 192, 192, 0.3)',
+                    borderWidth: 1,
+                    borderDash: [10, 5],
+                    pointRadius: 0,
+                    fill: false
+                });
+            }
+            
+            if (stats[axis].sigma2) {
+                // Límites 2-sigma
+                datasets.push({
+                    label: '+2σ',
+                    data: Array(chartData.timestamps.length).fill(stats[axis].sigma2.upper),
+                    borderColor: 'rgba(255, 159, 64, 0.5)',
+                    borderWidth: 1,
+                    borderDash: [5, 5],
+                    pointRadius: 0,
+                    fill: false
+                });
+                
+                datasets.push({
+                    label: '-2σ',
+                    data: Array(chartData.timestamps.length).fill(stats[axis].sigma2.lower),
+                    borderColor: 'rgba(255, 159, 64, 0.5)',
+                    borderWidth: 1,
+                    borderDash: [5, 5],
+                    pointRadius: 0,
+                    fill: false
+                });
+            }
+            
+            if (stats[axis].sigma3) {
+                // Límites 3-sigma
+                datasets.push({
+                    label: '+3σ',
+                    data: Array(chartData.timestamps.length).fill(stats[axis].sigma3.upper),
+                    borderColor: 'rgba(255, 99, 132, 0.5)',
+                    borderWidth: 1,
+                    borderDash: [2, 2],
+                    pointRadius: 0,
+                    fill: false
+                });
+                
+                datasets.push({
+                    label: '-3σ',
+                    data: Array(chartData.timestamps.length).fill(stats[axis].sigma3.lower),
+                    borderColor: 'rgba(255, 99, 132, 0.5)',
+                    borderWidth: 1,
+                    borderDash: [2, 2],
+                    pointRadius: 0,
+                    fill: false
+                });
+            }
+        }
+    }
+    
+    // Crear gráfico
     const chart = new Chart(ctx, {
         type: 'line',
         data: {
             labels: chartData.timestamps,
-            datasets: [
-                {
-                    label: `${title} (m/s²)`,
-                    data: chartData[axis],
-                    borderColor: '#3b82f6',
-                    backgroundColor: 'rgba(59, 130, 246, 0.2)',
-                    borderWidth: 2,
-                    fill: false,
-                    tension: 0.2,
-                    pointRadius: 2,
-                    pointHoverRadius: 5
-                },
-                {
-                    label: 'Media',
-                    data: Array(chartData.timestamps.length).fill(mean),
-                    borderColor: '#6b7280',
-                    borderWidth: 1.5,
-                    borderDash: [5, 5],
-                    fill: false,
-                    pointRadius: 0,
-                    pointHoverRadius: 0,
-                    hidden: !chartOptions.showMean
-                },
-                {
-                    label: 'Límite Superior +2σ',
-                    data: Array(chartData.timestamps.length).fill(stats[axis].sigma2.upper),
-                    borderColor: '#f59e0b',
-                    backgroundColor: 'rgba(245, 158, 11, 0.1)',
-                    borderWidth: 1.5,
-                    borderDash: [5, 3],
-                    fill: '+4',  // Llenar hasta el dataset 4 (límite inferior)
-                    pointRadius: 0,
-                    pointHoverRadius: 0,
-                    hidden: !chartOptions.showSigmaLines
-                },
-                {
-                    label: 'Límite Inferior -2σ',
-                    data: Array(chartData.timestamps.length).fill(stats[axis].sigma2.lower),
-                    borderColor: '#f59e0b',
-                    borderWidth: 1.5,
-                    borderDash: [5, 3],
-                    fill: false,
-                    pointRadius: 0,
-                    pointHoverRadius: 0,
-                    hidden: !chartOptions.showSigmaLines
-                },
-                {
-                    label: 'Límite Superior +3σ',
-                    data: Array(chartData.timestamps.length).fill(stats[axis].sigma3.upper),
-                    borderColor: '#ef4444',
-                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                    borderWidth: 1.5,
-                    borderDash: [3, 3],
-                    fill: '+6',  // Llenar hasta el dataset 6 (límite inferior)
-                    pointRadius: 0,
-                    pointHoverRadius: 0,
-                    hidden: !chartOptions.showSigmaLines
-                },
-                {
-                    label: 'Límite Inferior -3σ',
-                    data: Array(chartData.timestamps.length).fill(stats[axis].sigma3.lower),
-                    borderColor: '#ef4444',
-                    borderWidth: 1.5,
-                    borderDash: [3, 3],
-                    fill: false,
-                    pointRadius: 0,
-                    pointHoverRadius: 0,
-                    hidden: !chartOptions.showSigmaLines
-                }
-            ]
+            datasets: datasets
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            animation: {
-                duration: 150
-            },
-            scales: {
-                x: {
-                    grid: {
-                        display: false
-                    },
-                    ticks: {
-                        maxTicksLimit: 10,
-                        maxRotation: 0
-                    }
-                },
-                y: {
-                    beginAtZero: false,
-                    grid: {
-                        drawBorder: false
-                    },
-                    ticks: {
-                        padding: 10
-                    }
-                }
+            interaction: {
+                intersect: false,
+                mode: 'index'
             },
             plugins: {
-                legend: {
-                    position: 'top',
-                    align: 'end',
-                    labels: {
-                        boxWidth: 12,
-                        usePointStyle: true,
-                        pointStyle: 'circle'
+                title: {
+                    display: true,
+                    text: title,
+                    font: {
+                        size: 16,
+                        weight: 'bold'
                     }
                 },
                 tooltip: {
-                    mode: 'index',
-                    intersect: false,
+                    enabled: true,
                     backgroundColor: 'rgba(0, 0, 0, 0.7)',
-                    titleFont: {
-                        size: 12
-                    },
-                    bodyFont: {
-                        size: 11
-                    },
+                    titleColor: 'white',
+                    bodyColor: 'white',
+                    borderColor: 'white',
+                    borderWidth: 1,
+                    caretPadding: 5,
+                    displayColors: true,
                     callbacks: {
-                        title: function(tooltipItems) {
-                            return tooltipItems[0].label;
+                        afterBody: function(context) {
+                            const dataIndex = context[0].dataIndex;
+                            const status = chartData.status[dataIndex];
+                            let statusText = '';
+                            
+                            switch(status) {
+                                case 0:
+                                    statusText = 'Normal';
+                                    break;
+                                case 1:
+                                    statusText = 'Advertencia';
+                                    break;
+                                case 2:
+                                    statusText = 'Alerta';
+                                    break;
+                                case 3:
+                                    statusText = 'Crítico';
+                                    break;
+                                default:
+                                    statusText = 'Desconocido';
+                            }
+                            
+                            return `Estado: ${statusText}`;
+                        }
+                    }
+                },
+                legend: {
+                    position: 'top',
+                    labels: {
+                        usePointStyle: true,
+                        font: {
+                            size: 12
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    ticks: {
+                        font: {
+                            size: 10
                         },
-                        label: function(context) {
-                            const value = context.parsed.y;
-                            let label = context.dataset.label || '';
-                            
-                            if (label) {
-                                label += ': ';
-                            }
-                            
-                            if (value !== null) {
-                                label += value.toFixed(3);
-                            }
-                            
-                            return label;
+                        color: '#666'
+                    },
+                    grid: {
+                        display: false
+                    },
+                    title: {
+                        display: true,
+                        text: 'Tiempo',
+                        font: {
+                            size: 12,
+                            weight: 'bold'
+                        }
+                    }
+                },
+                y: {
+                    ticks: {
+                        font: {
+                            size: 10
+                        },
+                        color: '#666'
+                    },
+                    grid: {
+                        color: 'rgba(200, 200, 200, 0.2)'
+                    },
+                    title: {
+                        display: true,
+                        text: 'Aceleración (g)',
+                        font: {
+                            size: 12,
+                            weight: 'bold'
                         }
                     }
                 }
@@ -206,13 +284,8 @@ function initAxisChart(canvasId, title, axis) {
         }
     });
     
-    // Guardar referencia al gráfico
+    // Guardar referencia
     window[`vibrationChart${axis.toUpperCase()}`] = chart;
-    
-    // También guardar en las variables globales
-    if (axis === 'x') vibrationChartX = chart;
-    if (axis === 'y') vibrationChartY = chart;
-    if (axis === 'z') vibrationChartZ = chart;
     
     return chart;
 }
@@ -236,33 +309,115 @@ function updateVibrationChartZ() {
 function updateAxisChart(chart, axis) {
     if (!chart) return;
     
-    // Calcular media para la línea de media
-    let mean = 0;
-    if (chartData[axis] && chartData[axis].length > 0) {
-        mean = chartData[axis].reduce((sum, value) => sum + value, 0) / chartData[axis].length;
-    }
+    // Obtener datos actualizados
+    const values = chartData[axis];
+    const timestamps = chartData.timestamps;
     
-    // Obtener los límites del estado global
+    // Actualizar datos principales
+    chart.data.labels = timestamps;
+    chart.data.datasets[0].data = values;
+    
+    // Obtener estadísticas y opciones de gráfico
     const stats = getGlobalState('stats');
     const chartOptions = getGlobalState('chartOptions');
     
-    // Actualizar datos
-    chart.data.labels = chartData.timestamps;
-    chart.data.datasets[0].data = chartData[axis];
-    chart.data.datasets[1].data = Array(chartData.timestamps.length).fill(mean);
-    chart.data.datasets[2].data = Array(chartData.timestamps.length).fill(stats[axis].sigma2.upper);
-    chart.data.datasets[3].data = Array(chartData.timestamps.length).fill(stats[axis].sigma2.lower);
-    chart.data.datasets[4].data = Array(chartData.timestamps.length).fill(stats[axis].sigma3.upper);
-    chart.data.datasets[5].data = Array(chartData.timestamps.length).fill(stats[axis].sigma3.lower);
+    // Eliminar datasets adicionales (líneas estadísticas)
+    while (chart.data.datasets.length > 1) {
+        chart.data.datasets.pop();
+    }
     
-    // Actualizar visibilidad según configuración
-    chart.data.datasets[1].hidden = !chartOptions.showMean;
-    chart.data.datasets[2].hidden = !chartOptions.showSigmaLines;
-    chart.data.datasets[3].hidden = !chartOptions.showSigmaLines;
-    chart.data.datasets[4].hidden = !chartOptions.showSigmaLines;
-    chart.data.datasets[5].hidden = !chartOptions.showSigmaLines;
+    // Añadir líneas estadísticas si están disponibles y activadas
+    if (stats && stats[axis] && chartOptions) {
+        // Línea de media si está habilitada
+        if (chartOptions.showMean) {
+            if (stats[axis].mean) {
+                const meanValue = stats[axis].mean.value;
+                chart.data.datasets.push({
+                    label: 'Media',
+                    data: Array(timestamps.length).fill(meanValue),
+                    borderColor: 'rgba(255, 255, 0, 0.5)',
+                    borderWidth: 1,
+                    borderDash: [5, 5],
+                    pointRadius: 0,
+                    fill: false
+                });
+            }
+        }
+        
+        // Líneas de límites sigma
+        if (chartOptions.showSigmaLines) {
+            if (stats[axis].sigma1) {
+                // Límites 1-sigma
+                chart.data.datasets.push({
+                    label: '+1σ',
+                    data: Array(timestamps.length).fill(stats[axis].sigma1.upper),
+                    borderColor: 'rgba(75, 192, 192, 0.3)',
+                    borderWidth: 1,
+                    borderDash: [10, 5],
+                    pointRadius: 0,
+                    fill: false
+                });
+                
+                chart.data.datasets.push({
+                    label: '-1σ',
+                    data: Array(timestamps.length).fill(stats[axis].sigma1.lower),
+                    borderColor: 'rgba(75, 192, 192, 0.3)',
+                    borderWidth: 1,
+                    borderDash: [10, 5],
+                    pointRadius: 0,
+                    fill: false
+                });
+            }
+            
+            if (stats[axis].sigma2) {
+                // Límites 2-sigma
+                chart.data.datasets.push({
+                    label: '+2σ',
+                    data: Array(timestamps.length).fill(stats[axis].sigma2.upper),
+                    borderColor: 'rgba(255, 159, 64, 0.5)',
+                    borderWidth: 1,
+                    borderDash: [5, 5],
+                    pointRadius: 0,
+                    fill: false
+                });
+                
+                chart.data.datasets.push({
+                    label: '-2σ',
+                    data: Array(timestamps.length).fill(stats[axis].sigma2.lower),
+                    borderColor: 'rgba(255, 159, 64, 0.5)',
+                    borderWidth: 1,
+                    borderDash: [5, 5],
+                    pointRadius: 0,
+                    fill: false
+                });
+            }
+            
+            if (stats[axis].sigma3) {
+                // Límites 3-sigma
+                chart.data.datasets.push({
+                    label: '+3σ',
+                    data: Array(timestamps.length).fill(stats[axis].sigma3.upper),
+                    borderColor: 'rgba(255, 99, 132, 0.5)',
+                    borderWidth: 1,
+                    borderDash: [2, 2],
+                    pointRadius: 0,
+                    fill: false
+                });
+                
+                chart.data.datasets.push({
+                    label: '-3σ',
+                    data: Array(timestamps.length).fill(stats[axis].sigma3.lower),
+                    borderColor: 'rgba(255, 99, 132, 0.5)',
+                    borderWidth: 1,
+                    borderDash: [2, 2],
+                    pointRadius: 0,
+                    fill: false
+                });
+            }
+        }
+    }
     
-    // Aplicar actualización
+    // Actualizar gráfico
     chart.update();
 }
 

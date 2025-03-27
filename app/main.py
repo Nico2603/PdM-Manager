@@ -1714,3 +1714,129 @@ def get_machine_sensors(machine_id: int, db: Session = Depends(get_db)):
             "type": sensor.get('type')
         } for sensor in sensors]
     }
+
+@app.get("/api/machines/{machine_id}/sensors/{sensor_id}/data")
+def get_machine_sensor_data(
+    machine_id: int,
+    sensor_id: int,
+    start: Optional[str] = None,
+    end: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    """
+    Obtiene los datos de vibración de un sensor específico para una máquina.
+    Filtra por rango de fechas si se proporcionan.
+    """
+    # Verificar que la máquina existe
+    machine = crud.get_machine_by_id(db, machine_id)
+    if not machine:
+        raise HTTPException(status_code=404, detail=f"Máquina con ID {machine_id} no encontrada")
+    
+    # Verificar que el sensor existe
+    sensor = crud.get_sensor_by_id(db, sensor_id)
+    if not sensor:
+        raise HTTPException(status_code=404, detail=f"Sensor con ID {sensor_id} no encontrado")
+    
+    # Convertir strings de fecha a objetos datetime
+    start_date = None
+    end_date = None
+    
+    if start:
+        try:
+            start_date = datetime.fromisoformat(start.replace('Z', '+00:00'))
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Formato de fecha de inicio inválido")
+    
+    if end:
+        try:
+            end_date = datetime.fromisoformat(end.replace('Z', '+00:00'))
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Formato de fecha de fin inválido")
+    
+    # Si no se proporcionan fechas, usar el último día por defecto
+    if not start_date:
+        start_date = datetime.now() - timedelta(days=1)
+    
+    if not end_date:
+        end_date = datetime.now()
+    
+    # Obtener datos de vibración para el sensor y rango de fechas
+    vibration_data = crud.get_vibration_data_by_sensor_and_dates(db, sensor_id, start_date, end_date)
+    
+    # Formatear para respuesta de la API
+    result = []
+    for data in vibration_data:
+        result.append({
+            "timestamp": data.date.isoformat(),
+            "x": float(data.acceleration_x) if data.acceleration_x is not None else None,
+            "y": float(data.acceleration_y) if data.acceleration_y is not None else None, 
+            "z": float(data.acceleration_z) if data.acceleration_z is not None else None,
+            "status": data.severity
+        })
+    
+    return result
+
+@app.get("/api/machines/{machine_id}/sensors/{sensor_id}/alerts")
+def get_machine_sensor_alerts(
+    machine_id: int,
+    sensor_id: int,
+    start: Optional[str] = None,
+    end: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    """
+    Obtiene las alertas generadas por un sensor específico para una máquina.
+    Filtra por rango de fechas si se proporcionan.
+    """
+    # Verificar que la máquina existe
+    machine = crud.get_machine_by_id(db, machine_id)
+    if not machine:
+        raise HTTPException(status_code=404, detail=f"Máquina con ID {machine_id} no encontrada")
+    
+    # Verificar que el sensor existe
+    sensor = crud.get_sensor_by_id(db, sensor_id)
+    if not sensor:
+        raise HTTPException(status_code=404, detail=f"Sensor con ID {sensor_id} no encontrado")
+    
+    # Convertir strings de fecha a objetos datetime
+    start_date = None
+    end_date = None
+    
+    if start:
+        try:
+            start_date = datetime.fromisoformat(start.replace('Z', '+00:00'))
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Formato de fecha de inicio inválido")
+    
+    if end:
+        try:
+            end_date = datetime.fromisoformat(end.replace('Z', '+00:00'))
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Formato de fecha de fin inválido")
+    
+    # Si no se proporcionan fechas, usar el último día por defecto
+    if not start_date:
+        start_date = datetime.now() - timedelta(days=1)
+    
+    if not end_date:
+        end_date = datetime.now()
+    
+    # Obtener alertas para el sensor y rango de fechas
+    alerts = crud.get_alerts_by_sensor_and_dates(db, sensor_id, start_date, end_date)
+    
+    # Contar alertas por nivel de severidad
+    alert_counts = {
+        "level1": 0,
+        "level2": 0,
+        "level3": 0
+    }
+    
+    for alert in alerts:
+        if alert.severity == 1:
+            alert_counts["level1"] += 1
+        elif alert.severity == 2:
+            alert_counts["level2"] += 1
+        elif alert.severity == 3:
+            alert_counts["level3"] += 1
+    
+    return alert_counts
