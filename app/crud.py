@@ -2,7 +2,7 @@
 
 from sqlalchemy.orm import Session
 from datetime import datetime
-from app.models import Sensor, VibrationData, Machine, Model, Alert, UserConfig
+from app.models import Sensor, VibrationData, Machine, Model, Alert, UserConfig, LimitConfig
 from typing import List, Dict, Any, Optional
 
 # --- Funciones CRUD para Sensores ---
@@ -347,6 +347,45 @@ def delete_config(db: Session, config_id: int) -> bool:
 def delete_config_by_name(db: Session, name: str, user_id: int = 1) -> bool:
     """Elimina una configuración por su nombre"""
     config = get_config_by_name(db, name, user_id)
+    if config:
+        db.delete(config)
+        db.commit()
+        return True
+    return False
+
+# --- Funciones CRUD para Límites de Aceleración ---
+
+def get_limit_config(db: Session) -> Optional[LimitConfig]:
+    """Obtiene la configuración de límites o None si no existe"""
+    return db.query(LimitConfig).first()
+
+def create_limit_config(db: Session, limit_config: LimitConfig) -> LimitConfig:
+    """Crea una nueva configuración de límites"""
+    db.add(limit_config)
+    db.commit()
+    db.refresh(limit_config)
+    return limit_config
+
+def update_limit_config(db: Session, limit_config: LimitConfig) -> LimitConfig:
+    """Actualiza una configuración de límites existente"""
+    db.commit()
+    db.refresh(limit_config)
+    return limit_config
+
+def get_or_create_limit_config(db: Session) -> LimitConfig:
+    """Obtiene la configuración actual de límites o crea una con valores por defecto"""
+    config = get_limit_config(db)
+    if not config:
+        # Crear configuración con valores por defecto
+        config = LimitConfig()
+        db.add(config)
+        db.commit()
+        db.refresh(config)
+    return config
+
+def delete_limit_config(db: Session) -> bool:
+    """Elimina la configuración de límites"""
+    config = get_limit_config(db)
     if config:
         db.delete(config)
         db.commit()

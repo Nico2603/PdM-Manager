@@ -63,3 +63,24 @@ class UserConfig(Base):
     name = Column(String, nullable=False)
     value = Column(Text, nullable=True)  # JSON con configuración usuario
     updated_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now())
+
+class LimitConfig(Base):
+    __tablename__ = 'limit_config'
+    limit_config_id = Column(Integer, primary_key=True, index=True)
+    # Límites para eje X
+    acc_x_2inf = Column(Float, nullable=False, default=-2.36)
+    acc_x_2sup = Column(Float, nullable=False, default=2.18)
+    acc_x_3inf = Column(Float, nullable=False, default=-3.50)
+    acc_x_3sup = Column(Float, nullable=False, default=3.32)
+    # Límites para eje Y
+    acc_y_2inf = Column(Float, nullable=False, default=7.18)
+    acc_y_2sup = Column(Float, nullable=False, default=12.09)
+    acc_y_3inf = Column(Float, nullable=False, default=5.95)
+    acc_y_3sup = Column(Float, nullable=False, default=13.32)
+    # Límites para eje Z
+    acc_z_2inf = Column(Float, nullable=False, default=-2.39)
+    acc_z_2sup = Column(Float, nullable=False, default=1.11)
+    acc_z_3inf = Column(Float, nullable=False, default=-3.26)
+    acc_z_3sup = Column(Float, nullable=False, default=1.98)
+    # Fecha de actualización
+    updated_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now())

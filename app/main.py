@@ -1277,30 +1277,52 @@ def get_default_limits():
     return default_limits
 
 @app.get("/api/limits")
-def get_limits(
-    machine_id: int,
-    sensor_id: int,
-    db: Session = Depends(get_db)
-):
+def get_limits(db: Session = Depends(get_db)):
     """
-    Obtiene los límites configurados para un sensor específico
+    Obtiene los límites actuales de la tabla LimitConfig
+    Si no existen, devuelve los límites por defecto
     """
-    # Primero verificar si existen límites personalizados en la base de datos
-    config_name = f"limits_sensor_{sensor_id}"
-    config = crud.get_config_by_name(db, config_name)
-    
-    if config:
-        try:
-            # Convertir el valor JSON a diccionario
-            limits = json.loads(config.value)
-            return limits
-        except Exception as e:
-            # Si hay error al parsear JSON, devolver límites por defecto
-            print(f"Error al parsear límites: {str(e)}")
-            return get_default_limits()
-    else:
-        # Si no hay configuración personalizada, devolver límites por defecto
-        return get_default_limits()
+    try:
+        # Obtener la configuración existente o crear una con valores por defecto
+        config = crud.get_or_create_limit_config(db)
+        
+        # Convertir a formato esperado por el frontend
+        limits = {
+            "x": {
+                "sigma2": {
+                    "lower": config.acc_x_2inf,
+                    "upper": config.acc_x_2sup
+                },
+                "sigma3": {
+                    "lower": config.acc_x_3inf,
+                    "upper": config.acc_x_3sup
+                }
+            },
+            "y": {
+                "sigma2": {
+                    "lower": config.acc_y_2inf,
+                    "upper": config.acc_y_2sup
+                },
+                "sigma3": {
+                    "lower": config.acc_y_3inf,
+                    "upper": config.acc_y_3sup
+                }
+            },
+            "z": {
+                "sigma2": {
+                    "lower": config.acc_z_2inf,
+                    "upper": config.acc_z_2sup
+                },
+                "sigma3": {
+                    "lower": config.acc_z_3inf,
+                    "upper": config.acc_z_3sup
+                }
+            }
+        }
+        
+        return limits
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al obtener límites: {str(e)}")
 
 @app.post("/api/limits/save")
 def save_limits(
@@ -1308,7 +1330,101 @@ def save_limits(
     db: Session = Depends(get_db)
 ):
     """
-    Guarda los límites personalizados para un sensor
+    Guarda los límites personalizados en la tabla LimitConfig
+    """
+    try:
+        # Extraer límites de la petición
+        limits = data.get("limits")
+        
+        if not limits:
+            raise HTTPException(status_code=400, detail="Datos incompletos")
+        
+        # Obtener la configuración existente o crear una nueva
+        config = crud.get_or_create_limit_config(db)
+        
+        # Actualizar los valores
+        config.acc_x_2inf = limits["x"]["sigma2"]["lower"]
+        config.acc_x_2sup = limits["x"]["sigma2"]["upper"]
+        config.acc_x_3inf = limits["x"]["sigma3"]["lower"]
+        config.acc_x_3sup = limits["x"]["sigma3"]["upper"]
+        
+        config.acc_y_2inf = limits["y"]["sigma2"]["lower"]
+        config.acc_y_2sup = limits["y"]["sigma2"]["upper"]
+        config.acc_y_3inf = limits["y"]["sigma3"]["lower"]
+        config.acc_y_3sup = limits["y"]["sigma3"]["upper"]
+        
+        config.acc_z_2inf = limits["z"]["sigma2"]["lower"]
+        config.acc_z_2sup = limits["z"]["sigma2"]["upper"]
+        config.acc_z_3inf = limits["z"]["sigma3"]["lower"]
+        config.acc_z_3sup = limits["z"]["sigma3"]["upper"]
+        
+        # Guardar cambios
+        crud.update_limit_config(db, config)
+        
+        return {"status": "success", "limits": limits}
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al guardar límites: {str(e)}")
+
+@app.post("/api/limits/reset")
+def reset_limits(db: Session = Depends(get_db)):
+    """
+    Restablece los límites a los valores por defecto
+    """
+    try:
+        # Eliminar la configuración existente para forzar el uso de valores por defecto
+        crud.delete_limit_config(db)
+        
+        # Crear una nueva configuración con valores por defecto
+        config = crud.get_or_create_limit_config(db)
+        
+        # Convertir a formato esperado por el frontend
+        limits = {
+            "x": {
+                "sigma2": {
+                    "lower": config.acc_x_2inf,
+                    "upper": config.acc_x_2sup
+                },
+                "sigma3": {
+                    "lower": config.acc_x_3inf,
+                    "upper": config.acc_x_3sup
+                }
+            },
+            "y": {
+                "sigma2": {
+                    "lower": config.acc_y_2inf,
+                    "upper": config.acc_y_2sup
+                },
+                "sigma3": {
+                    "lower": config.acc_y_3inf,
+                    "upper": config.acc_y_3sup
+                }
+            },
+            "z": {
+                "sigma2": {
+                    "lower": config.acc_z_2inf,
+                    "upper": config.acc_z_2sup
+                },
+                "sigma3": {
+                    "lower": config.acc_z_3inf,
+                    "upper": config.acc_z_3sup
+                }
+            }
+        }
+        
+        return {"status": "success", "limits": limits}
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al restablecer límites: {str(e)}")
+        
+# Sistema heredado - mantener para compatibilidad
+@app.post("/api/limits/save_legacy")
+def save_limits_legacy(
+    data: Dict[str, Any] = Body(...),
+    db: Session = Depends(get_db)
+):
+    """
+    Guarda los límites personalizados para un sensor (método heredado)
     """
     try:
         # Extraer datos de la petición
@@ -1339,34 +1455,33 @@ def save_limits(
             )
             crud.create_config(db, new_config)
         
+        # También actualizar la tabla LimitConfig global
+        # Obtener la configuración existente o crear una nueva
+        limit_config = crud.get_or_create_limit_config(db)
+        
+        # Actualizar los valores
+        limit_config.acc_x_2inf = limits["x"]["sigma2"]["lower"]
+        limit_config.acc_x_2sup = limits["x"]["sigma2"]["upper"]
+        limit_config.acc_x_3inf = limits["x"]["sigma3"]["lower"]
+        limit_config.acc_x_3sup = limits["x"]["sigma3"]["upper"]
+        
+        limit_config.acc_y_2inf = limits["y"]["sigma2"]["lower"]
+        limit_config.acc_y_2sup = limits["y"]["sigma2"]["upper"]
+        limit_config.acc_y_3inf = limits["y"]["sigma3"]["lower"]
+        limit_config.acc_y_3sup = limits["y"]["sigma3"]["upper"]
+        
+        limit_config.acc_z_2inf = limits["z"]["sigma2"]["lower"]
+        limit_config.acc_z_2sup = limits["z"]["sigma2"]["upper"]
+        limit_config.acc_z_3inf = limits["z"]["sigma3"]["lower"]
+        limit_config.acc_z_3sup = limits["z"]["sigma3"]["upper"]
+        
+        # Guardar cambios
+        crud.update_limit_config(db, limit_config)
+        
         return {"status": "success", "limits": limits}
     
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al guardar límites: {str(e)}")
-
-@app.delete("/api/limits/reset")
-def reset_limits(
-    sensor_id: int,
-    db: Session = Depends(get_db)
-):
-    """
-    Elimina los límites personalizados y restaura valores por defecto
-    """
-    try:
-        config_name = f"limits_sensor_{sensor_id}"
-        success = crud.delete_config_by_name(db, config_name)
-        
-        # Devolver los límites por defecto
-        default_limits = get_default_limits()
-        
-        if success:
-            return {"status": "success", "message": "Límites restablecidos", "limits": default_limits}
-        else:
-            # Si no había configuración personalizada, aún así es un "éxito"
-            return {"status": "success", "message": "No había límites personalizados", "limits": default_limits}
-    
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error al restablecer límites: {str(e)}")
 
 # Función auxiliar para verificar si hay configuración
 def check_configuration_exists(db: Session) -> bool:
@@ -1469,7 +1584,7 @@ def get_data_for_dashboard(
     vibration_data = crud.get_vibration_data_by_sensor_and_dates(db, sensor, start_date, now)
     
     # Obtener límites configurados para este sensor
-    limits = get_limits(machine, sensor, db)
+    limits = get_limits(db)
     
     # Formatear datos para el dashboard
     timestamps = []

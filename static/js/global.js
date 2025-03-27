@@ -1193,6 +1193,7 @@ function updateDashboardData() {
     
     showLoadingToast('Actualizando datos...');
     
+    // Primero, cargar los datos de vibraciones
     fetch(`/api/data?machine=${selectedMachine}&sensor=${selectedSensor}&timeRange=${timeRange}`)
         .then(response => {
             if (!response.ok) {
@@ -1203,26 +1204,38 @@ function updateDashboardData() {
             return response.json();
         })
         .then(data => {
-            hideLoadingToast();
-            
+            // Guardar datos y procesar alertas
             if (data.status === 'error') {
                 showToast('danger', data.message);
                 return;
             }
             
-            // Actualizar datos de los gráficos
+            // Guardar los datos de vibraciones
             chartData = data.chartData;
             
-            // Actualizar estadísticas
-            stats = data.stats;
+            // Actualizar contadores de alertas
+            updateAlertCounters(data.alerts);
+            
+            // Luego, cargar los límites globales
+            return fetch(`/api/limits`);
+        })
+        .then(response => {
+            if (!response.ok) {
+                // Si hay un error, usar los límites por defecto
+                return fetch('/api/limits/default');
+            }
+            return response.json();
+        })
+        .then(limitsData => {
+            hideLoadingToast();
+            
+            // Actualizar estadísticas con los límites globales
+            stats = limitsData;
             
             // Actualizar gráficos
             updateVibrationChartX();
             updateVibrationChartY();
             updateVibrationChartZ();
-            
-            // Actualizar contadores de alertas
-            updateAlertCounters(data.alerts);
             
             // Actualizar valores estadísticos en la interfaz
             updateStatisticalDisplayValues();
@@ -3097,7 +3110,7 @@ function loadSensorsForLimits(machineId) {
 function loadLimitsForSensor(machineId, sensorId) {
     showLoadingToast('Cargando límites...');
     
-    fetch(`/api/limits?machine_id=${machineId}&sensor_id=${sensorId}`)
+    fetch(`/api/limits`)
         .then(response => {
             if (!response.ok) {
                 // Si no hay límites específicos, usar los valores por defecto
@@ -3201,16 +3214,33 @@ function saveLimitsConfig() {
     
     showLoadingToast('Guardando límites...');
     
+    // Guardar en el nuevo sistema de límites globales
     fetch('/api/limits/save', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
         },
-        body: JSON.stringify(limitsData)
+        body: JSON.stringify({limits: limitsData.limits})
     })
     .then(response => {
         if (!response.ok) {
             throw new Error('Error al guardar los límites');
+        }
+        return response.json();
+    })
+    .then(data => {
+        // También guardar en el sistema heredado para compatibilidad
+        return fetch('/api/limits/save_legacy', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(limitsData)
+        });
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Error al guardar los límites en sistema heredado');
         }
         return response.json();
     })
@@ -3250,39 +3280,52 @@ function resetLimitsToDefault() {
     
     showLoadingToast('Restableciendo límites por defecto...');
     
-    fetch('/api/limits/default')
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('Error al obtener los límites por defecto');
-            }
-            return response.json();
-        })
-        .then(data => {
-            hideLoadingToast();
+    fetch('/api/limits/reset', {
+        method: 'POST'
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Error al restablecer los límites');
+        }
+        return response.json();
+    })
+    .then(data => {
+        hideLoadingToast();
+        
+        // Llenar el formulario con los valores por defecto
+        document.getElementById('x2SigmaLower').value = data.limits.x.sigma2.lower;
+        document.getElementById('x2SigmaUpper').value = data.limits.x.sigma2.upper;
+        document.getElementById('x3SigmaLower').value = data.limits.x.sigma3.lower;
+        document.getElementById('x3SigmaUpper').value = data.limits.x.sigma3.upper;
+        
+        document.getElementById('y2SigmaLower').value = data.limits.y.sigma2.lower;
+        document.getElementById('y2SigmaUpper').value = data.limits.y.sigma2.upper;
+        document.getElementById('y3SigmaLower').value = data.limits.y.sigma3.lower;
+        document.getElementById('y3SigmaUpper').value = data.limits.y.sigma3.upper;
+        
+        document.getElementById('z2SigmaLower').value = data.limits.z.sigma2.lower;
+        document.getElementById('z2SigmaUpper').value = data.limits.z.sigma2.upper;
+        document.getElementById('z3SigmaLower').value = data.limits.z.sigma3.lower;
+        document.getElementById('z3SigmaUpper').value = data.limits.z.sigma3.upper;
+        
+        showToast('success', 'Límites restablecidos a los valores por defecto');
+        
+        // Actualizar las estadísticas globales si es el sensor actualmente seleccionado
+        if (selectedMachine == machineId && selectedSensor == sensorId) {
+            stats = data.limits;
+            updateStatisticalDisplayValues();
             
-            // Llenar el formulario con los valores por defecto
-            document.getElementById('x2SigmaLower').value = data.x.sigma2.lower;
-            document.getElementById('x2SigmaUpper').value = data.x.sigma2.upper;
-            document.getElementById('x3SigmaLower').value = data.x.sigma3.lower;
-            document.getElementById('x3SigmaUpper').value = data.x.sigma3.upper;
-            
-            document.getElementById('y2SigmaLower').value = data.y.sigma2.lower;
-            document.getElementById('y2SigmaUpper').value = data.y.sigma2.upper;
-            document.getElementById('y3SigmaLower').value = data.y.sigma3.lower;
-            document.getElementById('y3SigmaUpper').value = data.y.sigma3.upper;
-            
-            document.getElementById('z2SigmaLower').value = data.z.sigma2.lower;
-            document.getElementById('z2SigmaUpper').value = data.z.sigma2.upper;
-            document.getElementById('z3SigmaLower').value = data.z.sigma3.lower;
-            document.getElementById('z3SigmaUpper').value = data.z.sigma3.upper;
-            
-            showToast('success', 'Límites restablecidos a los valores por defecto');
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            hideLoadingToast();
-            showToast('danger', 'Error al restablecer los límites: ' + error.message);
-        });
+            // Actualizar las gráficas
+            updateVibrationChartX();
+            updateVibrationChartY();
+            updateVibrationChartZ();
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        hideLoadingToast();
+        showToast('danger', 'Error al restablecer los límites: ' + error.message);
+    });
 }
 
 // Resto del código de configuración... 
