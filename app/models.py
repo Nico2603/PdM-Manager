@@ -16,6 +16,7 @@ class Model(Base):
     __tablename__ = 'model'
     model_id = Column(Integer, primary_key=True, index=True)
     route_h5 = Column(String, nullable=False)
+    route_pkl = Column(String, nullable=True)  # Ruta al archivo del escalador
     name = Column(String, nullable=False)
     description = Column(Text, nullable=True)
     last_update = Column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)

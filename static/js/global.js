@@ -153,12 +153,16 @@ function loadMachinesTable() {
       machines.forEach(machine => {
         const row = document.createElement('tr');
         
+        // Obtener nombres de sensor y modelo del resultado del backend
+        const sensorName = machine.sensor_name || 'No asignado';
+        const modelName = machine.model_name || 'No asignado';
+        
         row.innerHTML = `
           <td>${machine.machine_id}</td>
           <td>${machine.name}</td>
           <td>${machine.description || '-'}</td>
-          <td>${machine.sensor_id || 'No asignado'}</td>
-          <td>${machine.model_id || 'No asignado'}</td>
+          <td>${sensorName}</td>
+          <td>${modelName}</td>
           <td class="actions-cell">
             <button class="btn-icon btn-edit" data-id="${machine.machine_id}">
               <i class="fas fa-edit"></i>
@@ -1950,6 +1954,9 @@ function initConfig() {
     // Inicializar la gestión de máquinas
     initMachineManagement();
     
+    // Inicializar la gestión de sensores
+    initSensorManagement();
+    
     // Inicializar formularios y botones
     initConfigForm();
     initConfigActions();
@@ -3177,3 +3184,548 @@ function resetLimitsToDefault() {
 }
 
 // Resto del código de configuración... 
+
+// ===================================================
+// GESTIÓN DE SENSORES
+// ===================================================
+
+// Inicialización de la gestión de sensores
+function initSensorManagement() {
+  // Cargar lista de sensores
+  loadSensorsTable();
+  
+  // Configurar evento para añadir nuevo sensor
+  const addSensorBtn = document.getElementById('addSensorBtn');
+  if (addSensorBtn) {
+    addSensorBtn.addEventListener('click', () => {
+      // Limpiar el formulario
+      document.getElementById('sensorForm').reset();
+      document.getElementById('sensorId').value = '';
+      document.getElementById('sensorModalTitle').textContent = 'Nuevo Sensor';
+      
+      // Mostrar el modal
+      const modal = document.getElementById('sensorModal');
+      modal.classList.add('show');
+    });
+  }
+  
+  // Configurar evento para guardar sensor
+  const saveSensorBtn = document.getElementById('saveSensorBtn');
+  if (saveSensorBtn) {
+    saveSensorBtn.addEventListener('click', saveSensor);
+  }
+  
+  // Configurar eventos para cerrar modales (si no se han configurado ya)
+  const closeButtons = document.querySelectorAll('[data-dismiss="modal"]');
+  closeButtons.forEach(button => {
+    button.addEventListener('click', () => {
+      const modal = button.closest('.modal');
+      if (modal) modal.classList.remove('show');
+    });
+  });
+}
+
+// Cargar tabla de sensores
+function loadSensorsTable() {
+  fetch('/api/sensors')
+    .then(response => {
+      if (!response.ok) {
+        throw new Error('Error al cargar los sensores');
+      }
+      return response.json();
+    })
+    .then(sensors => {
+      const tableBody = document.getElementById('sensorsTableBody');
+      if (!tableBody) return;
+      
+      tableBody.innerHTML = '';
+      
+      if (sensors.length === 0) {
+        tableBody.innerHTML = '<tr><td colspan="5" class="text-center">No hay sensores registrados</td></tr>';
+        return;
+      }
+      
+      // Procesar cada sensor
+      sensors.forEach(sensor => {
+        // Obtener el número de máquinas asociadas al sensor
+        fetch(`/api/sensors/${sensor.sensor_id}/machines`)
+          .then(response => response.json())
+          .then(machines => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+              <td>${sensor.sensor_id}</td>
+              <td>${sensor.name}</td>
+              <td>${sensor.description || '-'}</td>
+              <td>
+                <span class="badge">${machines.length} máquina(s)</span>
+                ${machines.length > 0 ? 
+                  `<button class="btn-icon view-machines" data-id="${sensor.sensor_id}" data-name="${sensor.name}">
+                    <i class="fas fa-eye"></i>
+                  </button>` : ''}
+              </td>
+              <td>
+                <button class="btn-icon edit-sensor" data-id="${sensor.sensor_id}" title="Editar">
+                  <i class="fas fa-edit"></i>
+                </button>
+                <button class="btn-icon delete-sensor" data-id="${sensor.sensor_id}" title="Eliminar">
+                  <i class="fas fa-trash-alt"></i>
+                </button>
+              </td>
+            `;
+            
+            tableBody.appendChild(row);
+            
+            // Añadir event listeners a los botones
+            // (hacemos esto aquí para que se aplique a la fila recién añadida)
+            const viewButton = row.querySelector('.view-machines');
+            if (viewButton) {
+              viewButton.addEventListener('click', () => {
+                showSensorMachines(sensor.sensor_id, sensor.name);
+              });
+            }
+            
+            const editButton = row.querySelector('.edit-sensor');
+            if (editButton) {
+              editButton.addEventListener('click', () => {
+                editSensor(sensor.sensor_id);
+              });
+            }
+            
+            const deleteButton = row.querySelector('.delete-sensor');
+            if (deleteButton) {
+              deleteButton.addEventListener('click', () => {
+                deleteSensor(sensor.sensor_id);
+              });
+            }
+          })
+          .catch(error => {
+            console.error(`Error al obtener máquinas para el sensor ${sensor.sensor_id}:`, error);
+          });
+      });
+    })
+    .catch(error => {
+      console.error('Error al cargar sensores:', error);
+      showToast('Error al cargar la lista de sensores', 'error');
+    });
+}
+
+// Mostrar las máquinas asociadas a un sensor
+function showSensorMachines(sensorId, sensorName) {
+  fetch(`/api/sensors/${sensorId}/machines`)
+    .then(response => {
+      if (!response.ok) {
+        throw new Error('Error al cargar las máquinas asociadas');
+      }
+      return response.json();
+    })
+    .then(associatedMachines => {
+      // Actualizar el título del modal
+      const modalTitle = document.getElementById('sensorMachinesTitle');
+      if (modalTitle) {
+        modalTitle.textContent = `Máquinas asociadas a: ${sensorName}`;
+      }
+      
+      // Actualizar la lista de máquinas
+      const machinesList = document.getElementById('sensorMachinesList');
+      if (machinesList) {
+        machinesList.innerHTML = '';
+        
+        if (associatedMachines.length === 0) {
+          machinesList.innerHTML = '<li class="list-group-item">No hay máquinas asociadas a este sensor</li>';
+        } else {
+          associatedMachines.forEach(machine => {
+            const item = document.createElement('li');
+            item.className = 'list-group-item';
+            item.innerHTML = `
+              <div class="d-flex justify-content-between align-items-center">
+                <span><strong>${machine.name}</strong> - ${machine.description || 'Sin descripción'}</span>
+                <span class="badge">${machine.status || 'Sin estado'}</span>
+              </div>
+            `;
+            machinesList.appendChild(item);
+          });
+        }
+      }
+      
+      // Mostrar el modal
+      const modal = document.getElementById('sensorMachinesModal');
+      if (modal) {
+        modal.classList.add('show');
+      }
+    })
+    .catch(error => {
+      console.error('Error al cargar máquinas:', error);
+      showToast('Error al cargar las máquinas asociadas', 'error');
+    });
+}
+
+// Editar un sensor existente
+function editSensor(sensorId) {
+  fetch(`/api/sensors/${sensorId}`)
+    .then(response => response.json())
+    .then(sensor => {
+      // Llenar formulario con datos del sensor
+      document.getElementById('sensorId').value = sensor.sensor_id;
+      document.getElementById('sensorName').value = sensor.name;
+      document.getElementById('sensorDescription').value = sensor.description || '';
+      
+      // Actualizar título del modal
+      document.getElementById('sensorModalTitle').textContent = 'Editar Sensor';
+      
+      // Mostrar el modal
+      const modal = document.getElementById('sensorModal');
+      modal.classList.add('show');
+    })
+    .catch(error => {
+      console.error('Error al cargar sensor:', error);
+      showToast('Error al cargar los datos del sensor', 'error');
+    });
+}
+
+// Guardar sensor (crear o actualizar)
+function saveSensor() {
+  const sensorId = document.getElementById('sensorId').value;
+  const form = document.getElementById('sensorForm');
+  
+  // Validar el formulario
+  if (!form.checkValidity()) {
+    form.reportValidity();
+    return;
+  }
+  
+  // Preparar datos del formulario
+  const name = document.getElementById('sensorName').value;
+  const description = document.getElementById('sensorDescription').value;
+  
+  // Crear FormData para el envío
+  const formData = new FormData();
+  formData.append('name', name);
+  formData.append('description', description);
+  
+  // Determinar si es una creación o actualización
+  const isUpdate = !!sensorId;
+  let url = '/api/sensors';
+  let method = 'POST';
+  
+  if (isUpdate) {
+    url = `/api/sensors/${sensorId}`;
+    method = 'PUT';
+  }
+  
+  // Enviar solicitud
+  fetch(url, {
+    method: method,
+    body: formData
+  })
+    .then(response => {
+      if (!response.ok) {
+        throw new Error('Error al guardar el sensor');
+      }
+      return response.json();
+    })
+    .then(() => {
+      // Cerrar modal
+      const modal = document.getElementById('sensorModal');
+      modal.classList.remove('show');
+      
+      // Recargar lista de sensores
+      loadSensorsTable();
+      
+      // Mostrar mensaje de éxito
+      const message = isUpdate ? 'Sensor actualizado correctamente' : 'Sensor creado correctamente';
+      showToast(message, 'success');
+    })
+    .catch(error => {
+      console.error('Error al guardar sensor:', error);
+      showToast('Error al guardar el sensor', 'error');
+    });
+}
+
+// Eliminar sensor
+function deleteSensor(sensorId) {
+  // Confirmar eliminación
+  if (!confirm('¿Está seguro de que desea eliminar este sensor?')) {
+    return;
+  }
+  
+  fetch(`/api/sensors/${sensorId}`, {
+    method: 'DELETE'
+  })
+    .then(response => {
+      if (!response.ok) {
+        throw new Error('Error al eliminar el sensor');
+      }
+      return response.json();
+    })
+    .then(() => {
+      // Recargar lista de sensores
+      loadSensorsTable();
+      
+      // Mostrar mensaje de éxito
+      showToast('Sensor eliminado correctamente', 'success');
+    })
+    .catch(error => {
+      console.error('Error al eliminar sensor:', error);
+      showToast('Error al eliminar el sensor', 'error');
+    });
+}
+
+// ==========================================================================
+// GESTIÓN DE MODELOS
+// ==========================================================================
+
+// Cargar y mostrar la lista de modelos
+function loadModels() {
+  fetch('/api/models')
+    .then(response => response.json())
+    .then(models => {
+      const tableBody = document.getElementById('modelsTableBody');
+      if (!tableBody) return;
+      
+      tableBody.innerHTML = '';
+      
+      if (models.length === 0) {
+        const emptyRow = document.createElement('tr');
+        emptyRow.innerHTML = `<td colspan="5" class="text-center">No hay modelos disponibles</td>`;
+        tableBody.appendChild(emptyRow);
+        return;
+      }
+      
+      models.forEach(model => {
+        // Formatear la fecha
+        const date = new Date(model.last_update);
+        const formattedDate = `${date.toLocaleDateString()} ${date.toLocaleTimeString()}`;
+        
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td>${model.model_id}</td>
+          <td>${model.name}</td>
+          <td>${model.description || 'Sin descripción'}</td>
+          <td>${formattedDate}</td>
+          <td>
+            <div class="table-actions">
+              <button class="btn-icon edit-model" data-id="${model.model_id}">
+                <i class="fas fa-edit"></i>
+              </button>
+              <button class="btn-icon delete-model" data-id="${model.model_id}">
+                <i class="fas fa-trash-alt"></i>
+              </button>
+            </div>
+          </td>
+        `;
+        tableBody.appendChild(row);
+      });
+      
+      // Agregar event listeners a los botones de editar y eliminar
+      addModelActionListeners();
+      
+      // También recargar los modelos en los selectores
+      loadModelsForSelect();
+    })
+    .catch(error => {
+      console.error('Error al cargar modelos:', error);
+      showToast('Error al cargar los modelos', 'error');
+    });
+}
+
+// Agregar listeners a los botones de acciones de modelos
+function addModelActionListeners() {
+  // Botones de editar
+  document.querySelectorAll('.edit-model').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const modelId = e.currentTarget.getAttribute('data-id');
+      openModelModal('edit', modelId);
+    });
+  });
+  
+  // Botones de eliminar
+  document.querySelectorAll('.delete-model').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const modelId = e.currentTarget.getAttribute('data-id');
+      document.getElementById('deleteModelId').value = modelId;
+      openModal('deleteModelModal');
+    });
+  });
+}
+
+// Abrir modal para crear o editar modelo
+async function openModelModal(mode, modelId = null) {
+  const modal = document.getElementById('modelModal');
+  const title = document.getElementById('modelModalTitle');
+  const form = document.getElementById('modelForm');
+  const modelFileRequired = document.getElementById('modelFileRequired');
+  const modelFileOptional = document.getElementById('modelFileOptional');
+  
+  // Resetear el formulario
+  form.reset();
+  document.getElementById('modelId').value = '';
+  document.getElementById('modelFileName').textContent = 'Ningún archivo seleccionado';
+  document.getElementById('scalerFileName').textContent = 'Ningún archivo seleccionado';
+  
+  if (mode === 'add') {
+    title.textContent = 'Añadir Modelo';
+    modelFileRequired.style.display = 'block';
+    modelFileOptional.style.display = 'none';
+  } else if (mode === 'edit') {
+    title.textContent = 'Editar Modelo';
+    modelFileRequired.style.display = 'none';
+    modelFileOptional.style.display = 'block';
+    
+    try {
+      const response = await fetch(`/api/models/${modelId}`);
+      if (!response.ok) throw new Error('No se pudo cargar el modelo');
+      
+      const model = await response.json();
+      
+      // Llenar el formulario con los datos del modelo
+      document.getElementById('modelId').value = model.model_id;
+      document.getElementById('modelName').value = model.name;
+      document.getElementById('modelDescription').value = model.description || '';
+    } catch (error) {
+      console.error('Error al cargar datos del modelo:', error);
+      showToast('Error al cargar los datos del modelo', 'error');
+      closeModal('modelModal');
+      return;
+    }
+  }
+  
+  openModal('modelModal');
+}
+
+// Manejar la visibilidad del nombre del archivo seleccionado
+function setupFileInputs() {
+  // Para el archivo del modelo
+  const modelFileInput = document.getElementById('modelFile');
+  if (modelFileInput) {
+    modelFileInput.addEventListener('change', (e) => {
+      const fileName = e.target.files[0] ? e.target.files[0].name : 'Ningún archivo seleccionado';
+      document.getElementById('modelFileName').textContent = fileName;
+    });
+  }
+  
+  // Para el archivo del escalador
+  const scalerFileInput = document.getElementById('scalerFile');
+  if (scalerFileInput) {
+    scalerFileInput.addEventListener('change', (e) => {
+      const fileName = e.target.files[0] ? e.target.files[0].name : 'Ningún archivo seleccionado';
+      document.getElementById('scalerFileName').textContent = fileName;
+    });
+  }
+  
+  // Botones personalizados para seleccionar archivos
+  document.querySelectorAll('.custom-file-button').forEach((button, index) => {
+    button.addEventListener('click', () => {
+      const fileInput = button.parentElement.querySelector('.custom-file-input');
+      if (fileInput) fileInput.click();
+    });
+  });
+}
+
+// Guardar un modelo (crear o actualizar)
+async function saveModel() {
+  const form = document.getElementById('modelForm');
+  const modelId = document.getElementById('modelId').value;
+  const modelName = document.getElementById('modelName').value;
+  const modelDescription = document.getElementById('modelDescription').value;
+  const modelFile = document.getElementById('modelFile').files[0];
+  const scalerFile = document.getElementById('scalerFile').files[0];
+  
+  // Validación básica
+  if (!modelName.trim()) {
+    showToast('El nombre del modelo es obligatorio', 'error');
+    return;
+  }
+  
+  // Si es un nuevo modelo, el archivo es obligatorio
+  if (!modelId && !modelFile) {
+    showToast('Debe seleccionar un archivo .h5 para el modelo', 'error');
+    return;
+  }
+  
+  try {
+    // Crear un FormData para enviar archivos
+    const formData = new FormData();
+    formData.append('name', modelName);
+    if (modelDescription) formData.append('description', modelDescription);
+    if (modelFile) formData.append('model_file', modelFile);
+    if (scalerFile) formData.append('scaler_file', scalerFile);
+    
+    // Determinar si es crear o actualizar
+    let url = '/api/models';
+    let method = 'POST';
+    
+    if (modelId) {
+      url = `/api/models/${modelId}`;
+      method = 'PUT';
+    }
+    
+    const response = await fetch(url, {
+      method: method,
+      body: formData
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.detail || 'Error al guardar el modelo');
+    }
+    
+    const result = await response.json();
+    
+    showToast(result.message || 'Modelo guardado correctamente', 'success');
+    closeModal('modelModal');
+    loadModels(); // Recargar la lista de modelos
+  } catch (error) {
+    console.error('Error al guardar el modelo:', error);
+    showToast(`Error: ${error.message}`, 'error');
+  }
+}
+
+// Eliminar un modelo
+async function deleteModel() {
+  const modelId = document.getElementById('deleteModelId').value;
+  
+  if (!modelId) {
+    showToast('ID de modelo no válido', 'error');
+    return;
+  }
+  
+  try {
+    const response = await fetch(`/api/models/${modelId}`, {
+      method: 'DELETE'
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.detail || 'Error al eliminar el modelo');
+    }
+    
+    const result = await response.json();
+    
+    showToast(result.message || 'Modelo eliminado correctamente', 'success');
+    closeModal('deleteModelModal');
+    loadModels(); // Recargar la lista de modelos
+  } catch (error) {
+    console.error('Error al eliminar el modelo:', error);
+    showToast(`Error: ${error.message}`, 'error');
+  }
+}
+
+// ==========================================================================
+// INICIALIZACIÓN Y EVENT LISTENERS GENERALES
+// ==========================================================================
+
+// ... existing code ...
+
+// Inicializar la gestión de modelos
+document.getElementById('addModelBtn')?.addEventListener('click', () => openModelModal('add'));
+document.getElementById('saveModelBtn')?.addEventListener('click', saveModel);
+document.getElementById('confirmDeleteModelBtn')?.addEventListener('click', deleteModel);
+
+// Configurar los inputs de archivo
+setupFileInputs();
+
+// Cargar datos al iniciar
+// ... existing code ...
+loadModels();
+
+// ... existing code ...

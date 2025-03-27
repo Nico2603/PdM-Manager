@@ -416,25 +416,66 @@ def receive_sensor_data_batch(batch_data: SensorDataBatch, db: Session = Depends
     return {"results": results}
 
 @app.get("/reload_model")
-def reload_model():
+def reload_model(db: Session = Depends(get_db)):
     """
-    Recarga el modelo y el escalador desde la carpeta Modelo
+    Recarga el modelo y el escalador desde la base de datos
     """
     global modelo, scaler
     
     try:
-        # Recargar modelo
-        modelo = load_model(os.path.join(MODELO_DIR, "modelo_pdm.h5"))
+        # Buscar una máquina con modelo asignado
+        machine_with_model = db.query(models.Machine).filter(
+            models.Machine.model_id.isnot(None)
+        ).first()
         
-        # Recargar escalador si existe
-        if os.path.exists(os.path.join(SCALER_DIR, "scaler_pdm.pkl")):
-            scaler = joblib.load(os.path.join(SCALER_DIR, "scaler_pdm.pkl"))
-            return {"status": "ok", "message": "Modelo y escalador recargados correctamente"}
-        else:
+        # Si no hay ninguna máquina con modelo asignado, intentar cargar el predeterminado
+        if not machine_with_model:
+            modelo = load_model(os.path.join(MODELO_DIR, "modelo_pdm.h5"))
+            
+            # Intentar cargar el escalador predeterminado
+            try:
+                scaler_path = os.path.join(SCALER_DIR, "scaler.pkl")
+                with open(scaler_path, 'rb') as f:
+                    scaler = pickle.load(f)
+                return {"status": "ok", "message": "Modelo y escalador predeterminados cargados correctamente"}
+            except:
+                return {
+                    "status": "partial", 
+                    "message": "Modelo predeterminado cargado correctamente, pero no se encontró el escalador"
+                }
+        
+        # Obtener el modelo de la base de datos
+        model = crud.get_model_by_id(db, machine_with_model.model_id)
+        if not model:
+            raise Exception("Modelo no encontrado en la base de datos")
+        
+        # Cargar el modelo
+        modelo = load_model(model.route_h5)
+        
+        # Intentar cargar el escalador si existe
+        if model.route_pkl and os.path.exists(model.route_pkl):
+            with open(model.route_pkl, 'rb') as f:
+                scaler = pickle.load(f)
             return {
-                "status": "warning",
-                "message": "Modelo recargado correctamente, pero no se encontró el escalador"
+                "status": "ok", 
+                "message": f"Modelo '{model.name}' y su escalador cargados correctamente"
             }
+        else:
+            # Si no hay escalador específico, intentar cargar el predeterminado
+            try:
+                scaler_path = os.path.join(SCALER_DIR, "scaler.pkl")
+                with open(scaler_path, 'rb') as f:
+                    scaler = pickle.load(f)
+                return {
+                    "status": "ok", 
+                    "message": f"Modelo '{model.name}' cargado correctamente con escalador predeterminado"
+                }
+            except:
+                return {
+                    "status": "partial", 
+                    "message": f"Modelo '{model.name}' cargado correctamente, pero no se encontró ningún escalador"
+                }
+    
     except Exception as e:
         return {"status": "error", "message": f"Error recargando el modelo: {str(e)}"}
 
@@ -477,7 +518,7 @@ def create_new_sensor(
     return crud.create_sensor(db, sensor)
 
 @app.put("/api/sensors/{sensor_id}", response_model=Dict[str, Any])
-def update_sensor_info(
+def update_sensor(
     sensor_id: int,
     name: str = Form(...),
     description: str = Form(None),
@@ -487,17 +528,22 @@ def update_sensor_info(
     db: Session = Depends(get_db)
 ):
     """
-    Actualiza información de un sensor existente
+    Actualiza la información de un sensor existente
     """
+    # Verificar que el sensor existe
     sensor = crud.get_sensor_by_id(db, sensor_id)
     if not sensor:
         raise HTTPException(status_code=404, detail=f"Sensor con ID {sensor_id} no encontrado")
     
+    # Actualizar los datos del sensor
     sensor.name = name
     sensor.description = description
-    sensor.location = location
-    sensor.type = type
-    sensor.machine_id = machine_id
+    if location is not None:
+        sensor.location = location
+    if type is not None:
+        sensor.type = type
+    if machine_id is not None:
+        sensor.machine_id = machine_id
     
     return crud.update_sensor(db, sensor)
 
@@ -511,6 +557,30 @@ def delete_sensor_info(sensor_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail=f"Sensor con ID {sensor_id} no encontrado")
     
     return {"status": "ok", "message": f"Sensor {sensor_id} eliminado correctamente"}
+
+@app.get("/api/sensors/{sensor_id}/machines", response_model=List[Dict[str, Any]])
+def get_machines_by_sensor(sensor_id: int, db: Session = Depends(get_db)):
+    """
+    Obtiene la lista de máquinas asociadas a un sensor específico
+    """
+    # Verificar que el sensor existe
+    sensor = crud.get_sensor_by_id(db, sensor_id)
+    if not sensor:
+        raise HTTPException(status_code=404, detail=f"Sensor con ID {sensor_id} no encontrado")
+    
+    # Obtener las máquinas que utilizan este sensor
+    machines = db.query(models.Machine).filter(models.Machine.sensor_id == sensor_id).all()
+    
+    # Convertir a diccionarios
+    result = []
+    for machine in machines:
+        machine_dict = machine.__dict__.copy()
+        # Eliminar atributos internos de SQLAlchemy
+        if '_sa_instance_state' in machine_dict:
+            machine_dict.pop('_sa_instance_state')
+        result.append(machine_dict)
+    
+    return result
 
 @app.get("/api/vibration-data", response_model=List[Dict[str, Any]])
 def get_all_vibration_data(
@@ -646,20 +716,54 @@ def get_dashboard_data(sensor_id: Optional[int] = None, db: Session = Depends(ge
 @app.get("/api/machines")
 def get_all_machines(db: Session = Depends(get_db)):
     """
-    Obtiene la lista de todas las máquinas
+    Obtiene la lista de todas las máquinas con información de sensores y modelos
     """
     machines = crud.get_machines(db)
-    return [machine.__dict__ for machine in machines]
+    result = []
+    
+    for machine in machines:
+        machine_dict = machine.__dict__.copy()
+        
+        # Obtener información del sensor si existe
+        if machine.sensor_id:
+            sensor = crud.get_sensor_by_id(db, machine.sensor_id)
+            if sensor:
+                machine_dict["sensor_name"] = sensor.name
+        
+        # Obtener información del modelo si existe
+        if machine.model_id:
+            model = crud.get_model_by_id(db, machine.model_id)
+            if model:
+                machine_dict["model_name"] = model.name
+        
+        result.append(machine_dict)
+    
+    return result
 
 @app.get("/api/machines/{machine_id}")
 def get_machine_info(machine_id: int, db: Session = Depends(get_db)):
     """
-    Obtiene información detallada de una máquina por su ID
+    Obtiene información detallada de una máquina por su ID, incluyendo nombres de sensor y modelo
     """
     machine = crud.get_machine_by_id(db, machine_id)
     if not machine:
         raise HTTPException(status_code=404, detail=f"Máquina con ID {machine_id} no encontrada")
-    return machine.__dict__
+    
+    result = machine.__dict__.copy()
+    
+    # Obtener información del sensor si existe
+    if machine.sensor_id:
+        sensor = crud.get_sensor_by_id(db, machine.sensor_id)
+        if sensor:
+            result["sensor_name"] = sensor.name
+    
+    # Obtener información del modelo si existe
+    if machine.model_id:
+        model = crud.get_model_by_id(db, machine.model_id)
+        if model:
+            result["model_name"] = model.name
+    
+    return result
 
 @app.post("/api/machines")
 def create_new_machine(
@@ -725,12 +829,218 @@ def get_all_models(db: Session = Depends(get_db)):
 @app.get("/api/models/{model_id}")
 def get_model_info(model_id: int, db: Session = Depends(get_db)):
     """
-    Obtiene información detallada de un modelo por su ID
+    Obtiene información de un modelo por su ID
     """
-    model_info = crud.get_model_by_id(db, model_id)
-    if not model_info:
-        raise HTTPException(status_code=404, detail=f"Modelo con ID {model_id} no encontrado")
-    return model_info.__dict__
+    model = crud.get_model_by_id(db, model_id)
+    if not model:
+        raise HTTPException(status_code=404, detail="Modelo no encontrado")
+    return model.__dict__
+
+@app.post("/api/models")
+async def create_model(
+    model_file: UploadFile = File(...),
+    scaler_file: UploadFile = None,
+    name: str = Form(...),
+    description: str = Form(None),
+    db: Session = Depends(get_db)
+):
+    """
+    Crea un nuevo modelo con un archivo .h5 y opcionalmente un archivo .pkl
+    """
+    try:
+        # Validar tipo de archivo
+        if not model_file.filename.endswith('.h5'):
+            raise HTTPException(
+                status_code=400, 
+                detail="El archivo del modelo debe ser de tipo .h5"
+            )
+        
+        if scaler_file and not scaler_file.filename.endswith('.pkl'):
+            raise HTTPException(
+                status_code=400, 
+                detail="El archivo del escalador debe ser de tipo .pkl"
+            )
+        
+        # Crear directorios si no existen
+        os.makedirs(MODELO_DIR, exist_ok=True)
+        
+        # Generar nombres únicos para los archivos
+        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+        model_filename = f"{timestamp}_{model_file.filename}"
+        model_path = os.path.join(MODELO_DIR, model_filename)
+        
+        # Guardar archivo del modelo
+        with open(model_path, "wb") as f:
+            f.write(await model_file.read())
+        
+        # Guardar archivo del escalador si se proporciona
+        scaler_path = None
+        if scaler_file:
+            scaler_filename = f"{timestamp}_{scaler_file.filename}"
+            scaler_path = os.path.join(MODELO_DIR, scaler_filename)
+            with open(scaler_path, "wb") as f:
+                f.write(await scaler_file.read())
+        
+        # Crear registro en la base de datos
+        new_model = models.Model(
+            route_h5=model_path,
+            route_pkl=scaler_path,
+            name=name,
+            description=description
+        )
+        
+        created_model = crud.create_model(db, new_model)
+        
+        return {
+            "status": "success",
+            "message": "Modelo creado correctamente",
+            "model": created_model.__dict__
+        }
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al crear el modelo: {str(e)}")
+
+@app.put("/api/models/{model_id}")
+async def update_model(
+    model_id: int,
+    model_file: UploadFile = None,
+    scaler_file: UploadFile = None,
+    name: str = Form(None),
+    description: str = Form(None),
+    db: Session = Depends(get_db)
+):
+    """
+    Actualiza un modelo existente
+    """
+    try:
+        # Verificar si el modelo existe
+        existing_model = crud.get_model_by_id(db, model_id)
+        if not existing_model:
+            raise HTTPException(status_code=404, detail="Modelo no encontrado")
+        
+        # Actualizar campos si se proporcionan
+        if name:
+            existing_model.name = name
+        
+        if description is not None:
+            existing_model.description = description
+        
+        # Manejar archivo del modelo si se proporciona
+        if model_file:
+            if not model_file.filename.endswith('.h5'):
+                raise HTTPException(
+                    status_code=400, 
+                    detail="El archivo del modelo debe ser de tipo .h5"
+                )
+            
+            # Eliminar archivo anterior si existe y no es el predeterminado
+            old_model_path = existing_model.route_h5
+            if os.path.exists(old_model_path) and os.path.basename(old_model_path) != "modelo_pdm.h5":
+                try:
+                    os.remove(old_model_path)
+                except:
+                    pass  # Si falla al eliminar, continuar de todos modos
+            
+            # Guardar nuevo archivo
+            timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+            model_filename = f"{timestamp}_{model_file.filename}"
+            model_path = os.path.join(MODELO_DIR, model_filename)
+            
+            with open(model_path, "wb") as f:
+                f.write(await model_file.read())
+            
+            existing_model.route_h5 = model_path
+        
+        # Manejar archivo del escalador si se proporciona
+        if scaler_file:
+            if not scaler_file.filename.endswith('.pkl'):
+                raise HTTPException(
+                    status_code=400, 
+                    detail="El archivo del escalador debe ser de tipo .pkl"
+                )
+            
+            # Eliminar archivo anterior si existe
+            old_scaler_path = existing_model.route_pkl
+            if old_scaler_path and os.path.exists(old_scaler_path):
+                try:
+                    os.remove(old_scaler_path)
+                except:
+                    pass  # Si falla al eliminar, continuar de todos modos
+            
+            # Guardar nuevo archivo
+            timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+            scaler_filename = f"{timestamp}_{scaler_file.filename}"
+            scaler_path = os.path.join(MODELO_DIR, scaler_filename)
+            
+            with open(scaler_path, "wb") as f:
+                f.write(await scaler_file.read())
+            
+            existing_model.route_pkl = scaler_path
+        
+        # Actualizar timestamp
+        existing_model.last_update = datetime.now()
+        
+        # Guardar cambios
+        updated_model = crud.update_model(db, existing_model)
+        
+        return {
+            "status": "success",
+            "message": "Modelo actualizado correctamente",
+            "model": updated_model.__dict__
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al actualizar el modelo: {str(e)}")
+
+@app.delete("/api/models/{model_id}")
+def delete_model(model_id: int, db: Session = Depends(get_db)):
+    """
+    Elimina un modelo existente
+    """
+    try:
+        # Verificar si el modelo existe
+        model = crud.get_model_by_id(db, model_id)
+        if not model:
+            raise HTTPException(status_code=404, detail="Modelo no encontrado")
+        
+        # Verificar si el modelo está siendo utilizado por alguna máquina
+        machines_using_model = db.query(models.Machine).filter(
+            models.Machine.model_id == model_id
+        ).count()
+        
+        if machines_using_model > 0:
+            raise HTTPException(
+                status_code=400, 
+                detail="No se puede eliminar el modelo porque está siendo utilizado por una o más máquinas"
+            )
+        
+        # Eliminar archivos asociados
+        if model.route_h5 and os.path.exists(model.route_h5):
+            try:
+                os.remove(model.route_h5)
+            except:
+                pass  # Si falla al eliminar, continuar de todos modos
+        
+        if model.route_pkl and os.path.exists(model.route_pkl):
+            try:
+                os.remove(model.route_pkl)
+            except:
+                pass  # Si falla al eliminar, continuar de todos modos
+        
+        # Eliminar registro de la base de datos
+        crud.delete_model(db, model_id)
+        
+        return {
+            "status": "success",
+            "message": "Modelo eliminado correctamente"
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al eliminar el modelo: {str(e)}")
 
 # ==========================================================================
 # RUTAS API PARA LÍMITES DE ACELERACIÓN
