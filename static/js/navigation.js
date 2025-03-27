@@ -77,14 +77,21 @@ function initNavigation() {
 
 // Navegar a la página indicada
 function navigateTo(page) {
-    // Actualizar hash en la URL
-    window.location.hash = page;
+    // Actualizar hash en la URL si no coincide ya con la página actual
+    if (window.location.hash !== '#' + page) {
+        // Usamos history.pushState para evitar recargar la página
+        history.pushState(null, null, '#' + page);
+    }
     
     // Actualizar estado de navegación
     const navLinks = document.querySelectorAll('.nav-link');
     navLinks.forEach(link => {
         const linkPage = link.getAttribute('data-page');
-        link.classList.toggle('active', linkPage === page);
+        if (linkPage === page) {
+            link.classList.add('active');
+        } else {
+            link.classList.remove('active');
+        }
     });
     
     // Mostrar la sección correspondiente
@@ -95,19 +102,45 @@ function navigateTo(page) {
     
     // Inicializar componentes específicos de la página
     initPageContent(page);
+    
+    // Actualizar datos dinámicos según la sección
+    updateSectionData(page);
+    
+    // Disparamos manualmente un evento hashchange para asegurar que otros 
+    // componentes que escuchan este evento se actualicen
+    const hashChangeEvent = new HashChangeEvent('hashchange');
+    window.dispatchEvent(hashChangeEvent);
 }
 
 // Mostrar una sección y ocultar las demás
 function showSection(sectionId) {
     const sections = document.querySelectorAll('.content-section');
+    let sectionFound = false;
     
     sections.forEach(section => {
         if (section.id === sectionId) {
             section.classList.add('active');
+            sectionFound = true;
         } else {
             section.classList.remove('active');
         }
     });
+    
+    // Si la sección no existe, mostrar un mensaje o redirigir al dashboard
+    if (!sectionFound && sectionId !== 'dashboard-section') {
+        console.warn(`La sección "${sectionId}" no existe. Redirigiendo al dashboard.`);
+        showSection('dashboard-section');
+        
+        // Actualizar URL y navegación 
+        window.location.hash = 'dashboard';
+        updateBreadcrumb('dashboard');
+        
+        const navLinks = document.querySelectorAll('.nav-link');
+        navLinks.forEach(link => {
+            const linkPage = link.getAttribute('data-page');
+            link.classList.toggle('active', linkPage === 'dashboard');
+        });
+    }
 }
 
 // Actualizar breadcrumb
@@ -133,6 +166,20 @@ function updateBreadcrumb(page) {
         }
         
         currentSectionEl.textContent = sectionName;
+    }
+}
+
+// Actualizar datos dinámicos según la sección activa
+function updateSectionData(page) {
+    switch (page) {
+        case 'dashboard':
+            if (typeof updateDashboardData === 'function') {
+                updateDashboardData();
+            }
+            break;
+        case 'configuracion':
+            // No se requiere actualización dinámica automática para configuración
+            break;
     }
 }
 
@@ -167,4 +214,24 @@ window.initSidebar = initSidebar;
 window.initNavigation = initNavigation;
 window.navigateTo = navigateTo;
 window.showSection = showSection;
-window.getCurrentPage = getCurrentPage; 
+window.getCurrentPage = getCurrentPage;
+window.updateSectionData = updateSectionData;
+
+// Inicialización al cargar la página
+document.addEventListener('DOMContentLoaded', () => {
+    // Inicializar estado global y eventos
+    if (typeof initGlobalStateEvents === 'function') {
+        initGlobalStateEvents();
+    }
+    
+    // Inicializar menú lateral
+    initSidebar();
+    
+    // Inicializar navegación
+    initNavigation();
+    
+    // Inicializar UI
+    if (typeof initUI === 'function') {
+        initUI();
+    }
+}); 

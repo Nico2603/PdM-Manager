@@ -9,14 +9,8 @@
 // VARIABLES GLOBALES DEL DASHBOARD
 // ==========================================================================
 
-// Selecciones actuales
-let selectedMachine = '';
-let selectedSensor = '';
-let timeRange = '24h';
-
-// Estado de simulación
-let simulationRunning = false;
-let simulationTimer = null;
+// Mantener referencias a las selecciones actuales (ahora gestionadas por globalState)
+// Estas referencias se eliminan y se usan las funciones de utils.js para acceder a los valores
 
 // ==========================================================================
 // INICIALIZACIÓN DEL DASHBOARD
@@ -52,6 +46,27 @@ function initDashboard() {
     
     // Cargar datos iniciales
     loadInitialData();
+    
+    // Configurar escucha para cambios de estado global
+    document.addEventListener('globalStateChange', handleGlobalStateChange);
+}
+
+// Manejar cambios en el estado global
+function handleGlobalStateChange(e) {
+    const { key, value } = e.detail;
+    
+    // Actualizaciones basadas en cambios específicos
+    if (key === 'selectedMachine' || key === 'selectedSensor' || key === 'timeRange') {
+        updateDashboardData();
+    } else if (key === 'stats') {
+        updateStatisticalDisplayValues();
+    } else if (key === 'simulation') {
+        if (value.running) {
+            startSimulationUpdates();
+        } else {
+            stopSimulationUpdates();
+        }
+    }
 }
 
 // Inicializar componentes de UI personalizados
@@ -98,20 +113,17 @@ function initCustomDropdowns() {
 function handleDropdownChange(dropdownId, value) {
     switch (dropdownId) {
         case 'machineDropdown':
-            selectedMachine = value;
+            setGlobalState('selectedMachine', value);
             // Actualizar lista de sensores si cambia la máquina
             loadSensors(value);
             break;
         case 'sensorDropdown':
-            selectedSensor = value;
+            setGlobalState('selectedSensor', value);
             break;
         case 'timeRangeDropdown':
-            timeRange = value;
+            setGlobalState('timeRange', value);
             break;
     }
-    
-    // Actualizar datos del dashboard
-    updateDashboardData();
 }
 
 // Inicializar colapso de filtros
@@ -175,7 +187,7 @@ function loadInitialData() {
             }
             
             // Cargar sensores para la máquina seleccionada (o primera máquina)
-            return loadSensors(selectedMachine);
+            return loadSensors(getGlobalState('selectedMachine'));
         })
         .then(() => {
             // Actualizar datos del dashboard
@@ -271,8 +283,8 @@ function loadMachines() {
             });
             
             // Si hay máquinas y no hay selección previa, seleccionar la primera
-            if (machines.length > 0 && !selectedMachine) {
-                selectedMachine = machines[0].machine_id;
+            if (machines.length > 0 && !getGlobalState('selectedMachine')) {
+                setGlobalState('selectedMachine', machines[0].machine_id);
                 
                 // Actualizar texto del dropdown
                 const machineDropdownText = document.getElementById('selectedMachineText');
@@ -289,38 +301,24 @@ function loadMachines() {
 
 // Cargar sensores para una máquina
 function loadSensors(machineId) {
-    // Si no hay selección, mantener la opción "Todos"
+    // Si no hay máquina seleccionada y hay máquinas disponibles, seleccionar la primera
+    if (!machineId && cache.machines && cache.machines.length > 0) {
+        machineId = cache.machines[0].machine_id;
+        setGlobalState('selectedMachine', machineId);
+    }
+    
+    // Si no hay máquina, detener
     if (!machineId) {
-        const sensorDropdownMenu = document.getElementById('sensorDropdownMenu');
-        if (!sensorDropdownMenu) return Promise.resolve();
-        
-        // Limpiar opciones anteriores, manteniendo la opción "Todos"
-        const allOption = sensorDropdownMenu.querySelector('.filter-dropdown-item[data-value=""]');
-        sensorDropdownMenu.innerHTML = '';
-        
-        if (allOption) {
-            sensorDropdownMenu.appendChild(allOption);
-        } else {
-            const newAllOption = document.createElement('div');
-            newAllOption.className = 'filter-dropdown-item selected';
-            newAllOption.setAttribute('data-value', '');
-            newAllOption.textContent = 'Todos los sensores';
-            sensorDropdownMenu.appendChild(newAllOption);
-        }
-        
-        // Resetear selección
-        selectedSensor = '';
-        
-        return Promise.resolve();
+        return Promise.resolve([]);
     }
     
     // Si ya tenemos los sensores en caché, usarlos
     if (cache.sensors[machineId]) {
         updateSensorDropdown(cache.sensors[machineId]);
-        return Promise.resolve();
+        return Promise.resolve(cache.sensors[machineId]);
     }
     
-    // Cargar sensores desde la API
+    // Obtener sensores de la API
     return fetch(`/api/machines/${machineId}/sensors`)
         .then(response => response.json())
         .then(sensors => {
@@ -329,127 +327,158 @@ function loadSensors(machineId) {
             
             // Actualizar dropdown
             updateSensorDropdown(sensors);
-        })
-        .catch(error => {
-            console.error('Error al cargar sensores:', error);
-            return Promise.reject(error);
+            
+            return sensors;
         });
 }
 
 // Actualizar dropdown de sensores
 function updateSensorDropdown(sensors) {
+    // Obtener el dropdown de sensores
     const sensorDropdownMenu = document.getElementById('sensorDropdownMenu');
     const sensorDropdownText = document.getElementById('selectedSensorText');
     
-    if (!sensorDropdownMenu) return;
+    if (!sensorDropdownMenu || !sensorDropdownText) return;
     
-    // Limpiar opciones anteriores, manteniendo la opción "Todos"
-    const allOption = sensorDropdownMenu.querySelector('.filter-dropdown-item[data-value=""]');
+    // Limpiar opciones anteriores
     sensorDropdownMenu.innerHTML = '';
     
-    if (allOption) {
-        sensorDropdownMenu.appendChild(allOption);
-    } else {
-        const newAllOption = document.createElement('div');
-        newAllOption.className = 'filter-dropdown-item selected';
-        newAllOption.setAttribute('data-value', '');
-        newAllOption.textContent = 'Todos los sensores';
-        sensorDropdownMenu.appendChild(newAllOption);
+    // Si no hay sensores, mostrar mensaje
+    if (!sensors || sensors.length === 0) {
+        const noSensorsItem = document.createElement('li');
+        noSensorsItem.className = 'filter-dropdown-item disabled';
+        noSensorsItem.textContent = 'No hay sensores disponibles';
+        sensorDropdownMenu.appendChild(noSensorsItem);
+        
+        sensorDropdownText.textContent = 'Sin sensores';
+        setGlobalState('selectedSensor', '');
+        return;
     }
     
     // Añadir sensores al dropdown
     sensors.forEach(sensor => {
-        const option = document.createElement('div');
-        option.className = 'filter-dropdown-item';
-        option.setAttribute('data-value', sensor.sensor_id);
-        option.textContent = sensor.name;
-        sensorDropdownMenu.appendChild(option);
+        const sensorItem = document.createElement('li');
+        sensorItem.className = 'filter-dropdown-item';
+        sensorItem.dataset.value = sensor.sensor_id;
+        sensorItem.textContent = sensor.sensor_name;
+        
+        sensorItem.addEventListener('click', () => {
+            // Actualizar texto visible
+            sensorDropdownText.textContent = sensor.sensor_name;
+            
+            // Cerrar dropdown
+            sensorDropdownMenu.classList.remove('show');
+            
+            // Actualizar variable global
+            setGlobalState('selectedSensor', sensor.sensor_id);
+        });
+        
+        sensorDropdownMenu.appendChild(sensorItem);
     });
     
-    // Si hay sensores y no hay selección previa, seleccionar el primero
-    if (sensors.length > 0) {
-        if (!selectedSensor) {
-            selectedSensor = sensors[0].sensor_id;
-            
-            // Actualizar texto del dropdown
-            if (sensorDropdownText) {
-                sensorDropdownText.textContent = sensors[0].name;
-            }
-        } else {
-            // Verificar que el sensor seleccionado existe en la nueva lista
-            const sensorExists = sensors.some(s => s.sensor_id === selectedSensor);
-            
-            if (!sensorExists) {
-                selectedSensor = sensors[0].sensor_id;
-                
-                // Actualizar texto del dropdown
-                if (sensorDropdownText) {
-                    sensorDropdownText.textContent = sensors[0].name;
-                }
-            }
-        }
+    // Seleccionar el primer sensor si no hay uno seleccionado o si el seleccionado no existe
+    const selectedSensor = getGlobalState('selectedSensor');
+    const sensorExists = sensors.some(s => s.sensor_id === selectedSensor);
+    
+    if (!selectedSensor || !sensorExists) {
+        // Seleccionar el primer sensor
+        const firstSensor = sensors[0];
+        setGlobalState('selectedSensor', firstSensor.sensor_id);
+        sensorDropdownText.textContent = firstSensor.sensor_name;
     } else {
-        // Si no hay sensores, resetear selección
-        selectedSensor = '';
-        
-        if (sensorDropdownText) {
-            sensorDropdownText.textContent = 'Todos los sensores';
-        }
+        // Mantener la selección actual y actualizar el texto
+        const sensor = sensors.find(s => s.sensor_id === selectedSensor);
+        sensorDropdownText.textContent = sensor.sensor_name;
     }
 }
 
 // Actualizar datos del dashboard
 function updateDashboardData() {
-    showLoadingToast('Actualizando datos...');
+    const selectedMachine = getGlobalState('selectedMachine');
+    const selectedSensor = getGlobalState('selectedSensor');
+    const timeRange = getGlobalState('timeRange');
     
-    // Construir URL según los filtros seleccionados
-    let url = '/api/vibration-data';
-    const params = [];
-    
-    if (selectedMachine) params.push(`machine_id=${selectedMachine}`);
-    if (selectedSensor) params.push(`sensor_id=${selectedSensor}`);
-    if (timeRange) params.push(`time_range=${timeRange}`);
-    
-    if (params.length > 0) {
-        url += '?' + params.join('&');
+    if (!selectedMachine || !selectedSensor) {
+        return Promise.resolve();
     }
     
-    return fetch(url)
-        .then(response => response.json())
-        .then(data => {
-            // Actualizar datos de los gráficos
-            chartData.timestamps = data.timestamps || [];
-            chartData.x = data.values?.x || [];
-            chartData.y = data.values?.y || [];
-            chartData.z = data.values?.z || [];
-            chartData.status = data.status || [];
+    showLoadingToast('Actualizando datos del dashboard...');
+    
+    // Calcular rango de tiempo
+    let startTime;
+    const endTime = new Date();
+    
+    switch (timeRange) {
+        case '1h':
+            startTime = new Date(endTime - 60 * 60 * 1000);
+            break;
+        case '6h':
+            startTime = new Date(endTime - 6 * 60 * 60 * 1000);
+            break;
+        case '12h':
+            startTime = new Date(endTime - 12 * 60 * 60 * 1000);
+            break;
+        case '24h':
+        default:
+            startTime = new Date(endTime - 24 * 60 * 60 * 1000);
+            break;
+    }
+    
+    // Formatear fechas
+    const startTimeStr = startTime.toISOString();
+    const endTimeStr = endTime.toISOString();
+    
+    // Obtener datos de vibración y alertas
+    return Promise.all([
+        fetch(`/api/machines/${selectedMachine}/sensors/${selectedSensor}/data?start=${startTimeStr}&end=${endTimeStr}`),
+        fetch(`/api/machines/${selectedMachine}/sensors/${selectedSensor}/alerts?start=${startTimeStr}&end=${endTimeStr}`)
+    ])
+    .then(([dataResponse, alertsResponse]) => Promise.all([
+        dataResponse.json(),
+        alertsResponse.json()
+    ]))
+    .then(([data, alerts]) => {
+        // Actualizar gráficos si están disponibles
+        if (typeof updateVibrationChartX === 'function' && 
+            typeof updateVibrationChartY === 'function' && 
+            typeof updateVibrationChartZ === 'function') {
+            
+            // Actualizar datos de gráficos
+            chartData.timestamps = data.map(item => new Date(item.timestamp).toLocaleTimeString());
+            chartData.x = data.map(item => item.x);
+            chartData.y = data.map(item => item.y);
+            chartData.z = data.map(item => item.z);
+            chartData.status = data.map(item => item.status);
             
             // Actualizar gráficos
             updateVibrationChartX();
             updateVibrationChartY();
             updateVibrationChartZ();
-            
-            // Actualizar contadores de alertas si están disponibles
-            if (data.alerts) {
-                updateAlertCounters(data.alerts);
-            }
-            
-            // Actualizar valores estadísticos
-            updateStatisticalDisplayValues();
-            
-            // Actualizar tiempo de última actualización
-            updateLastUpdateTime();
-            
-            return data;
-        })
-        .catch(error => {
-            console.error('Error al actualizar datos:', error);
-            showToast('Error al actualizar datos', 'error');
-            return Promise.reject(error);
-        })
-        .finally(() => {
-            hideLoadingToast();
-        });
+        }
+        
+        // Actualizar contadores de alertas
+        updateAlertCounters(alerts);
+        
+        // Actualizar valores estadísticos mostrados
+        updateStatisticalDisplayValues();
+        
+        // Actualizar datos de gráfico de historial de alertas
+        if (typeof fetchAlertsHistoryData === 'function') {
+            fetchAlertsHistoryData();
+        }
+        
+        // Actualizar hora de última actualización
+        updateLastUpdateTime();
+        
+        return {data, alerts};
+    })
+    .catch(error => {
+        console.error('Error al actualizar datos del dashboard:', error);
+        showToast('Error al actualizar datos', 'error');
+    })
+    .finally(() => {
+        hideLoadingToast();
+    });
 }
 
 // ==========================================================================
@@ -466,30 +495,29 @@ function updateAlertCounters(alerts) {
         (alerts.level1 || 0) + (alerts.level2 || 0) + (alerts.level3 || 0);
 }
 
-// Actualizar valores estadísticos que se muestran
+// Actualizar valores estadísticos mostrados
 function updateStatisticalDisplayValues() {
-    // Calcular valores estadísticos para cada eje
-    const axes = ['x', 'y', 'z'];
+    const machine = cache.machines.find(m => m.machine_id === getGlobalState('selectedMachine'));
+    const sensors = cache.sensors[getGlobalState('selectedMachine')] || [];
+    const sensor = sensors.find(s => s.sensor_id === getGlobalState('selectedSensor'));
     
-    axes.forEach(axis => {
-        const values = chartData[axis];
-        if (!values || values.length === 0) return;
+    if (!machine || !sensor) return;
+    
+    // Obtener los límites
+    const stats = getGlobalState('stats');
+    
+    // Actualizar texto de valores estadísticos
+    document.querySelectorAll('.stat-value').forEach(element => {
+        const axis = element.dataset.axis;
+        const type = element.dataset.type;
         
-        // Calcular estadísticas
-        const mean = values.reduce((sum, val) => sum + val, 0) / values.length;
-        const sortedValues = [...values].sort((a, b) => a - b);
-        const min = sortedValues[0];
-        const max = sortedValues[sortedValues.length - 1];
-        
-        // Calcular desviación estándar
-        const variance = values.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / values.length;
-        const stdDev = Math.sqrt(variance);
-        
-        // Actualizar valores en el panel de estadísticas
-        document.getElementById(`${axis}Mean`).textContent = mean.toFixed(4);
-        document.getElementById(`${axis}StdDev`).textContent = stdDev.toFixed(4);
-        document.getElementById(`${axis}Min`).textContent = min.toFixed(4);
-        document.getElementById(`${axis}Max`).textContent = max.toFixed(4);
+        if (axis && type && stats[axis] && stats[axis][type]) {
+            if (element.dataset.bound === 'upper') {
+                element.textContent = stats[axis][type].upper.toFixed(3);
+            } else if (element.dataset.bound === 'lower') {
+                element.textContent = stats[axis][type].lower.toFixed(3);
+            }
+        }
     });
 }
 
@@ -513,13 +541,13 @@ function exportToPDF() {
     
     // Obtener título según selecciones
     let title = 'Reporte de Vibración';
-    if (selectedMachine && cache.machines) {
-        const machine = cache.machines.find(m => m.machine_id === selectedMachine);
+    if (getGlobalState('selectedMachine') && cache.machines) {
+        const machine = cache.machines.find(m => m.machine_id === getGlobalState('selectedMachine'));
         if (machine) title += ` - ${machine.name}`;
     }
     
-    if (selectedSensor && cache.sensors[selectedMachine]) {
-        const sensor = cache.sensors[selectedMachine].find(s => s.sensor_id === selectedSensor);
+    if (getGlobalState('selectedSensor') && cache.sensors[getGlobalState('selectedMachine')]) {
+        const sensor = cache.sensors[getGlobalState('selectedMachine')].find(s => s.sensor_id === getGlobalState('selectedSensor'));
         if (sensor) title += ` - ${sensor.name}`;
     }
     
@@ -578,12 +606,11 @@ function checkSimulationStatus() {
         .then(response => response.json())
         .then(data => {
             if (data.running) {
-                simulationRunning = true;
-                startSimulationUpdates();
-                
-                // Actualizar UI
-                const simStatusEl = document.getElementById('simulationStatus');
-                if (simStatusEl) simStatusEl.classList.add('running');
+                // Actualizar estado global
+                setGlobalState('simulation', {
+                    running: true,
+                    timer: getGlobalState('simulation').timer
+                });
             }
         })
         .catch(error => {
@@ -591,22 +618,34 @@ function checkSimulationStatus() {
         });
 }
 
-// Iniciar actualizaciones automáticas
+// Iniciar actualizaciones automáticas por simulación
 function startSimulationUpdates() {
-    if (simulationTimer) return; // Ya está corriendo
-    
-    // Actualizar cada 5 segundos
-    simulationTimer = setInterval(() => {
+    // Establecer un temporizador para actualizar cada 10 segundos
+    const timer = setInterval(() => {
         updateDashboardData();
-    }, 5000);
+    }, 10000);
+    
+    // Guardar el temporizador
+    setGlobalState('simulation', {
+        running: true,
+        timer: timer
+    });
 }
 
-// Detener actualizaciones automáticas
+// Detener actualizaciones automáticas por simulación
 function stopSimulationUpdates() {
-    if (simulationTimer) {
-        clearInterval(simulationTimer);
-        simulationTimer = null;
+    const simulation = getGlobalState('simulation');
+    
+    // Detener el temporizador si existe
+    if (simulation.timer) {
+        clearInterval(simulation.timer);
     }
+    
+    // Actualizar estado
+    setGlobalState('simulation', {
+        running: false,
+        timer: null
+    });
 }
 
 // Exportar funciones para uso global

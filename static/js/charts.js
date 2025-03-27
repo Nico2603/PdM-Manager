@@ -24,46 +24,7 @@ let chartData = {
     status: []
 };
 
-// Estadísticas para límites (valores por defecto)
-let stats = {
-    // Límites para el eje X
-    x: {
-        sigma2: {
-            lower: -2.364295,
-            upper: 2.180056
-        },
-        sigma3: {
-            lower: -3.500383,
-            upper: 3.316144
-        }
-    },
-    // Límites para el eje Y
-    y: {
-        sigma2: {
-            lower: 7.177221,
-            upper: 12.088666
-        },
-        sigma3: {
-            lower: 5.949359,
-            upper: 13.316528
-        }
-    },
-    // Límites para el eje Z
-    z: {
-        sigma2: {
-            lower: -2.389107,
-            upper: 1.106510
-        },
-        sigma3: {
-            lower: -3.263011,
-            upper: 1.980414
-        }
-    }
-};
-
-// Opciones de visualización
-let showMean = true;     // Mostrar línea de media
-let showSigmaLines = true; // Mostrar líneas de límites sigma
+// Las estadísticas ahora se manejan con el estado global en utils.js
 
 // ==========================================================================
 // INICIALIZACIÓN DE GRÁFICOS
@@ -95,6 +56,10 @@ function initAxisChart(canvasId, title, axis) {
         mean = values.reduce((sum, value) => sum + value, 0) / values.length;
     }
     
+    // Obtener los límites del estado global
+    const stats = getGlobalState('stats');
+    const chartOptions = getGlobalState('chartOptions');
+    
     // Configuración del gráfico
     const chart = new Chart(ctx, {
         type: 'line',
@@ -121,7 +86,7 @@ function initAxisChart(canvasId, title, axis) {
                     fill: false,
                     pointRadius: 0,
                     pointHoverRadius: 0,
-                    hidden: !showMean
+                    hidden: !chartOptions.showMean
                 },
                 {
                     label: 'Límite Superior +2σ',
@@ -133,7 +98,7 @@ function initAxisChart(canvasId, title, axis) {
                     fill: '+4',  // Llenar hasta el dataset 4 (límite inferior)
                     pointRadius: 0,
                     pointHoverRadius: 0,
-                    hidden: !showSigmaLines
+                    hidden: !chartOptions.showSigmaLines
                 },
                 {
                     label: 'Límite Inferior -2σ',
@@ -144,7 +109,7 @@ function initAxisChart(canvasId, title, axis) {
                     fill: false,
                     pointRadius: 0,
                     pointHoverRadius: 0,
-                    hidden: !showSigmaLines
+                    hidden: !chartOptions.showSigmaLines
                 },
                 {
                     label: 'Límite Superior +3σ',
@@ -156,7 +121,7 @@ function initAxisChart(canvasId, title, axis) {
                     fill: '+6',  // Llenar hasta el dataset 6 (límite inferior)
                     pointRadius: 0,
                     pointHoverRadius: 0,
-                    hidden: !showSigmaLines
+                    hidden: !chartOptions.showSigmaLines
                 },
                 {
                     label: 'Límite Inferior -3σ',
@@ -167,7 +132,7 @@ function initAxisChart(canvasId, title, axis) {
                     fill: false,
                     pointRadius: 0,
                     pointHoverRadius: 0,
-                    hidden: !showSigmaLines
+                    hidden: !chartOptions.showSigmaLines
                 }
             ]
         },
@@ -199,37 +164,41 @@ function initAxisChart(canvasId, title, axis) {
             },
             plugins: {
                 legend: {
-                    display: false
+                    position: 'top',
+                    align: 'end',
+                    labels: {
+                        boxWidth: 12,
+                        usePointStyle: true,
+                        pointStyle: 'circle'
+                    }
                 },
                 tooltip: {
                     mode: 'index',
                     intersect: false,
-                    backgroundColor: 'rgba(17, 24, 39, 0.9)',
-                    titleColor: '#f9fafb',
-                    bodyColor: '#e5e7eb',
-                    borderColor: 'rgba(107, 114, 128, 0.3)',
-                    borderWidth: 1,
-                    padding: 12,
-                    boxPadding: 4,
+                    backgroundColor: 'rgba(0, 0, 0, 0.7)',
                     titleFont: {
-                        size: 14,
-                        weight: 'bold'
+                        size: 12
                     },
                     bodyFont: {
-                        size: 13
+                        size: 11
                     },
                     callbacks: {
+                        title: function(tooltipItems) {
+                            return tooltipItems[0].label;
+                        },
                         label: function(context) {
-                            const datasetLabel = context.dataset.label || '';
                             const value = context.parsed.y;
+                            let label = context.dataset.label || '';
                             
-                            if (datasetLabel.includes('Media')) {
-                                return `Media: ${value.toFixed(4)}`;
-                            } else if (datasetLabel.includes('Límite')) {
-                                return `${datasetLabel}: ${value.toFixed(4)}`;
-                            } else {
-                                return `${datasetLabel}: ${value.toFixed(4)} m/s²`;
+                            if (label) {
+                                label += ': ';
                             }
+                            
+                            if (value !== null) {
+                                label += value.toFixed(3);
+                            }
+                            
+                            return label;
                         }
                     }
                 }
@@ -237,74 +206,63 @@ function initAxisChart(canvasId, title, axis) {
         }
     });
     
-    // Asignar a la variable global correspondiente
+    // Guardar referencia al gráfico
     window[`vibrationChart${axis.toUpperCase()}`] = chart;
+    
+    // También guardar en las variables globales
+    if (axis === 'x') vibrationChartX = chart;
+    if (axis === 'y') vibrationChartY = chart;
+    if (axis === 'z') vibrationChartZ = chart;
     
     return chart;
 }
 
-// Actualizar gráfico del eje X
+// Actualizar datos del gráfico X
 function updateVibrationChartX() {
-    updateAxisChart(window.vibrationChartX, 'x');
+    updateAxisChart(vibrationChartX, 'x');
 }
 
-// Actualizar gráfico del eje Y
+// Actualizar datos del gráfico Y
 function updateVibrationChartY() {
-    updateAxisChart(window.vibrationChartY, 'y');
+    updateAxisChart(vibrationChartY, 'y');
 }
 
-// Actualizar gráfico del eje Z
+// Actualizar datos del gráfico Z
 function updateVibrationChartZ() {
-    updateAxisChart(window.vibrationChartZ, 'z');
+    updateAxisChart(vibrationChartZ, 'z');
 }
 
-// Actualizar gráfico de un eje
+// Actualizar gráfico para un eje específico
 function updateAxisChart(chart, axis) {
     if (!chart) return;
     
-    // Actualizar datos
-    chart.data.labels = chartData.timestamps;
-    chart.data.datasets[0].data = chartData[axis];
-    
-    // Calcular media
+    // Calcular media para la línea de media
     let mean = 0;
     if (chartData[axis] && chartData[axis].length > 0) {
         mean = chartData[axis].reduce((sum, value) => sum + value, 0) / chartData[axis].length;
     }
     
-    // Actualizar línea de media
-    chart.data.datasets[1].data = Array(chartData.timestamps.length).fill(mean);
-    chart.data.datasets[1].hidden = !showMean;
+    // Obtener los límites del estado global
+    const stats = getGlobalState('stats');
+    const chartOptions = getGlobalState('chartOptions');
     
-    // Actualizar líneas de límites
+    // Actualizar datos
+    chart.data.labels = chartData.timestamps;
+    chart.data.datasets[0].data = chartData[axis];
+    chart.data.datasets[1].data = Array(chartData.timestamps.length).fill(mean);
     chart.data.datasets[2].data = Array(chartData.timestamps.length).fill(stats[axis].sigma2.upper);
     chart.data.datasets[3].data = Array(chartData.timestamps.length).fill(stats[axis].sigma2.lower);
     chart.data.datasets[4].data = Array(chartData.timestamps.length).fill(stats[axis].sigma3.upper);
     chart.data.datasets[5].data = Array(chartData.timestamps.length).fill(stats[axis].sigma3.lower);
     
-    // Actualizar visibilidad de líneas sigma
-    chart.data.datasets[2].hidden = !showSigmaLines;
-    chart.data.datasets[3].hidden = !showSigmaLines;
-    chart.data.datasets[4].hidden = !showSigmaLines;
-    chart.data.datasets[5].hidden = !showSigmaLines;
+    // Actualizar visibilidad según configuración
+    chart.data.datasets[1].hidden = !chartOptions.showMean;
+    chart.data.datasets[2].hidden = !chartOptions.showSigmaLines;
+    chart.data.datasets[3].hidden = !chartOptions.showSigmaLines;
+    chart.data.datasets[4].hidden = !chartOptions.showSigmaLines;
+    chart.data.datasets[5].hidden = !chartOptions.showSigmaLines;
     
-    // Colorear puntos según estado de alerta
-    const pointBackgroundColors = [];
-    const pointBorderColors = [];
-    const pointRadiuses = [];
-    
-    chartData.status.forEach(status => {
-        let color = SEVERITY_COLORS[status] || SEVERITY_COLORS[0];
-        pointBackgroundColors.push(color);
-        pointBorderColors.push(color);
-        pointRadiuses.push(status > 0 ? 4 : 2); // Puntos más grandes para alertas
-    });
-    
-    chart.data.datasets[0].pointBackgroundColor = pointBackgroundColors;
-    chart.data.datasets[0].pointBorderColor = pointBorderColors;
-    chart.data.datasets[0].pointRadius = pointRadiuses;
-    
-    // Actualizar gráfico
+    // Aplicar actualización
     chart.update();
 }
 
@@ -456,12 +414,38 @@ function downloadChart(chartId, filename) {
 
 // Actualizar gráficos con nuevos límites
 function updateChartsWithNewLimits(limits) {
-    if (limits) {
-        // Actualizar variable global de stats
-        stats = limits;
+    // Actualizar variable global de stats
+    if (limits && typeof limits === 'object') {
+        // Actualizar el estado global
+        updateGlobalStats(limits);
+        
+        // Actualizar los gráficos
+        if (vibrationChartX) updateVibrationChartX();
+        if (vibrationChartY) updateVibrationChartY();
+        if (vibrationChartZ) updateVibrationChartZ();
+        
+        // Actualizar los valores estadísticos mostrados
+        if (typeof updateStatisticalDisplayValues === 'function') {
+            updateStatisticalDisplayValues();
+        }
     }
+}
+
+// Función para actualizar la visibilidad de los gráficos
+function updateChartsVisibility() {
+    // Obtener el estado de los switches
+    const showMean = document.getElementById('showMean')?.checked || false;
+    const show1Sigma = document.getElementById('show1Sigma')?.checked || false;
+    const show2Sigma = document.getElementById('show2Sigma')?.checked || false;
+    const show3Sigma = document.getElementById('show3Sigma')?.checked || false;
     
-    // Actualizar gráficos
+    // Actualizar el estado global
+    setGlobalState('chartOptions', {
+        showMean: showMean,
+        showSigmaLines: show2Sigma || show3Sigma
+    });
+    
+    // Actualizar los gráficos
     updateVibrationChartX();
     updateVibrationChartY();
     updateVibrationChartZ();
@@ -479,4 +463,4 @@ window.initChartDownloadButtons = initChartDownloadButtons;
 window.downloadChart = downloadChart;
 window.updateChartsWithNewLimits = updateChartsWithNewLimits;
 window.chartData = chartData;
-window.stats = stats; 
+window.stats = getGlobalState('stats'); 

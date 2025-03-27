@@ -24,6 +24,34 @@ function initConfig() {
     
     // Inicializar formulario de configuración general
     initConfigForm();
+    
+    // Inicializar botón de ajuste de límites si existe
+    if (typeof initAdjustLimitsButton === 'function') {
+        initAdjustLimitsButton();
+    }
+    
+    // Actualizar listados y datos
+    refreshConfigData();
+}
+
+// Actualizar datos de configuración
+function refreshConfigData() {
+    // Recargar tablas de datos
+    loadMachinesTable();
+    
+    // Recargar selectores
+    if (typeof loadSensorsForSelect === 'function') {
+        loadSensorsForSelect();
+    }
+    
+    if (typeof loadModelsForSelect === 'function') {
+        loadModelsForSelect();
+    }
+    
+    // Cargar configuración actual
+    if (typeof loadCurrentConfig === 'function') {
+        loadCurrentConfig();
+    }
 }
 
 // ==========================================================================

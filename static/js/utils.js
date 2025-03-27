@@ -21,6 +21,117 @@ const cache = {
 };
 
 // ==========================================================================
+// GESTIÓN DE VARIABLES GLOBALES
+// ==========================================================================
+
+// Objeto centralizado para variables globales compartidas entre módulos
+const globalState = {
+    // Máquinas y sensores seleccionados
+    selectedMachine: '',
+    selectedSensor: '',
+    timeRange: '24h',
+    
+    // Estadísticas y límites
+    stats: {
+        x: {
+            sigma2: { lower: -2.364295, upper: 2.180056 },
+            sigma3: { lower: -3.500383, upper: 3.316144 }
+        },
+        y: {
+            sigma2: { lower: 7.177221, upper: 12.088666 },
+            sigma3: { lower: 5.949359, upper: 13.316528 }
+        },
+        z: {
+            sigma2: { lower: -2.389107, upper: 1.106510 },
+            sigma3: { lower: -3.263011, upper: 1.980414 }
+        }
+    },
+    
+    // Opciones de visualización
+    chartOptions: {
+        showMean: true,
+        showSigmaLines: true
+    },
+    
+    // Estado de simulación
+    simulation: {
+        running: false,
+        timer: null
+    }
+};
+
+// Funciones para acceder y modificar el estado global
+function getGlobalState(key) {
+    if (key) {
+        return globalState[key];
+    }
+    return globalState;
+}
+
+function setGlobalState(key, value) {
+    if (key && value !== undefined) {
+        globalState[key] = value;
+        // Disparar evento para notificar cambios a otros módulos
+        dispatchGlobalStateChange(key, value);
+        return true;
+    }
+    return false;
+}
+
+function updateGlobalStats(newStats) {
+    if (newStats && typeof newStats === 'object') {
+        globalState.stats = {...globalState.stats, ...newStats};
+        dispatchGlobalStateChange('stats', globalState.stats);
+        return true;
+    }
+    return false;
+}
+
+// Evento personalizado para notificar cambios en estado global
+function dispatchGlobalStateChange(key, value) {
+    const event = new CustomEvent('globalStateChange', {
+        detail: { key, value, timestamp: new Date() }
+    });
+    document.dispatchEvent(event);
+}
+
+// Función para inicializar los eventos de cambios de estado global
+function initGlobalStateEvents() {
+    // Escuchar eventos de cambios de estado global
+    document.addEventListener('globalStateChange', (e) => {
+        const { key, value } = e.detail;
+        console.log(`Estado global actualizado: ${key}`, value);
+        
+        // Funciones específicas para reaccionar ante cambios
+        switch (key) {
+            case 'stats':
+                // Actualizar valores estadísticos visuales si existe la función
+                if (typeof updateStatisticalDisplayValues === 'function') {
+                    updateStatisticalDisplayValues();
+                }
+                break;
+            case 'chartOptions':
+                // Actualizar visibilidad de elementos en gráficos
+                if (typeof updateChartsVisibility === 'function') {
+                    updateChartsVisibility();
+                }
+                break;
+            case 'selectedMachine':
+            case 'selectedSensor':
+            case 'timeRange':
+                // Estas actualizaciones se manejan en cada módulo específico
+                break;
+        }
+    });
+}
+
+// Exponer funciones globales para acceso desde otros módulos
+window.getGlobalState = getGlobalState;
+window.setGlobalState = setGlobalState;
+window.updateGlobalStats = updateGlobalStats;
+window.initGlobalStateEvents = initGlobalStateEvents;
+
+// ==========================================================================
 // NOTIFICACIONES Y TOASTS
 // ==========================================================================
 
@@ -369,17 +480,9 @@ function initThemeToggle() {
 function initPageSpecificComponents() {
     const currentPage = getCurrentPage();
     
-    switch (currentPage) {
-        case 'dashboard':
-            if (typeof initDashboard === 'function') {
-                initDashboard();
-            }
-            break;
-        case 'configuracion':
-            if (typeof initConfig === 'function') {
-                initConfig();
-            }
-            break;
+    // Usar la función centralizada en navigation.js
+    if (typeof initPageContent === 'function') {
+        initPageContent(currentPage);
     }
 }
 
