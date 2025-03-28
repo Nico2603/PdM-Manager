@@ -398,50 +398,55 @@
                   <span>Historial de Alertas</span>
                 </div>
                 <div class="chart-actions">
-                  <button class="btn-icon" id="downloadAlertsChart" title="Descargar gráfico">
+                  <button class="btn-icon" id="downloadChartAlerts" title="Descargar gráfico">
                     <i class="fas fa-download"></i>
                   </button>
-                  <button class="btn-icon" id="refreshAlertsTable" title="Actualizar datos">
-                    <i class="fas fa-sync-alt"></i>
-                  </button>
                 </div>
               </div>
-              
-              <div class="chart-legend">
-                <div class="chart-legend-item">
-                  <div class="chart-legend-color" style="background-color: var(--color-level1)"></div>
-                  <span>Nivel 1</span>
-                </div>
-                <div class="chart-legend-item">
-                  <div class="chart-legend-color" style="background-color: var(--color-level2)"></div>
-                  <span>Nivel 2</span>
-                </div>
-                <div class="chart-legend-item">
-                  <div class="chart-legend-color" style="background-color: var(--color-level3)"></div>
-                  <span>Nivel 3</span>
-                </div>
-              </div>
-              
               <div class="chart-body">
+                <canvas id="alertsHistoryChart"></canvas>
+              </div>
+            </div>
+            
+            <!-- Datos de Vibración -->
+            <div class="card animate-slide-up" style="animation-delay: 1.1s">
+              <div class="card-header">
+                <h5><i class="fas fa-wave-square"></i> Datos de Vibración</h5>
+                <button class="btn-icon" id="refreshVibrationDataBtn" title="Refrescar datos">
+                  <i class="fas fa-sync-alt"></i>
+                </button>
+              </div>
+              <div class="card-body">
                 <div class="table-responsive">
                   <table class="data-table">
                     <thead>
                       <tr>
-                        <th>Log ID</th>
+                        <th>Data ID</th>
                         <th>Sensor ID</th>
                         <th>Fecha y Hora</th>
-                        <th>Tipo de Error</th>
+                        <th>Aceleración X</th>
+                        <th>Aceleración Y</th>
+                        <th>Aceleración Z</th>
                         <th>Severidad</th>
-                        <th>Mensaje</th>
-                        <th>Datos Vibración ID</th>
-                        <th>Estado</th>
+                        <th>Magnitud</th>
                         <th>Acciones</th>
                       </tr>
                     </thead>
-                    <tbody id="alertsTableBody">
+                    <tbody id="vibrationDataTableBody">
                       <!-- Datos cargados dinámicamente -->
                     </tbody>
                   </table>
+                </div>
+                
+                <div class="pagination-controls mt-3" id="vibrationDataPagination">
+                  <!-- Paginación -->
+                  <button class="btn-icon" id="prevVibrationPageBtn">
+                    <i class="fas fa-chevron-left"></i>
+                  </button>
+                  <span id="vibrationDataPageInfo">Página 1 de 1</span>
+                  <button class="btn-icon" id="nextVibrationPageBtn">
+                    <i class="fas fa-chevron-right"></i>
+                  </button>
                 </div>
               </div>
             </div>
@@ -651,76 +656,6 @@
                     <i class="fas fa-save mr-2"></i> Guardar
                   </button>
                 </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Apartado de Vibration Data -->
-          <div class="card animate-slide-up" style="animation-delay: 0.35s">
-            <div class="card-header">
-              <h5><i class="fas fa-wave-square"></i> Datos de Vibración</h5>
-              <button class="btn-icon" id="refreshVibrationDataBtn" title="Refrescar datos">
-                <i class="fas fa-sync-alt"></i>
-              </button>
-            </div>
-            <div class="card-body">
-              <div class="filters-row mb-3">
-                <div class="form-group d-inline-block mr-3">
-                  <label class="form-label">Sensor:</label>
-                  <select class="form-select" id="vibrationDataSensorFilter">
-                    <option value="">Todos los sensores</option>
-                    <!-- Opciones cargadas dinámicamente -->
-                  </select>
-                </div>
-                <div class="form-group d-inline-block mr-3">
-                  <label class="form-label">Severidad:</label>
-                  <select class="form-select" id="vibrationDataSeverityFilter">
-                    <option value="">Todas</option>
-                    <option value="0">Normal (0)</option>
-                    <option value="1">Nivel 1</option>
-                    <option value="2">Nivel 2</option>
-                    <option value="3">Nivel 3</option>
-                  </select>
-                </div>
-                <div class="form-group d-inline-block">
-                  <label class="form-label">Fecha:</label>
-                  <input type="date" class="form-control" id="vibrationDataDateFilter">
-                </div>
-                <button class="btn ml-3" id="applyVibrationFiltersBtn">
-                  <i class="fas fa-filter mr-2"></i> Filtrar
-                </button>
-              </div>
-              
-              <div class="table-responsive">
-                <table class="data-table">
-                  <thead>
-                    <tr>
-                      <th>Data ID</th>
-                      <th>Sensor ID</th>
-                      <th>Fecha y Hora</th>
-                      <th>Aceleración X</th>
-                      <th>Aceleración Y</th>
-                      <th>Aceleración Z</th>
-                      <th>Severidad</th>
-                      <th>Magnitud</th>
-                      <th>Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody id="vibrationDataTableBody">
-                    <!-- Datos cargados dinámicamente -->
-                  </tbody>
-                </table>
-              </div>
-              
-              <div class="pagination-controls mt-3" id="vibrationDataPagination">
-                <!-- Paginación -->
-                <button class="btn-icon" id="prevVibrationPageBtn">
-                  <i class="fas fa-chevron-left"></i>
-                </button>
-                <span id="vibrationDataPageInfo">Página 1 de 1</span>
-                <button class="btn-icon" id="nextVibrationPageBtn">
-                  <i class="fas fa-chevron-right"></i>
-                </button>
               </div>
             </div>
           </div>

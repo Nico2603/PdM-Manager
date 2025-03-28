@@ -605,28 +605,48 @@ function updateAxisChartLimits(chart, axis, limits) {
     });
 }
 
-// Función para actualizar la visibilidad de los gráficos
+// Actualizar la visibilidad de los elementos en los gráficos
 function updateChartsVisibility() {
-    // Obtener el estado de los switches
+    // Obtener estados de los switches
     const show2Sigma = document.getElementById('show2Sigma')?.checked || false;
     const show3Sigma = document.getElementById('show3Sigma')?.checked || false;
     
-    console.log('Actualizando visibilidad de gráficos:', { show2Sigma, show3Sigma });
+    // Actualizar opciones de visualización en el estado global
+    const chartOptions = getGlobalState('chartOptions') || {};
+    chartOptions.show2Sigma = show2Sigma;
+    chartOptions.show3Sigma = show3Sigma;
+    setGlobalState('chartOptions', chartOptions);
     
-    // Actualizar el estado global
-    setGlobalState('chartOptions', {
-        showMean: false,
-        show2Sigma: show2Sigma,
-        show3Sigma: show3Sigma
-    });
+    // Actualizar todos los gráficos de ejes
+    if (vibrationChartX) updateAxisChartVisibility(vibrationChartX, 'x');
+    if (vibrationChartY) updateAxisChartVisibility(vibrationChartY, 'y');
+    if (vibrationChartZ) updateAxisChartVisibility(vibrationChartZ, 'z');
+}
+
+// Actualizar visibilidad específica de un gráfico de eje
+function updateAxisChartVisibility(chart, axis) {
+    if (!chart) return;
     
-    // Actualizar los gráficos para que reflejen los cambios en la visibilidad
-    if (vibrationChartX) updateVibrationChartX();
-    if (vibrationChartY) updateVibrationChartY();
-    if (vibrationChartZ) updateVibrationChartZ();
+    const chartOptions = getGlobalState('chartOptions');
+    const datasets = chart.data.datasets;
     
-    // Mostrar mensaje de confirmación
-    showToast(`Visualización actualizada: ${show2Sigma ? 'Mostrando' : 'Ocultando'} límites 2σ, ${show3Sigma ? 'Mostrando' : 'Ocultando'} límites 3σ`, 'info');
+    // Buscar y actualizar visibilidad de las líneas 2-sigma
+    for (let i = 0; i < datasets.length; i++) {
+        const dataset = datasets[i];
+        
+        // Líneas 2-sigma (buscar por el label que contiene '2σ')
+        if (dataset.label && dataset.label.includes('2σ')) {
+            dataset.hidden = !chartOptions.show2Sigma;
+        }
+        
+        // Líneas 3-sigma (buscar por el label que contiene '3σ')
+        if (dataset.label && dataset.label.includes('3σ')) {
+            dataset.hidden = !chartOptions.show3Sigma;
+        }
+    }
+    
+    // Actualizar gráfico
+    chart.update();
 }
 
 // Exportar funciones para uso global

@@ -15,9 +15,31 @@ from typing import List, Optional, Dict, Any, Union
 from fastapi.middleware.cors import CORSMiddleware
 import json
 
+# Importar la configuración de Pydantic
+from app.config import pydantic_config
+
 # Importar la configuración de la BD y el modelo de datos
 from app.database import engine, Base, get_db
 from app import crud, models
+
+# Modelos Pydantic adicionales para creación/actualización de modelos ML
+class ModelCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+    
+    model_config = pydantic_config
+
+class ModelUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    
+    model_config = pydantic_config
+
+class ModelFile(BaseModel):
+    model_h5: Optional[str] = None
+    model_pkl: Optional[str] = None
+    
+    model_config = pydantic_config
 
 # Cargar modelo entrenado (Keras/TensorFlow) desde la carpeta "Modelo"
 from tensorflow.keras.models import load_model
@@ -27,12 +49,19 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MODELO_DIR = os.path.join(BASE_DIR, "Modelo")
 SCALER_DIR = os.path.join(BASE_DIR, "Scaler")
 
+# Configurar variable de entorno para evitar diferencias numéricas
+os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
+
 # Cargar el modelo y el scaler
 try:
-    modelo = load_model(os.path.join(MODELO_DIR, "modelo_pdm.h5"))
-    scaler = joblib.load(os.path.join(SCALER_DIR, "scaler_pdm.pkl"))
+    modelo = load_model(os.path.join(MODELO_DIR, "modeloRNN_multiclase_v3_finetuned.h5"))
+    scaler = joblib.load(os.path.join(SCALER_DIR, "scaler_RNN.pkl"))
+    print(f"Modelo cargado correctamente desde: {os.path.join(MODELO_DIR, 'modeloRNN_multiclase_v3_finetuned.h5')}")
+    print(f"Escalador cargado correctamente desde: {os.path.join(SCALER_DIR, 'scaler_RNN.pkl')}")
 except Exception as e:
     print(f"Error al cargar el modelo o scaler: {str(e)}")
+    print(f"Ruta del modelo: {os.path.join(MODELO_DIR, 'modeloRNN_multiclase_v3_finetuned.h5')}")
+    print(f"Ruta del scaler: {os.path.join(SCALER_DIR, 'scaler_RNN.pkl')}")
     modelo = None
     scaler = None
 
@@ -50,6 +79,20 @@ app = FastAPI(
     description="API para el sistema de mantenimiento predictivo",
     version="1.0.0"
 )
+
+# Configuración global para modelos Pydantic utilizados por FastAPI
+from fastapi.applications import FastAPI
+from pydantic import __version__ as pydantic_version
+from packaging import version
+
+# Para versiones recientes de Pydantic (v2+)
+if version.parse(pydantic_version) >= version.parse("2.0.0"):
+    app.openapi_config = {"model_config": pydantic_config}
+# Para versiones antiguas de Pydantic (v1.x)
+else:
+    from pydantic import BaseConfig
+    BaseConfig.orm_mode = True
+    BaseConfig.protected_namespaces = ()
 
 # Crear las tablas en la BD (solo si no existen)
 Base.metadata.create_all(bind=engine)
@@ -77,9 +120,13 @@ class SensorData(BaseModel):
     acceleration_x: float
     acceleration_y: float
     acceleration_z: float
+    
+    model_config = pydantic_config
 
 class SensorDataBatch(BaseModel):
     registros: List[SensorData]
+    
+    model_config = pydantic_config
 
 @app.get("/")
 def root():
@@ -616,11 +663,11 @@ def reload_model(db: Session = Depends(get_db)):
         
         # Si no hay ningún sensor con modelo asignado, intentar cargar el predeterminado
         if not sensor_with_model:
-            modelo = load_model(os.path.join(MODELO_DIR, "modelo_pdm.h5"))
+            modelo = load_model(os.path.join(MODELO_DIR, "modeloRNN_multiclase_v3_finetuned.h5"))
             
             # Intentar cargar el escalador predeterminado
             try:
-                scaler_path = os.path.join(SCALER_DIR, "scaler.pkl")
+                scaler_path = os.path.join(SCALER_DIR, "scaler_RNN.pkl")
                 with open(scaler_path, 'rb') as f:
                     scaler = pickle.load(f)
                 return {"status": "ok", "message": "Modelo y escalador predeterminados cargados correctamente"}
@@ -649,7 +696,7 @@ def reload_model(db: Session = Depends(get_db)):
         else:
             # Si no hay escalador específico, intentar cargar el predeterminado
             try:
-                scaler_path = os.path.join(SCALER_DIR, "scaler.pkl")
+                scaler_path = os.path.join(SCALER_DIR, "scaler_RNN.pkl")
                 with open(scaler_path, 'rb') as f:
                     scaler = pickle.load(f)
                 return {
@@ -1209,7 +1256,7 @@ async def update_model(
             
             # Eliminar archivo anterior si existe y no es el predeterminado
             old_model_path = existing_model.route_h5
-            if os.path.exists(old_model_path) and os.path.basename(old_model_path) != "modelo_pdm.h5":
+            if os.path.exists(old_model_path) and os.path.basename(old_model_path) != "modeloRNN_multiclase_v3_finetuned.h5":
                 try:
                     os.remove(old_model_path)
                 except:
