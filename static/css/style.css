@@ -1998,4 +1998,242 @@ p {
 /* Espaciado para íconos dentro de badges */
 .mr-1 {
   margin-right: 0.25rem;
+}
+
+/* Estados para máquinas */
+.status-operativo {
+    color: var(--color-success);
+    font-weight: 600;
+}
+
+.status-mantenimiento {
+    color: var(--color-warning);
+    font-weight: 600;
+}
+
+.status-critical,
+.status-error {
+    color: var(--color-danger);
+    font-weight: 600;
+}
+
+.status-apagado {
+    color: var(--color-text-muted);
+    font-weight: 600;
+}
+
+/* Mejoras para tablas */
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 1.5rem;
+    border-radius: var(--border-radius);
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+}
+
+.data-table thead {
+    background-color: var(--color-background-hover);
+}
+
+.data-table thead th {
+    padding: 1rem 0.75rem;
+    text-align: left;
+    font-weight: 600;
+    color: var(--color-text);
+    text-transform: uppercase;
+    font-size: var(--font-size-xs);
+    letter-spacing: 0.5px;
+    border-bottom: 2px solid var(--color-border);
+    white-space: nowrap;
+}
+
+.data-table tbody tr {
+    transition: background-color var(--transition-fast);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.data-table tbody tr:hover {
+    background-color: var(--color-background-hover);
+}
+
+.data-table tbody td {
+    padding: 0.75rem;
+    vertical-align: middle;
+    color: var(--color-text);
+    font-size: var(--font-size-sm);
+}
+
+.data-table .text-truncate {
+    max-width: 150px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: inline-block;
+}
+
+/* Estilos para mejorar las tablas de datos */
+.table-container {
+    margin-bottom: 1.5rem;
+    border-radius: var(--border-radius);
+    background-color: var(--color-background-light);
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+}
+
+.table-header {
+    padding: 1rem;
+    background-color: var(--color-background-hover);
+    border-bottom: 1px solid var(--color-border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.table-title {
+    font-weight: 600;
+    font-size: var(--font-size-md);
+    color: var(--color-text);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.table-title i {
+    color: var(--color-accent);
+}
+
+.table-body {
+    padding: 0;
+}
+
+/* Ajustes de espaciado */
+.data-table td, .data-table th {
+    padding: 0.75rem 1rem;
+}
+
+/* Estilos para resaltar filas por nivel/severidad */
+.row-level-0 {
+    color: var(--color-text);
+}
+
+.row-level-1 {
+    border-left: 3px solid var(--color-level1);
+}
+
+.row-level-2 {
+    border-left: 3px solid var(--color-level2);
+}
+
+.row-level-3 {
+    border-left: 3px solid var(--color-level3);
+}
+
+/* Indicadores de archivos y valores */
+.file-indicator {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background-color: var(--color-background-hover);
+    margin-right: 0.5rem;
+}
+
+.file-indicator i {
+    font-size: 0.75rem;
+    color: var(--color-accent);
+}
+
+/* Ajustes para la visualización móvil */
+@media (max-width: 992px) {
+    .table-responsive {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    
+    .data-table thead th,
+    .data-table tbody td {
+        white-space: nowrap;
+    }
+}
+
+/* Ajustes para campos específicos */
+.field-truncate {
+    max-width: 200px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: inline-block;
+}
+
+.field-code {
+    font-family: Consolas, Monaco, 'Courier New', monospace;
+    background-color: rgba(0, 0, 0, 0.1);
+    padding: 0.1rem 0.3rem;
+    border-radius: 3px;
+    font-size: 0.85em;
+}
+
+.field-number {
+    font-family: Consolas, Monaco, 'Courier New', monospace;
+    text-align: right;
+}
+
+/* Mejoras para tablas */
+.data-table .column-id {
+    font-family: Consolas, Monaco, 'Courier New', monospace;
+    font-size: 0.8rem;
+    letter-spacing: -0.5px;
+    width: 60px;
+    color: var(--color-text-secondary);
+}
+
+.data-table .column-datetime {
+    white-space: nowrap;
+    width: 140px;
+}
+
+.data-table .column-actions {
+    width: 80px;
+    text-align: right;
+    white-space: nowrap;
+}
+
+.data-table .column-number {
+    text-align: right;
+    font-family: Consolas, Monaco, 'Courier New', monospace;
+    font-size: 0.9rem;
+}
+
+/* Estilos para severidad */
+.severity-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.35em 0.65em;
+    font-size: 0.75em;
+    font-weight: 700;
+    line-height: 1;
+    text-align: center;
+    white-space: nowrap;
+    vertical-align: baseline;
+    border-radius: 4px;
+}
+
+.severity-0 {
+    background-color: var(--color-background-hover);
+    color: var(--color-text);
+}
+
+.severity-1 {
+    background-color: var(--color-info);
+}
+
+.severity-2 {
+    background-color: var(--color-warning);
+}
+
+.severity-3 {
+    background-color: var(--color-danger);
 } 

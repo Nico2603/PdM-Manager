@@ -26,7 +26,7 @@ function initDashboard() {
     // Inicializar filtros visuales
     initVisualFilters();
     
-    // Inicializar gráficos
+    // Inicializar gráficos (pero no mostrarlos todavía)
     if (typeof initVibrationChart === 'function') {
         initVibrationChart();
     }
@@ -35,8 +35,14 @@ function initDashboard() {
         initAlertsHistoryChart();
     }
     
-    // Inicializar botones de exportación
-    initExportButton();
+    // Ocultar gráficos hasta que se apliquen filtros
+    hideCharts();
+    
+    // Inicializar botones de exportación individuales
+    initExportButtons();
+    
+    // Inicializar botón de aplicar filtros
+    initApplyFiltersButton();
     
     // Inicializar botones de ajuste de límites
     initAdjustLimitsButton();
@@ -564,22 +570,39 @@ function updateStatisticalDisplayValues() {
 // BOTONES Y ACCIONES
 // ==========================================================================
 
-// Inicializar botón de exportación
-function initExportButton() {
-    const exportBtn = document.getElementById('exportDataBtn');
-    if (!exportBtn) return;
+// Inicializar botón de exportación individuales para cada eje
+function initExportButtons() {
+    // Botón de exportación para eje X
+    const exportPdfXBtn = document.getElementById('exportPdfX');
+    if (exportPdfXBtn) {
+        exportPdfXBtn.addEventListener('click', () => {
+            exportAxisToPDF('X');
+        });
+    }
     
-    exportBtn.addEventListener('click', () => {
-        exportToPDF();
-    });
+    // Botón de exportación para eje Y
+    const exportPdfYBtn = document.getElementById('exportPdfY');
+    if (exportPdfYBtn) {
+        exportPdfYBtn.addEventListener('click', () => {
+            exportAxisToPDF('Y');
+        });
+    }
+    
+    // Botón de exportación para eje Z
+    const exportPdfZBtn = document.getElementById('exportPdfZ');
+    if (exportPdfZBtn) {
+        exportPdfZBtn.addEventListener('click', () => {
+            exportAxisToPDF('Z');
+        });
+    }
 }
 
-// Exportar dashboard a PDF
-function exportToPDF() {
+// Exportar a PDF un eje específico
+function exportAxisToPDF(axis) {
     showLoadingToast('Preparando exportación a PDF...');
     
     // Obtener título según selecciones
-    let title = 'Reporte de Vibración';
+    let title = `Reporte de Vibración - Eje ${axis}`;
     if (getGlobalState('selectedMachine') && cache.machines) {
         const machine = cache.machines.find(m => m.machine_id === getGlobalState('selectedMachine'));
         if (machine) title += ` - ${machine.name}`;
@@ -596,16 +619,8 @@ function exportToPDF() {
         date: new Date().toLocaleDateString(),
         charts: [
             {
-                id: 'vibrationChartX',
-                title: 'Vibración Eje X'
-            },
-            {
-                id: 'vibrationChartY',
-                title: 'Vibración Eje Y'
-            },
-            {
-                id: 'vibrationChartZ',
-                title: 'Vibración Eje Z'
+                id: `vibrationChart${axis}`,
+                title: `Vibración Eje ${axis}`
             }
         ],
         alertsSummary: {
@@ -632,6 +647,35 @@ function initAdjustLimitsButton() {
         if (typeof openAdjustLimitsModal === 'function') {
             openAdjustLimitsModal();
         }
+    });
+}
+
+// Inicializar botón de aplicar filtros
+function initApplyFiltersButton() {
+    const applyFiltersBtn = document.getElementById('applyFiltersBtn');
+    if (!applyFiltersBtn) return;
+    
+    applyFiltersBtn.addEventListener('click', () => {
+        // Mostrar indicador de carga
+        showLoadingToast('Aplicando filtros y cargando datos...');
+        
+        // Actualizar datos del dashboard con los filtros seleccionados
+        updateDashboardData()
+            .then(() => {
+                // Mostrar gráficos
+                showCharts();
+                // Actualizar contadores de alertas
+                updateDashboardAlertCounts();
+                // Ocultar indicador de carga
+                hideLoadingToast();
+                // Mostrar mensaje de éxito
+                showToast('Filtros aplicados correctamente', 'success');
+            })
+            .catch(error => {
+                hideLoadingToast();
+                showToast('Error al aplicar filtros', 'error');
+                console.error('Error al aplicar filtros:', error);
+            });
     });
 }
 
@@ -768,105 +812,91 @@ function updateAlertsTable(alerts) {
 
 // Cargar datos de vibración
 function loadVibrationData(page = 1, filters = {}) {
-    showLoadingIndicator('Cargando datos de vibración...');
-    
-    // Construir parámetros de consulta
-    const queryParams = new URLSearchParams();
-    queryParams.append('page', page);
-    queryParams.append('limit', 10); // Mostrar 10 registros por página
+    // Construir URL para la API
+    let url = `/api/vibration-data?limit=10&page=${page}`;
     
     // Añadir filtros si existen
     if (filters.sensor_id) {
-        queryParams.append('sensor_id', filters.sensor_id);
-    }
-    if (filters.severity) {
-        queryParams.append('severity', filters.severity);
-    }
-    if (filters.date) {
-        queryParams.append('date', filters.date);
+        url += `&sensor_id=${filters.sensor_id}`;
     }
     
-    fetch(`/api/vibration-data?${queryParams.toString()}`)
+    if (filters.severity) {
+        url += `&severity=${filters.severity}`;
+    }
+    
+    if (filters.date) {
+        url += `&date=${filters.date}`;
+    }
+    
+    fetch(url)
         .then(response => response.json())
         .then(data => {
+            // Actualizar tabla
             const tableBody = document.getElementById('vibrationDataTableBody');
             if (!tableBody) return;
             
             tableBody.innerHTML = '';
             
-            if (!data.items || data.items.length === 0) {
+            // Si no hay datos, mostrar mensaje
+            if (!data.records || data.records.length === 0) {
                 tableBody.innerHTML = `
                     <tr>
-                        <td colspan="9" class="text-center">No hay datos de vibración disponibles</td>
+                        <td colspan="9" class="text-center">No hay datos de vibración registrados</td>
                     </tr>
                 `;
+                // Actualizar paginación
+                document.getElementById('vibrationDataPageInfo').textContent = 'Página 1 de 1';
                 return;
             }
             
-            // Actualizar información de paginación
-            const pageInfo = document.getElementById('vibrationDataPageInfo');
-            if (pageInfo) {
-                pageInfo.textContent = `Página ${data.page} de ${data.total_pages || 1}`;
-            }
-            
-            // Habilitar/deshabilitar botones de paginación
-            const prevBtn = document.getElementById('prevVibrationPageBtn');
-            const nextBtn = document.getElementById('nextVibrationPageBtn');
-            
-            if (prevBtn) {
-                prevBtn.disabled = data.page <= 1;
-            }
-            if (nextBtn) {
-                nextBtn.disabled = data.page >= (data.total_pages || 1);
-            }
-            
-            // Poblar la tabla con datos
-            data.items.forEach(item => {
+            // Mostrar datos
+            data.records.forEach(record => {
                 const row = document.createElement('tr');
                 
-                // Formatear fecha
-                const date = new Date(item.date);
-                const formattedDate = date.toLocaleDateString() + ' ' + 
-                                      date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'});
-                
-                // Obtener clase CSS según severidad
-                let severityClass = '';
-                let severityText = '';
-                
-                switch(item.severity) {
-                    case 0:
-                        severityClass = 'text-success';
-                        severityText = 'Normal';
-                        break;
-                    case 1:
-                        severityClass = 'text-warning';
-                        severityText = 'Nivel 1';
-                        break;
-                    case 2:
-                        severityClass = 'text-orange';
-                        severityText = 'Nivel 2';
-                        break;
-                    case 3:
-                        severityClass = 'text-danger';
-                        severityText = 'Nivel 3';
-                        break;
-                    default:
-                        severityClass = 'text-secondary';
-                        severityText = 'Desconocido';
+                // Añadir clase según severidad
+                if (record.severity === 3) {
+                    row.classList.add('row-level-3');
+                } else if (record.severity === 2) {
+                    row.classList.add('row-level-2');
+                } else if (record.severity === 1) {
+                    row.classList.add('row-level-1');
                 }
                 
+                // Formatear fecha
+                const date = new Date(record.date);
+                const formattedDate = date.toLocaleDateString() + ' ' + 
+                                     date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                
+                // Formatear aceleraciones
+                const accelX = parseFloat(record.acceleration_x).toFixed(4);
+                const accelY = parseFloat(record.acceleration_y).toFixed(4);
+                const accelZ = parseFloat(record.acceleration_z).toFixed(4);
+                
+                // Calcular magnitud (si no existe)
+                const magnitude = record.magnitude ? 
+                    parseFloat(record.magnitude).toFixed(4) : 
+                    parseFloat(Math.sqrt(Math.pow(record.acceleration_x, 2) + 
+                                        Math.pow(record.acceleration_y, 2) + 
+                                        Math.pow(record.acceleration_z, 2))).toFixed(4);
+                
+                // Formatear severidad
+                const severityText = getSeverityText(record.severity);
+                const severityClass = record.severity === 3 ? 'badge-danger' : 
+                                     record.severity === 2 ? 'badge-warning' : 
+                                     record.severity === 1 ? 'badge-info' : 'badge-secondary';
+                
                 row.innerHTML = `
-                    <td class="column-id">${item.data_id}</td>
-                    <td>${item.sensor_id}</td>
+                    <td class="column-id">${record.data_id}</td>
+                    <td>${record.sensor_id}</td>
                     <td>${formattedDate}</td>
-                    <td>${item.acceleration_x !== null ? item.acceleration_x.toFixed(4) : '-'}</td>
-                    <td>${item.acceleration_y !== null ? item.acceleration_y.toFixed(4) : '-'}</td>
-                    <td>${item.acceleration_z !== null ? item.acceleration_z.toFixed(4) : '-'}</td>
-                    <td class="${severityClass}"><strong>${severityText}</strong></td>
-                    <td>${item.magnitude !== null ? item.magnitude.toFixed(4) : '-'}</td>
+                    <td>${accelX} m/s²</td>
+                    <td>${accelY} m/s²</td>
+                    <td>${accelZ} m/s²</td>
+                    <td><span class="badge ${severityClass}">${severityText}</span></td>
+                    <td>${magnitude} m/s²</td>
                     <td class="column-actions">
                         <div class="table-actions">
-                            <button class="btn-icon btn-view" title="Ver detalles" data-id="${item.data_id}">
+                            <button class="btn-icon btn-view" title="Ver detalles" data-id="${record.data_id}">
                                 <i class="fas fa-eye"></i>
                             </button>
                         </div>
@@ -876,7 +906,10 @@ function loadVibrationData(page = 1, filters = {}) {
                 tableBody.appendChild(row);
             });
             
-            // Configurar eventos para botones de detalle
+            // Actualizar paginación
+            document.getElementById('vibrationDataPageInfo').textContent = `Página ${data.page} de ${data.total_pages}`;
+            
+            // Configurar botones de vista detallada
             const viewButtons = tableBody.querySelectorAll('.btn-view');
             viewButtons.forEach(button => {
                 button.addEventListener('click', () => {
@@ -888,9 +921,6 @@ function loadVibrationData(page = 1, filters = {}) {
         .catch(error => {
             console.error('Error al cargar datos de vibración:', error);
             showToast('Error al cargar datos de vibración', 'error');
-        })
-        .finally(() => {
-            hideLoadingIndicator();
         });
 }
 
@@ -907,7 +937,7 @@ function loadAlerts() {
             if (alerts.length === 0) {
                 tableBody.innerHTML = `
                     <tr>
-                        <td colspan="8" class="text-center">No hay alertas registradas</td>
+                        <td colspan="9" class="text-center">No hay alertas registradas</td>
                     </tr>
                 `;
                 return;
@@ -918,11 +948,11 @@ function loadAlerts() {
                 
                 // Añadir clase según severidad
                 if (alert.severity === 3) {
-                    row.classList.add('alert-danger');
+                    row.classList.add('row-level-3');
                 } else if (alert.severity === 2) {
-                    row.classList.add('alert-warning');
+                    row.classList.add('row-level-2');
                 } else if (alert.severity === 1) {
-                    row.classList.add('alert-info');
+                    row.classList.add('row-level-1');
                 }
                 
                 // Formatear fecha
@@ -935,37 +965,37 @@ function loadAlerts() {
                 let severityIcon = '';
                 let severityText = '';
                 
-                switch(alert.severity) {
-                    case 1:
-                        severityClass = 'badge-warning';
+                switch (alert.severity) {
+                    case 3:
+                        severityClass = 'badge-danger';
                         severityIcon = 'fa-exclamation-circle';
-                        severityText = 'Nivel 1';
+                        severityText = 'Nivel 3';
                         break;
                     case 2:
-                        severityClass = 'badge-orange';
+                        severityClass = 'badge-warning';
                         severityIcon = 'fa-exclamation-triangle';
                         severityText = 'Nivel 2';
                         break;
-                    case 3:
-                        severityClass = 'badge-danger';
-                        severityIcon = 'fa-radiation-alt';
-                        severityText = 'Nivel 3';
+                    case 1:
+                        severityClass = 'badge-info';
+                        severityIcon = 'fa-info-circle';
+                        severityText = 'Nivel 1';
                         break;
                     default:
                         severityClass = 'badge-secondary';
-                        severityIcon = 'fa-info-circle';
+                        severityIcon = 'fa-question-circle';
                         severityText = 'Desconocido';
                 }
                 
-                // Estado de reconocimiento con icono
-                const acknowledgedStatus = alert.acknowledged ? 
-                    `<span class="badge badge-success"><i class="fas fa-check-circle mr-1"></i>Reconocida</span>` : 
-                    `<span class="badge badge-warning"><i class="fas fa-exclamation-circle mr-1"></i>Pendiente</span>`;
-                
-                // ID de datos de vibración
+                // Formatear datos de vibración
                 const vibrationDataIdDisplay = alert.vibration_data_id ? 
-                    `<a href="#" class="view-vibration-data" data-id="${alert.vibration_data_id}" title="Ver datos de vibración">${alert.vibration_data_id}</a>` : 
+                    `<a href="#" class="view-vibration-data" data-id="${alert.vibration_data_id}">${alert.vibration_data_id}</a>` : 
                     '-';
+                
+                // Formatear estado de reconocimiento
+                const acknowledgedStatus = alert.acknowledged ? 
+                    '<span class="badge badge-success"><i class="fas fa-check mr-1"></i>Reconocida</span>' : 
+                    '<span class="badge badge-secondary"><i class="fas fa-clock mr-1"></i>Pendiente</span>';
                 
                 row.innerHTML = `
                     <td class="column-id">${alert.log_id}</td>
@@ -973,7 +1003,7 @@ function loadAlerts() {
                     <td>${formattedDate}</td>
                     <td>${alert.error_type}</td>
                     <td><span class="badge ${severityClass}"><i class="fas ${severityIcon} mr-1"></i>${severityText}</span></td>
-                    <td><span class="text-truncate d-inline-block" style="max-width: 150px;" title="${alert.message || ''}">${alert.message || '-'}</span></td>
+                    <td><span class="text-truncate" title="${alert.message || ''}">${alert.message || '-'}</span></td>
                     <td>${vibrationDataIdDisplay}</td>
                     <td>${acknowledgedStatus}</td>
                     <td class="column-actions">
@@ -1009,8 +1039,8 @@ function loadAlerts() {
                 });
             });
             
-            const vibrationDataLinks = tableBody.querySelectorAll('.view-vibration-data');
-            vibrationDataLinks.forEach(link => {
+            const vibrationLinks = tableBody.querySelectorAll('.view-vibration-data');
+            vibrationLinks.forEach(link => {
                 link.addEventListener('click', (e) => {
                     e.preventDefault();
                     const dataId = link.getAttribute('data-id');
@@ -1297,18 +1327,48 @@ function getSeverityText(severity) {
 
 // Actualizar contadores de alertas en el dashboard
 function updateDashboardAlertCounts() {
-    fetch('/api/alerts/counts')
+    // Obtener los filtros actuales
+    const selectedMachine = getGlobalState('selectedMachine');
+    const selectedSensor = getGlobalState('selectedSensor');
+    
+    if (!selectedMachine || !selectedSensor) {
+        // Si no hay selección, mostrar 0 en todos los contadores
+        document.getElementById('level1Count').textContent = '0';
+        document.getElementById('level2Count').textContent = '0';
+        document.getElementById('level3Count').textContent = '0';
+        document.getElementById('totalCount').textContent = '0';
+        return;
+    }
+    
+    // Realizar petición para obtener los contadores según los filtros
+    fetch(`/api/alerts/count?machine_id=${selectedMachine}&sensor_id=${selectedSensor}`)
         .then(response => response.json())
-        .then(counts => {
-            document.getElementById('level1Count').textContent = counts.level1 || 0;
-            document.getElementById('level2Count').textContent = counts.level2 || 0;
-            document.getElementById('level3Count').textContent = counts.level3 || 0;
-            document.getElementById('totalCount').textContent = 
-                (counts.level1 || 0) + (counts.level2 || 0) + (counts.level3 || 0);
+        .then(data => {
+            // Actualizar contadores en la UI
+            document.getElementById('level1Count').textContent = data.level1 || '0';
+            document.getElementById('level2Count').textContent = data.level2 || '0';
+            document.getElementById('level3Count').textContent = data.level3 || '0';
+            document.getElementById('totalCount').textContent = data.total || '0';
         })
         .catch(error => {
             console.error('Error al actualizar contadores de alertas:', error);
         });
+}
+
+// Ocultar gráficos hasta que se apliquen filtros
+function hideCharts() {
+    const chartContainers = document.querySelectorAll('.charts-container .chart-container');
+    chartContainers.forEach(container => {
+        container.style.display = 'none';
+    });
+}
+
+// Mostrar gráficos después de aplicar filtros
+function showCharts() {
+    const chartContainers = document.querySelectorAll('.charts-container .chart-container');
+    chartContainers.forEach(container => {
+        container.style.display = 'block';
+    });
 }
 
 // Exportar funciones para uso global
@@ -1316,7 +1376,11 @@ window.initDashboard = initDashboard;
 window.updateDashboardData = updateDashboardData;
 window.initCustomUIComponents = initCustomUIComponents;
 window.initVisualFilters = initVisualFilters;
-window.exportToPDF = exportToPDF;
+window.hideCharts = hideCharts;
+window.showCharts = showCharts;
+window.initApplyFiltersButton = initApplyFiltersButton;
+window.initExportButtons = initExportButtons;
+window.exportAxisToPDF = exportAxisToPDF;
 window.loadSimplifiedAlerts = loadSimplifiedAlerts;
 window.loadVibrationData = loadVibrationData;
 window.loadAlerts = loadAlerts;

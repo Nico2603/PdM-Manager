@@ -228,8 +228,8 @@
                 </div>
                 
                 <div class="filter-actions">
-                  <button class="btn btn-block" id="exportDataBtn">
-                    <i class="fas fa-file-pdf mr-2"></i> Exportar a PDF
+                  <button class="btn btn-block" id="applyFiltersBtn">
+                    <i class="fas fa-check mr-2"></i> Aplicar Filtros
                   </button>
                 </div>
               </div>
@@ -335,6 +335,9 @@
                   <button class="btn-icon" id="downloadChartX" title="Descargar gráfico">
                     <i class="fas fa-download"></i>
                   </button>
+                  <button class="btn-icon" id="exportPdfX" title="Exportar a PDF">
+                    <i class="fas fa-file-pdf"></i>
+                  </button>
                 </div>
               </div>
               <div class="chart-body">
@@ -354,6 +357,9 @@
                   </button>
                   <button class="btn-icon" id="downloadChartY" title="Descargar gráfico">
                     <i class="fas fa-download"></i>
+                  </button>
+                  <button class="btn-icon" id="exportPdfY" title="Exportar a PDF">
+                    <i class="fas fa-file-pdf"></i>
                   </button>
                 </div>
               </div>
@@ -375,6 +381,9 @@
                   <button class="btn-icon" id="downloadChartZ" title="Descargar gráfico">
                     <i class="fas fa-download"></i>
                   </button>
+                  <button class="btn-icon" id="exportPdfZ" title="Exportar a PDF">
+                    <i class="fas fa-file-pdf"></i>
+                  </button>
                 </div>
               </div>
               <div class="chart-body">
@@ -391,6 +400,9 @@
                 <div class="chart-actions">
                   <button class="btn-icon" id="downloadAlertsChart" title="Descargar gráfico">
                     <i class="fas fa-download"></i>
+                  </button>
+                  <button class="btn-icon" id="refreshAlertsTable" title="Actualizar datos">
+                    <i class="fas fa-sync-alt"></i>
                   </button>
                 </div>
               </div>
@@ -415,46 +427,15 @@
                   <table class="data-table">
                     <thead>
                       <tr>
-                        <th>ID</th>
+                        <th>Log ID</th>
                         <th>Sensor ID</th>
                         <th>Fecha y Hora</th>
                         <th>Tipo de Error</th>
                         <th>Severidad</th>
                         <th>Mensaje</th>
-                        <th>Datos Vibración</th>
+                        <th>Datos Vibración ID</th>
                         <th>Estado</th>
                         <th>Acciones</th>
-                      </tr>
-                    </thead>
-                    <tbody id="alertsTableBody">
-                      <!-- Datos cargados dinámicamente -->
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-            
-            <!-- Tabla de Historial de Alertas Simplificado -->
-            <div class="chart-container animate-slide-up" style="animation-delay: 1.2s">
-              <div class="chart-header">
-                <div class="chart-title">
-                  <span>Registro de Alertas</span>
-                </div>
-                <div class="chart-actions">
-                  <button class="btn-icon" id="refreshAlertsTable" title="Actualizar datos">
-                    <i class="fas fa-sync-alt"></i>
-                  </button>
-                </div>
-              </div>
-              <div class="chart-body">
-                <div class="table-responsive">
-                  <table class="data-table">
-                    <thead>
-                      <tr>
-                        <th>ID</th>
-                        <th>Sensor ID</th>
-                        <th>Fecha y Hora</th>
-                        <th>Tipo de Error</th>
                       </tr>
                     </thead>
                     <tbody id="alertsTableBody">
@@ -497,7 +478,6 @@
                       <th>Ubicación</th>
                       <th>Estado</th>
                       <th>Ruta</th>
-                      <th>Sensor</th>
                       <th>Acciones</th>
                     </tr>
                   </thead>
@@ -523,7 +503,7 @@
                 <table class="data-table">
                   <thead>
                     <tr>
-                      <th>ID</th>
+                      <th>Sensor ID</th>
                       <th>Nombre</th>
                       <th>Descripción</th>
                       <th>Ubicación</th>
@@ -555,12 +535,12 @@
                 <table class="data-table">
                   <thead>
                     <tr>
-                      <th>ID</th>
+                      <th>Model ID</th>
                       <th>Nombre</th>
                       <th>Descripción</th>
-                      <th>Archivo .h5</th>
-                      <th>Escalador</th>
-                      <th>Exactitud</th>
+                      <th>Ruta .h5</th>
+                      <th>Ruta Escalador</th>
+                      <th>Exactitud (%)</th>
                       <th>Parámetros</th>
                       <th>Última Actualización</th>
                       <th>Acciones</th>
@@ -715,12 +695,12 @@
                 <table class="data-table">
                   <thead>
                     <tr>
-                      <th>ID</th>
-                      <th>Sensor</th>
+                      <th>Data ID</th>
+                      <th>Sensor ID</th>
                       <th>Fecha y Hora</th>
-                      <th>Acel. X</th>
-                      <th>Acel. Y</th>
-                      <th>Acel. Z</th>
+                      <th>Aceleración X</th>
+                      <th>Aceleración Y</th>
+                      <th>Aceleración Z</th>
                       <th>Severidad</th>
                       <th>Magnitud</th>
                       <th>Acciones</th>

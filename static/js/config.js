@@ -110,7 +110,7 @@ function loadMachinesTable() {
             if (machines.length === 0) {
                 tableBody.innerHTML = `
                     <tr>
-                        <td colspan="8" class="text-center">No hay máquinas registradas</td>
+                        <td colspan="7" class="text-center">No hay máquinas registradas</td>
                     </tr>
                 `;
                 return;
@@ -119,26 +119,27 @@ function loadMachinesTable() {
             machines.forEach(machine => {
                 const row = document.createElement('tr');
                 
-                // Preparar información de sensor
-                const sensorInfo = machine.sensor_name ? 
-                    `<span class="badge badge-primary">${machine.sensor_name}</span>` : 
-                    '<span class="badge badge-secondary">Sin sensor</span>';
-                
                 // Preparar estado según valor
-                let statusBadge = '<span class="badge badge-secondary">Desconocido</span>';
+                let statusClass = '';
+                let statusText = 'Desconocido';
                 
                 switch (machine.status) {
                     case 'operativo':
-                        statusBadge = '<span class="badge badge-success">Operativo</span>';
+                        statusClass = 'status-operativo';
+                        statusText = 'Operativo';
                         break;
                     case 'mantenimiento':
-                        statusBadge = '<span class="badge badge-warning">En Mantenimiento</span>';
+                        statusClass = 'status-mantenimiento';
+                        statusText = 'En Mantenimiento';
                         break;
                     case 'apagado':
-                        statusBadge = '<span class="badge badge-secondary">Apagado</span>';
+                        statusClass = 'status-apagado';
+                        statusText = 'Apagado';
                         break;
                     case 'error':
-                        statusBadge = '<span class="badge badge-danger">Error</span>';
+                    case 'critical':
+                        statusClass = 'status-critical';
+                        statusText = machine.status === 'error' ? 'Error' : 'Crítico';
                         break;
                 }
                 
@@ -147,9 +148,8 @@ function loadMachinesTable() {
                     <td><strong>${machine.name}</strong></td>
                     <td>${machine.description || '-'}</td>
                     <td>${machine.location || '-'}</td>
-                    <td>${statusBadge}</td>
+                    <td><span class="${statusClass}">${statusText}</span></td>
                     <td>${machine.route || '-'}</td>
-                    <td>${sensorInfo}</td>
                     <td class="column-actions">
                         <div class="table-actions">
                             <button class="btn-icon btn-edit" title="Editar máquina" data-id="${machine.machine_id}">
@@ -512,15 +512,16 @@ function loadSensorsTable() {
             sensors.forEach(sensor => {
                 const row = document.createElement('tr');
                 
-                // Obtener nombre de máquina asociada
-                const machineName = sensor.machine_name || 'No asignado';
+                // Preparar información de máquina asociada
+                let machineInfo = '<span class="badge badge-secondary">Sin asignar</span>';
+                if (sensor.machine && sensor.machine.name) {
+                    machineInfo = `<span class="badge badge-info" title="ID: ${sensor.machine.machine_id}">${sensor.machine.name}</span>`;
+                }
                 
-                // Obtener nombre de modelo asociado
-                const modelName = sensor.model_name || 'No asignado';
-                
-                // Clase para filas según si está asociado a una máquina
-                if (sensor.machine_id) {
-                    row.classList.add('active-sensor');
+                // Preparar información de modelo asociado
+                let modelInfo = '<span class="badge badge-secondary">Sin asignar</span>';
+                if (sensor.model && sensor.model.name) {
+                    modelInfo = `<span class="badge badge-primary" title="ID: ${sensor.model.model_id}">${sensor.model.name}</span>`;
                 }
                 
                 row.innerHTML = `
@@ -529,16 +530,8 @@ function loadSensorsTable() {
                     <td>${sensor.description || '-'}</td>
                     <td>${sensor.location || '-'}</td>
                     <td>${sensor.type || '-'}</td>
-                    <td>
-                        <span class="badge ${sensor.machine_id ? 'badge-primary' : 'badge-secondary'}">
-                            ${machineName}
-                        </span>
-                    </td>
-                    <td>
-                        <span class="badge ${sensor.model_id ? 'badge-info' : 'badge-secondary'}">
-                            ${modelName}
-                        </span>
-                    </td>
+                    <td>${machineInfo}</td>
+                    <td>${modelInfo}</td>
                     <td class="column-actions">
                         <div class="table-actions">
                             <button class="btn-icon btn-edit" title="Editar sensor" data-id="${sensor.sensor_id}">
@@ -554,21 +547,7 @@ function loadSensorsTable() {
                 tableBody.appendChild(row);
             });
             
-            // Configurar eventos para ver máquinas asociadas
-            const viewMachinesLinks = tableBody.querySelectorAll('.view-machines-link');
-            viewMachinesLinks.forEach(link => {
-                link.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    const sensorId = link.getAttribute('data-id');
-                    const count = parseInt(link.getAttribute('data-count'));
-                    
-                    if (count > 0) {
-                        showSensorMachines(sensorId);
-                    }
-                });
-            });
-            
-            // Configurar eventos para editar y eliminar
+            // Configurar eventos para botones de editar y eliminar
             const editButtons = tableBody.querySelectorAll('.btn-edit');
             editButtons.forEach(button => {
                 button.addEventListener('click', () => {
@@ -916,57 +895,47 @@ function loadModelsTable() {
                 const row = document.createElement('tr');
                 
                 // Formatear fecha
-                const lastUpdate = new Date(model.last_update);
-                const formattedDate = lastUpdate.toLocaleDateString() + ' ' + 
-                                     lastUpdate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-                
-                // Obtener nombre de archivo para h5 y pkl
-                const h5FileName = model.route_h5 ? model.route_h5.split('/').pop() : '-';
-                const hasScaler = model.route_pkl ? true : false;
-                const scalerLabel = hasScaler ? 
-                    `<span class="badge badge-success" title="${model.route_pkl.split('/').pop()}"><i class="fas fa-check-circle mr-1"></i>Disponible</span>` : 
-                    `<span class="badge badge-secondary"><i class="fas fa-times-circle mr-1"></i>No disponible</span>`;
+                const lastUpdate = model.last_update ? new Date(model.last_update).toLocaleString() : '-';
                 
                 // Formatear exactitud
-                const accuracyDisplay = model.accuracy ? 
-                    `<span class="badge ${parseFloat(model.accuracy) > 90 ? 'badge-success' : 'badge-warning'}">${parseFloat(model.accuracy).toFixed(2)}%</span>` : 
-                    '<span class="badge badge-secondary">No especificada</span>';
+                const accuracy = model.accuracy ? `${parseFloat(model.accuracy).toFixed(2)}%` : '-';
                 
-                // Formatear config_params
-                let configParamsDisplay = '-';
+                // Formatear parámetros
+                let configParams = '-';
                 if (model.config_params) {
                     try {
-                        // Intentar parsear si es JSON
-                        const params = typeof model.config_params === 'string' ? 
-                            JSON.parse(model.config_params) : model.config_params;
-                        
-                        // Muestra los primeros 2-3 parámetros con un indicador de más si hay más
-                        const paramCount = Object.keys(params).length;
-                        if (paramCount > 0) {
-                            const firstKeys = Object.keys(params).slice(0, 2);
-                            const paramsList = firstKeys.map(key => `${key}: ${params[key]}`).join(', ');
-                            configParamsDisplay = `<span title="${JSON.stringify(params, null, 2)}">${paramsList}${paramCount > 2 ? '...' : ''}</span>`;
+                        // Si es un string JSON, intentar formatearlo
+                        if (typeof model.config_params === 'string') {
+                            const parsedParams = JSON.parse(model.config_params);
+                            configParams = Object.keys(parsedParams).map(key => 
+                                `${key}: ${typeof parsedParams[key] === 'object' ? JSON.stringify(parsedParams[key]) : parsedParams[key]}`
+                            ).join('<br>');
+                        } else if (typeof model.config_params === 'object') {
+                            configParams = Object.keys(model.config_params).map(key => 
+                                `${key}: ${typeof model.config_params[key] === 'object' ? JSON.stringify(model.config_params[key]) : model.config_params[key]}`
+                            ).join('<br>');
                         }
                     } catch (e) {
-                        // Si no es JSON válido, mostrar texto truncado
-                        configParamsDisplay = `<span title="${model.config_params}">${model.config_params.substring(0, 20)}${model.config_params.length > 20 ? '...' : ''}</span>`;
+                        configParams = String(model.config_params);
                     }
                 }
+                
+                // Preparar iconos para archivos
+                const h5Icon = model.route_h5 ? 
+                    `<span class="file-indicator" title="${model.route_h5}"><i class="fas fa-file-code"></i></span>` : '-';
+                    
+                const pkgIcon = model.route_pkl ? 
+                    `<span class="file-indicator" title="${model.route_pkl}"><i class="fas fa-cog"></i></span>` : '-';
                 
                 row.innerHTML = `
                     <td class="column-id">${model.model_id}</td>
                     <td><strong>${model.name}</strong></td>
                     <td>${model.description || '-'}</td>
-                    <td>
-                        <div class="file-indicator ${model.route_h5 ? 'file-available' : ''}">
-                            <i class="fas fa-file-code"></i>
-                            <span class="text-truncate d-inline-block" style="max-width: 150px;" title="${model.route_h5 || ''}">${h5FileName}</span>
-                        </div>
-                    </td>
-                    <td>${scalerLabel}</td>
-                    <td>${accuracyDisplay}</td>
-                    <td>${configParamsDisplay}</td>
-                    <td>${formattedDate}</td>
+                    <td title="${model.route_h5 || ''}">${h5Icon} ${model.route_h5 ? model.route_h5.split('/').pop() : '-'}</td>
+                    <td title="${model.route_pkl || ''}">${pkgIcon} ${model.route_pkl ? model.route_pkl.split('/').pop() : '-'}</td>
+                    <td>${accuracy}</td>
+                    <td><span class="text-truncate" title="${configParams.replace(/<br>/g, '\n')}">${configParams.replace(/<br>/g, ', ')}</span></td>
+                    <td>${lastUpdate}</td>
                     <td class="column-actions">
                         <div class="table-actions">
                             <button class="btn-icon btn-edit" title="Editar modelo" data-id="${model.model_id}">
@@ -982,7 +951,7 @@ function loadModelsTable() {
                 tableBody.appendChild(row);
             });
             
-            // Configurar eventos para los botones de acción
+            // Configurar eventos para botones de editar y eliminar
             const editButtons = tableBody.querySelectorAll('.btn-edit');
             editButtons.forEach(button => {
                 button.addEventListener('click', () => {
@@ -995,17 +964,13 @@ function loadModelsTable() {
             deleteButtons.forEach(button => {
                 button.addEventListener('click', () => {
                     const modelId = button.getAttribute('data-id');
-                    document.getElementById('deleteModelId').value = modelId;
-                    
-                    // Mostrar modal de confirmación
-                    const modal = document.getElementById('deleteModelModal');
-                    modal.classList.add('show');
+                    deleteModel(modelId);
                 });
             });
         })
         .catch(error => {
             console.error('Error al cargar modelos:', error);
-            showToast('Error al cargar la lista de modelos', 'error');
+            showToast('Error al cargar modelos', 'error');
         });
 }
 

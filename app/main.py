@@ -1954,10 +1954,45 @@ def get_simplified_alerts(
     
     return simplified_alerts
 
+@app.get("/api/alerts/count")
+def get_alerts_count(
+    machine_id: Optional[int] = None,
+    sensor_id: Optional[int] = None,
+    db: Session = Depends(get_db)
+):
+    """
+    Obtiene el conteo de alertas por nivel para los filtros especificados.
+    """
+    # Inicializar contadores
+    count_level1 = 0
+    count_level2 = 0
+    count_level3 = 0
+    
+    # Obtener todas las alertas para el sensor especificado
+    alerts = crud.get_all_alerts(db, sensor_id=sensor_id)
+    
+    # Contar alertas por nivel
+    for alert in alerts:
+        if "Nivel 3" in alert.error_type or "Level 3" in alert.error_type or "Crítico" in alert.error_type:
+            count_level3 += 1
+        elif "Nivel 2" in alert.error_type or "Level 2" in alert.error_type:
+            count_level2 += 1
+        else:
+            count_level1 += 1
+    
+    total = count_level1 + count_level2 + count_level3
+    
+    return {
+        "level1": count_level1,
+        "level2": count_level2,
+        "level3": count_level3,
+        "total": total
+    }
+
 @app.get("/api/sensors/{sensor_id}")
 def get_sensor_by_id(sensor_id: int, db: Session = Depends(get_db)):
     """
-    Obtiene información de un sensor específico por su ID
+    Obtiene información detallada de un sensor por su ID.
     """
     sensor = crud.get_sensor_by_id(db, sensor_id)
     if not sensor:
