@@ -2041,390 +2041,243 @@ p {
 .custom-file-button {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  padding: 0.375rem 0.75rem;
-  border-radius: 0.25rem;
-  background-color: var(--color-secondary);
-  color: white;
-  font-size: 0.875rem;
+  justify-content: flex-start;
+  padding: 0.5rem 1rem;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--color-text);
+  background-color: var(--color-background-hover);
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius);
   cursor: pointer;
-  border: none;
-  transition: background-color 0.2s;
+  transition: all var(--transition-fast);
+  width: fit-content;
 }
 
 .custom-file-button:hover {
-  background-color: var(--color-dark);
+  background-color: var(--color-background-active);
 }
 
-.selected-file-name {
-  flex: 1;
+.custom-file-label {
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+/* Estilo para texto de ayuda */
+.form-text {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+/* Estilos para la sección de configuración con pestañas */
+.config-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--color-border);
+  margin-bottom: 1.5rem;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.tab-item {
+  padding: 0.75rem 1.25rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all var(--transition-fast);
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  color: var(--color-dark);
-}
-
-/* Estilos para modales */
-.modal {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-color: rgba(0, 0, 0, 0.5);
   display: flex;
   align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  opacity: 0;
-  visibility: hidden;
-  transition: opacity 0.3s, visibility 0.3s;
+  gap: 0.5rem;
 }
 
-.modal.show {
-  opacity: 1;
-  visibility: visible;
+.tab-item i {
+  font-size: 1rem;
 }
 
-.modal-dialog {
-  width: 100%;
-  max-width: 600px;
-  max-height: 90vh;
-  background-color: var(--color-bg);
-  border-radius: 0.5rem;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
-  overflow: hidden;
-  transform: translateY(20px);
-  transition: transform 0.3s;
+.tab-item:hover {
+  color: var(--color-text);
+  background-color: var(--color-background-hover);
 }
 
-.modal.show .modal-dialog {
-  transform: translateY(0);
+.tab-item.active {
+  color: var(--color-accent);
+  border-bottom-color: var(--color-accent);
 }
 
-.modal-content {
+.config-content {
+  margin-top: 1rem;
+}
+
+.tab-content {
+  display: none;
+}
+
+.tab-content.active {
+  display: block;
+}
+
+/* Card con descripción en configuración */
+.card-description {
+  color: var(--color-text-muted);
+  margin-bottom: 1.25rem;
+  font-size: 0.9rem;
+}
+
+/* Estilos para los formularios de límites */
+.limits-form {
+  margin-top: 1rem;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1.5rem;
+}
+
+.axis-column {
   display: flex;
   flex-direction: column;
-  max-height: 90vh;
+  gap: 1rem;
+  padding: 1rem;
+  background-color: var(--color-background-hover);
+  border-radius: var(--border-radius);
 }
 
-.modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 1rem 1.5rem;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
-}
-
-.modal-title {
-  font-size: 1.1rem;
+.form-section-title {
   font-weight: 600;
-  margin: 0;
+  margin-bottom: 0.5rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text);
 }
 
-.modal-close {
-  background: transparent;
-  border: none;
-  font-size: 1.25rem;
-  cursor: pointer;
-  color: var(--color-dark);
+.form-actions {
+  margin-top: 1.5rem;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 2rem;
-  height: 2rem;
-  border-radius: 50%;
-  transition: background-color 0.2s;
-}
-
-.modal-close:hover {
-  background-color: rgba(0, 0, 0, 0.05);
-  color: var(--color-danger);
-}
-
-.modal-body {
-  padding: 1.5rem;
-  overflow-y: auto;
-}
-
-.modal-footer {
-  display: flex;
-  align-items: center;
   justify-content: flex-end;
-  gap: 0.75rem;
-  padding: 1rem 1.5rem;
-  border-top: 1px solid rgba(0, 0, 0, 0.1);
+  gap: 1rem;
 }
 
-/* Estilos para alertas en tablas */
-.alert-danger {
-  background-color: rgba(var(--color-danger-rgb), 0.08);
-}
-
-.alert-warning {
-  background-color: rgba(var(--color-warning-rgb), 0.08);
-}
-
-.alert-info {
-  background-color: rgba(var(--color-accent-rgb), 0.08);
-}
-
-/* Badge naranja para nivel 2 */
-.badge-orange {
-  background-color: #fd7e14;
-  color: white;
-}
-
-/* Clase para enlaces de datos de vibración */
-.view-vibration-data {
-  color: var(--color-accent);
-  text-decoration: none;
+/* Estilos para los campos y etiquetas de formulario */
+.form-label {
+  display: block;
+  margin-bottom: 0.5rem;
   font-weight: 500;
+  color: var(--color-text);
 }
 
-.view-vibration-data:hover {
-  text-decoration: underline;
+.form-control {
+  display: block;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--color-text);
+  background-color: var(--color-background-light);
+  background-clip: padding-box;
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
 }
 
-/* Espaciado para íconos dentro de badges */
-.mr-1 {
-  margin-right: 0.25rem;
+.form-control:focus {
+  border-color: var(--color-accent);
+  outline: 0;
+  box-shadow: 0 0 0 3px rgba(var(--color-accent-rgb), 0.25);
 }
 
-/* Estados para máquinas */
-.status-operativo {
-    color: var(--color-success);
-    font-weight: 600;
+.form-select {
+  display: block;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--color-text);
+  background-color: var(--color-background-light);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='6' fill='none'%3E%3Cpath d='M4 6L0.535898 0L7.4641 0L4 6Z' fill='%236c757d'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  background-size: 8px 6px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius);
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
 }
 
-.status-mantenimiento {
-    color: var(--color-warning);
-    font-weight: 600;
+.form-select:focus {
+  border-color: var(--color-accent);
+  outline: 0;
+  box-shadow: 0 0 0 3px rgba(var(--color-accent-rgb), 0.25);
 }
 
-.status-critical,
-.status-error {
-    color: var(--color-danger);
-    font-weight: 600;
+/* Estilos para campos obligatorios */
+.required {
+  color: var(--color-danger);
+  margin-left: 0.25rem;
 }
 
-.status-apagado {
-    color: var(--color-text-muted);
-    font-weight: 600;
+.optional {
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+  margin-left: 0.25rem;
 }
 
-/* Mejoras para tablas */
-.data-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-bottom: 1.5rem;
-    border-radius: var(--border-radius);
-    overflow: hidden;
-    box-shadow: var(--shadow-sm);
+.text-danger {
+  color: var(--color-danger) !important;
 }
 
-.data-table thead {
-    background-color: var(--color-background-hover);
+/* Estilos para subir archivos */
+.custom-file {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
-.data-table thead th {
-    padding: 1rem 0.75rem;
-    text-align: left;
-    font-weight: 600;
-    color: var(--color-text);
-    text-transform: uppercase;
-    font-size: var(--font-size-xs);
-    letter-spacing: 0.5px;
-    border-bottom: 2px solid var(--color-border);
-    white-space: nowrap;
+.custom-file-input {
+  position: absolute;
+  width: 0.1px;
+  height: 0.1px;
+  opacity: 0;
+  overflow: hidden;
+  z-index: -1;
 }
 
-.data-table tbody tr {
-    transition: background-color var(--transition-fast);
-    border-bottom: 1px solid var(--color-border);
+.custom-file-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 0.5rem 1rem;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--color-text);
+  background-color: var(--color-background-hover);
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  width: fit-content;
 }
 
-.data-table tbody tr:hover {
-    background-color: var(--color-background-hover);
+.custom-file-button:hover {
+  background-color: var(--color-background-active);
 }
 
-.data-table tbody td {
-    padding: 0.75rem;
-    vertical-align: middle;
-    color: var(--color-text);
-    font-size: var(--font-size-sm);
+.custom-file-label {
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
 }
 
-.data-table .text-truncate {
-    max-width: 150px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    display: inline-block;
-}
-
-/* Estilos para mejorar las tablas de datos */
-.table-container {
-    margin-bottom: 1.5rem;
-    border-radius: var(--border-radius);
-    background-color: var(--color-background-light);
-    box-shadow: var(--shadow-sm);
-    overflow: hidden;
-}
-
-.table-header {
-    padding: 1rem;
-    background-color: var(--color-background-hover);
-    border-bottom: 1px solid var(--color-border);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-}
-
-.table-title {
-    font-weight: 600;
-    font-size: var(--font-size-md);
-    color: var(--color-text);
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
-.table-title i {
-    color: var(--color-accent);
-}
-
-.table-body {
-    padding: 0;
-}
-
-/* Ajustes de espaciado */
-.data-table td, .data-table th {
-    padding: 0.75rem 1rem;
-}
-
-/* Estilos para resaltar filas por nivel/severidad */
-.row-level-0 {
-    color: var(--color-text);
-}
-
-.row-level-1 {
-    border-left: 3px solid var(--color-level1);
-}
-
-.row-level-2 {
-    border-left: 3px solid var(--color-level2);
-}
-
-.row-level-3 {
-    border-left: 3px solid var(--color-level3);
-}
-
-/* Indicadores de archivos y valores */
-.file-indicator {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    background-color: var(--color-background-hover);
-    margin-right: 0.5rem;
-}
-
-.file-indicator i {
-    font-size: 0.75rem;
-    color: var(--color-accent);
-}
-
-/* Ajustes para la visualización móvil */
-@media (max-width: 992px) {
-    .table-responsive {
-        overflow-x: auto;
-        -webkit-overflow-scrolling: touch;
-    }
-    
-    .data-table thead th,
-    .data-table tbody td {
-        white-space: nowrap;
-    }
-}
-
-/* Ajustes para campos específicos */
-.field-truncate {
-    max-width: 200px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    display: inline-block;
-}
-
-.field-code {
-    font-family: Consolas, Monaco, 'Courier New', monospace;
-    background-color: rgba(0, 0, 0, 0.1);
-    padding: 0.1rem 0.3rem;
-    border-radius: 3px;
-    font-size: 0.85em;
-}
-
-.field-number {
-    font-family: Consolas, Monaco, 'Courier New', monospace;
-    text-align: right;
-}
-
-/* Mejoras para tablas */
-.data-table .column-id {
-    font-family: Consolas, Monaco, 'Courier New', monospace;
-    font-size: 0.8rem;
-    letter-spacing: -0.5px;
-    width: 60px;
-    color: var(--color-text-secondary);
-}
-
-.data-table .column-datetime {
-    white-space: nowrap;
-    width: 140px;
-}
-
-.data-table .column-actions {
-    width: 80px;
-    text-align: right;
-    white-space: nowrap;
-}
-
-.data-table .column-number {
-    text-align: right;
-    font-family: Consolas, Monaco, 'Courier New', monospace;
-    font-size: 0.9rem;
-}
-
-/* Estilos para severidad */
-.severity-badge {
-    display: inline-flex;
-    align-items: center;
-    padding: 0.35em 0.65em;
-    font-size: 0.75em;
-    font-weight: 700;
-    line-height: 1;
-    text-align: center;
-    white-space: nowrap;
-    vertical-align: baseline;
-    border-radius: 4px;
-}
-
-.severity-0 {
-    background-color: var(--color-background-hover);
-    color: var(--color-text);
-}
-
-.severity-1 {
-    background-color: var(--color-info);
-}
-
-.severity-2 {
-    background-color: var(--color-warning);
-}
-
-.severity-3 {
-    background-color: var(--color-danger);
+/* Estilo para texto de ayuda */
+.form-text {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
 } 
