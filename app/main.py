@@ -609,13 +609,13 @@ def reload_model(db: Session = Depends(get_db)):
     global modelo, scaler
     
     try:
-        # Buscar una máquina con modelo asignado
-        machine_with_model = db.query(models.Machine).filter(
-            models.Machine.model_id.isnot(None)
+        # Buscar un sensor con modelo asignado
+        sensor_with_model = db.query(models.Sensor).filter(
+            models.Sensor.model_id.isnot(None)
         ).first()
         
-        # Si no hay ninguna máquina con modelo asignado, intentar cargar el predeterminado
-        if not machine_with_model:
+        # Si no hay ningún sensor con modelo asignado, intentar cargar el predeterminado
+        if not sensor_with_model:
             modelo = load_model(os.path.join(MODELO_DIR, "modelo_pdm.h5"))
             
             # Intentar cargar el escalador predeterminado
@@ -631,7 +631,7 @@ def reload_model(db: Session = Depends(get_db)):
                 }
         
         # Obtener el modelo de la base de datos
-        model = crud.get_model_by_id(db, machine_with_model.model_id)
+        model = crud.get_model_by_id(db, sensor_with_model.model_id)
         if not model:
             raise Exception("Modelo no encontrado en la base de datos")
         
@@ -995,12 +995,6 @@ def get_all_machines(db: Session = Depends(get_db)):
                 {"sensor_id": s.sensor_id, "name": s.name} for s in sensors
             ]
         
-        # Obtener información del modelo si existe
-        if machine.model_id:
-            model = crud.get_model_by_id(db, machine.model_id)
-            if model:
-                machine_dict["model_name"] = model.name
-        
         result.append(machine_dict)
     
     return result
@@ -1008,7 +1002,7 @@ def get_all_machines(db: Session = Depends(get_db)):
 @app.get("/api/machines/{machine_id}")
 def get_machine_info(machine_id: int, db: Session = Depends(get_db)):
     """
-    Obtiene información detallada de una máquina por su ID, incluyendo nombres de sensor y modelo
+    Obtiene información detallada de una máquina por su ID, incluyendo nombres de sensor
     """
     machine = crud.get_machine_by_id(db, machine_id)
     if not machine:
@@ -1024,12 +1018,6 @@ def get_machine_info(machine_id: int, db: Session = Depends(get_db)):
         result["sensors"] = [
             {"sensor_id": s.sensor_id, "name": s.name} for s in sensors
         ]
-    
-    # Obtener información del modelo si existe
-    if machine.model_id:
-        model = crud.get_model_by_id(db, machine.model_id)
-        if model:
-            result["model_name"] = model.name
     
     return result
 
@@ -1639,16 +1627,6 @@ def get_data_for_dashboard(
             }
         )
     
-    # Verificar que la máquina tiene un modelo asociado
-    if not machine_obj.model_id:
-        return JSONResponse(
-            status_code=400,
-            content={
-                "status": "error",
-                "message": f"La máquina {machine_obj.name} no tiene un modelo de predicción asociado. Configure uno en la sección de Configuración."
-            }
-        )
-    
     # Obtener el sensor seleccionado
     sensor_obj = crud.get_sensor_by_id(db, sensor)
     if not sensor_obj:
@@ -2001,3 +1979,64 @@ def get_sensor_by_id(sensor_id: int, db: Session = Depends(get_db)):
             sensor_dict["model_name"] = model.name
     
     return sensor_dict
+
+def get_machines_with_status(db: Session, skip: int = 0, limit: int = 100) -> List[Dict[str, Any]]:
+    """Obtiene las máquinas con información de estado"""
+    machines = get_machines(db, skip, limit)
+    result = []
+    
+    for machine in machines:
+        # Obtener sensores asociados a esta máquina
+        sensors = db.query(Sensor).filter(Sensor.machine_id == machine.machine_id).all()
+        sensor_ids = [s.sensor_id for s in sensors]
+        
+        # Contar alertas no reconocidas por nivel de severidad
+        level1_count = 0
+        level2_count = 0
+        level3_count = 0
+        
+        if sensor_ids:
+            level1_count = db.query(Alert).filter(
+                Alert.sensor_id.in_(sensor_ids),
+                Alert.severity == 1,
+                Alert.acknowledged == False
+            ).count()
+            
+            level2_count = db.query(Alert).filter(
+                Alert.sensor_id.in_(sensor_ids),
+                Alert.severity == 2,
+                Alert.acknowledged == False
+            ).count()
+            
+            level3_count = db.query(Alert).filter(
+                Alert.sensor_id.in_(sensor_ids),
+                Alert.severity == 3,
+                Alert.acknowledged == False
+            ).count()
+        
+        # Determinar estado de la máquina basado en las alertas
+        status = "normal"  # Por defecto
+        
+        if level3_count > 0:
+            status = "critical"
+        elif level2_count > 0:
+            status = "warning"
+        elif level1_count > 0:
+            status = "attention"
+        
+        # Crear objeto de respuesta
+        machine_info = {
+            "id": machine.machine_id,
+            "name": machine.name,
+            "status": machine.status or status,
+            "alert_counts": {
+                "level1": level1_count,
+                "level2": level2_count,
+                "level3": level3_count,
+                "total": level1_count + level2_count + level3_count
+            }
+        }
+        
+        result.append(machine_info)
+    
+    return result

@@ -211,29 +211,6 @@ function loadSensorsForSelect() {
         });
 }
 
-// Cargar modelos para el selector
-function loadModelsForSelect() {
-    fetch('/api/models')
-        .then(response => response.json())
-        .then(models => {
-            const modelSelect = document.getElementById('machineModel');
-            if (!modelSelect) return;
-            
-            // Mantener la opción "Ninguno"
-            modelSelect.innerHTML = '<option value="">Ninguno</option>';
-            
-            models.forEach(model => {
-                const option = document.createElement('option');
-                option.value = model.model_id;
-                option.textContent = model.name;
-                modelSelect.appendChild(option);
-            });
-        })
-        .catch(error => {
-            console.error('Error al cargar modelos:', error);
-        });
-}
-
 // Editar máquina
 function editMachine(machineId) {
     fetch(`/api/machines/${machineId}`)
@@ -490,8 +467,8 @@ function loadMachinesForSelect(selectedMachine = null) {
         });
 }
 
-// Cargar modelos para el selector en el formulario de sensores
-function loadModelsForSelect(selectedModel = null) {
+// Cargar modelos para el selector
+function loadModelsForSelect() {
     fetch('/api/models')
         .then(response => response.json())
         .then(models => {
@@ -507,10 +484,6 @@ function loadModelsForSelect(selectedModel = null) {
                 option.textContent = model.name;
                 modelSelect.appendChild(option);
             });
-            
-            if (selectedModel) {
-                modelSelect.value = selectedModel;
-            }
         })
         .catch(error => {
             console.error('Error al cargar modelos:', error);

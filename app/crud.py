@@ -227,7 +227,6 @@ def get_machines_with_status(db: Session, skip: int = 0, limit: int = 100) -> Li
             "id": machine.machine_id,
             "name": machine.name,
             "status": machine.status or status,
-            "model_id": machine.model_id,
             "alert_counts": {
                 "level1": level1_count,
                 "level2": level2_count,
