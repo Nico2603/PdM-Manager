@@ -158,12 +158,27 @@
             </div>
           </div>
 
+          <!-- Botón Iniciar Monitoreo -->
+          <div class="monitoring-controls animate-slide-up" style="animation-delay: 0.45s">
+            <button id="startMonitoringBtn" class="btn btn-primary">
+              <i class="fas fa-play-circle mr-2"></i> Iniciar Monitoreo
+            </button>
+            <div id="monitoringStatus" class="monitoring-status">
+              <span class="status-indicator"></span>
+              <span class="status-text">Monitoreo detenido</span>
+            </div>
+            <div id="configurationWarning" class="configuration-warning d-none">
+              <i class="fas fa-exclamation-triangle mr-2"></i>
+              <span>Se requiere configurar al menos una máquina con sensor y modelo</span>
+            </div>
+          </div>
+
           <!-- Filtros y Gráficos -->
           <div class="dashboard-grid">
             <!-- Filtros del Dashboard -->
             <div class="filter-card animate-slide-up" style="animation-delay: 0.5s">
               <div class="card-header">
-                <h5><i class="fas fa-filter"></i> Filtros de Visualisación</h5>
+                <h5><i class="fas fa-filter"></i> Filtros de Visualización</h5>
                 <button class="btn-icon" id="expandFiltersBtn">
                   <i class="fas fa-chevron-down"></i>
                 </button>
@@ -322,11 +337,27 @@
           
           <!-- Gráficos -->
           <div class="charts-container">
+            <!-- Mensaje de no configuración -->
+            <div id="noConfigurationMessage" class="no-config-message d-none">
+              <div class="message-icon">
+                <i class="fas fa-cog"></i>
+              </div>
+              <h3>No hay configuración disponible</h3>
+              <p>Cree una máquina y configure un sensor con modelo en la sección de Configuración</p>
+              <a href="#configuracion" class="btn btn-accent">
+                <i class="fas fa-wrench mr-2"></i>Ir a Configuración
+              </a>
+            </div>
+            
             <div class="chart-container chart-container-x animate-slide-up" style="animation-delay: 0.7s">
               <div class="chart-header">
                 <div class="chart-title">
                   <span>Vibración - Eje X</span>
                   <span class="axis-indicator">X</span>
+                </div>
+                <div class="severity-indicator">
+                  <span class="severity-text">Severidad: </span>
+                  <span id="xAxisSeverity" class="severity-value normal">Normal</span>
                 </div>
                 <div class="chart-actions">
                   <button class="btn-icon" id="zoomResetBtnX" title="Restablecer zoom">
@@ -358,6 +389,10 @@
                   <span>Vibración - Eje Y</span>
                   <span class="axis-indicator">Y</span>
                 </div>
+                <div class="severity-indicator">
+                  <span class="severity-text">Severidad: </span>
+                  <span id="yAxisSeverity" class="severity-value normal">Normal</span>
+                </div>
                 <div class="chart-actions">
                   <button class="btn-icon" id="zoomResetBtnY" title="Restablecer zoom">
                     <i class="fas fa-compress-arrows-alt"></i>
@@ -387,6 +422,10 @@
                 <div class="chart-title">
                   <span>Vibración - Eje Z</span>
                   <span class="axis-indicator">Z</span>
+                </div>
+                <div class="severity-indicator">
+                  <span class="severity-text">Severidad: </span>
+                  <span id="zAxisSeverity" class="severity-value normal">Normal</span>
                 </div>
                 <div class="chart-actions">
                   <button class="btn-icon" id="zoomResetBtnZ" title="Restablecer zoom">

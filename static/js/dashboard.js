@@ -1,5 +1,5 @@
 /**
- * PdM-Manager - JavaScript Dashboard v1.0.0
+ * PdM-Manager - JavaScript Dashboard v2.0.0
  * Funciones específicas para el dashboard principal
  * 
  * Última actualización: 2023-09-15
@@ -11,6 +11,11 @@
 
 // Mantener referencias a las selecciones actuales (ahora gestionadas por globalState)
 // Estas referencias se eliminan y se usan las funciones de utils.js para acceder a los valores
+
+// Estado del monitoreo
+let monitoringInterval = null;
+let isMonitoring = false;
+let hasValidConfiguration = false;
 
 // ==========================================================================
 // INICIALIZACIÓN DEL DASHBOARD
@@ -26,6 +31,9 @@ function initDashboard() {
         initExportButtons();
         initAdjustLimitsButton();
         initVibrationDataSection();
+        
+        // Inicializar nueva funcionalidad de monitoreo
+        initMonitoringButton();
         
         // Ocultar gráficos hasta que se carguen datos
         hideCharts();
@@ -70,8 +78,8 @@ function initDashboard() {
             })
             .then(() => {
                 // Comprobar si hay una configuración válida antes de cargar datos
-                if ((!cache.machines || cache.machines.length === 0) && 
-                    (!cache.sensors || Object.keys(cache.sensors).length === 0)) {
+                hasValidConfiguration = checkValidConfiguration();
+                if (!hasValidConfiguration) {
                     hideLoadingIndicator();
                     showNoConfigurationMessage();
                     return Promise.reject('No hay configuración válida');
@@ -320,44 +328,55 @@ function loadInitialData() {
 
 // Mostrar mensaje de no configuración
 function showNoConfigurationMessage() {
-    const dashboardSection = document.getElementById('dashboard-section');
-    if (!dashboardSection) return;
+    const noConfigMessage = document.getElementById('noConfigurationMessage');
+    const chartsContainers = document.querySelectorAll('.chart-container');
+    const warningMessage = document.getElementById('configurationWarning');
     
-    // Crear mensaje 
-    const noConfigMessage = document.createElement('div');
-    noConfigMessage.className = 'no-config-message animate-fade-in';
-    noConfigMessage.innerHTML = `
-        <div class="message-icon">
-            <i class="fas fa-exclamation-triangle"></i>
-        </div>
-        <h3>No hay configuración inicial</h3>
-        <p>No se encontraron máquinas configuradas en el sistema. Por favor, configure al menos una máquina y un sensor para comenzar a monitorear.</p>
-        <button class="btn btn-primary" id="goToConfigBtn">
-            <i class="fas fa-cog mr-2"></i>
-            Ir a Configuración
-        </button>
-    `;
-    
-    // Reemplazar el contenido
-    dashboardSection.querySelector('.dashboard-grid')?.remove();
-    dashboardSection.querySelector('.alert-cards-grid')?.remove();
-    
-    // Añadir el mensaje después del encabezado de sección
-    const sectionHeader = dashboardSection.querySelector('.section-header');
-    if (sectionHeader) {
-        sectionHeader.after(noConfigMessage);
-    } else {
-        dashboardSection.appendChild(noConfigMessage);
+    if (noConfigMessage) {
+        noConfigMessage.classList.remove('d-none');
     }
     
-    // Configurar evento para ir a configuración
-    const configBtn = document.getElementById('goToConfigBtn');
-    if (configBtn) {
-        configBtn.addEventListener('click', () => {
-            if (typeof navigateTo === 'function') {
-                navigateTo('configuracion');
-            }
-        });
+    if (warningMessage) {
+        warningMessage.classList.remove('d-none');
+    }
+    
+    chartsContainers.forEach(container => {
+        if (container.id !== 'noConfigurationMessage') {
+            container.classList.add('d-none');
+        }
+    });
+    
+    // Desactivar el botón de monitoreo
+    const startMonitoringBtn = document.getElementById('startMonitoringBtn');
+    if (startMonitoringBtn) {
+        startMonitoringBtn.disabled = true;
+    }
+}
+
+// Ocultar mensaje de no configuración
+function hideNoConfigurationMessage() {
+    const noConfigMessage = document.getElementById('noConfigurationMessage');
+    const chartsContainers = document.querySelectorAll('.chart-container');
+    const warningMessage = document.getElementById('configurationWarning');
+    
+    if (noConfigMessage) {
+        noConfigMessage.classList.add('d-none');
+    }
+    
+    if (warningMessage) {
+        warningMessage.classList.add('d-none');
+    }
+    
+    chartsContainers.forEach(container => {
+        if (container.id !== 'noConfigurationMessage') {
+            container.classList.remove('d-none');
+        }
+    });
+    
+    // Activar el botón de monitoreo
+    const startMonitoringBtn = document.getElementById('startMonitoringBtn');
+    if (startMonitoringBtn) {
+        startMonitoringBtn.disabled = false;
     }
 }
 
@@ -508,295 +527,139 @@ function updateSensorDropdown(sensors) {
 
 // Actualizar datos del dashboard
 function updateDashboardData() {
-    showLoadingIndicator('Actualizando datos...');
-    
-    // Obtener valores de filtros actuales
-    const machineId = getGlobalState('selectedMachine');
-    const sensorId = getGlobalState('selectedSensor');
+    // Obtener parámetros de filtrado actuales
+    const selectedMachine = getGlobalState('selectedMachine');
+    const selectedSensor = getGlobalState('selectedSensor');
     const timeRange = getGlobalState('timeRange');
     
-    // Variable para almacenar en caché los datos
-    const dashboardCache = getGlobalState('dashboardCache') || {};
-    const cacheKey = `${machineId}-${sensorId}-${timeRange}`;
+    // Construir URL para el endpoint optimizado
+    let url = `/api/dashboard-data?`;
     
-    // Comprobar si tenemos datos en caché que no estén expirados (5 minutos)
-    const currentTime = new Date().getTime();
-    if (dashboardCache[cacheKey] && 
-        dashboardCache[cacheKey].timestamp && 
-        (currentTime - dashboardCache[cacheKey].timestamp < 300000)) {
-        
-        console.log('Usando datos en caché para:', cacheKey);
-        
-        // Usar datos en caché
-        const cachedData = dashboardCache[cacheKey];
-        
-        // Procesar datos de vibración para las gráficas
-        if (cachedData.vibrationData && cachedData.vibrationData.items) {
-            processVibrationData(cachedData.vibrationData.items);
-        }
-        
-        // Actualizar contadores de alertas
-        if (cachedData.alertsData && cachedData.alertsData.items) {
-            // Contar alertas por nivel de severidad
-            const alertCounts = {
-                level1: 0,
-                level2: 0,
-                level3: 0,
-                total: 0
-            };
-            
-            cachedData.alertsData.items.forEach(alert => {
-                if (alert.severity === 1) alertCounts.level1++;
-                else if (alert.severity === 2) alertCounts.level2++;
-                else if (alert.severity === 3) alertCounts.level3++;
-            });
-            
-            alertCounts.total = alertCounts.level1 + alertCounts.level2 + alertCounts.level3;
-            updateAlertCounters(alertCounts);
-        }
-        
-        // Actualizar datos estadísticos
-        if (cachedData.statsData) {
-            // Procesar datos estadísticos
-            const statsData = processStatsData(cachedData.statsData);
-            updateGlobalStats(statsData);
-        }
-        
-        // Actualizar la interfaz
-        hideLoadingIndicator();
-        updateLastUpdateTime();
-        updateVisualElements();
-        
-        showToast('Datos actualizados desde caché', 'success');
-        return Promise.resolve(cachedData);
+    // Añadir filtros
+    if (selectedSensor) {
+        url += `&sensor_id=${selectedSensor}`;
     }
     
-    // Formato correcto para la URL: añadir data_type como parámetro, no como parte de la URL
-    let baseUrl = '/api/dashboard-data';
-    let vibrationParams = new URLSearchParams();
-    let alertsParams = new URLSearchParams();
-    let statsParams = new URLSearchParams();
-    
-    // Parámetros comunes
-    if (sensorId) {
-        vibrationParams.append('sensor_id', sensorId);
-        alertsParams.append('sensor_id', sensorId);
-        statsParams.append('sensor_id', sensorId);
+    if (selectedMachine) {
+        url += `&machine_id=${selectedMachine}`;
     }
     
-    // Parámetros específicos
-    vibrationParams.append('data_type', 'vibration');
-    vibrationParams.append('page', '1');
-    vibrationParams.append('limit', '50'); // Cantidad de datos suficiente para gráficas
+    if (timeRange) {
+        url += `&time_range=${timeRange}`;
+    }
     
-    alertsParams.append('data_type', 'alerts');
-    alertsParams.append('page', '1');
-    alertsParams.append('limit', '10'); // Limitar cantidad de alertas para evitar sobrecarga
+    // Mostrar indicador de carga
+    showLoadingIndicator('Actualizando datos del panel...');
     
-    statsParams.append('data_type', 'stats');
-    
-    // URLs completas
-    const vibrationUrl = `${baseUrl}?${vibrationParams.toString()}`;
-    const alertsUrl = `${baseUrl}?${alertsParams.toString()}`;
-    const statsUrl = `${baseUrl}?${statsParams.toString()}`;
-    
-    console.log('Realizando peticiones a:');
-    console.log('- Vibración:', vibrationUrl);
-    console.log('- Alertas:', alertsUrl);
-    console.log('- Estadísticas:', statsUrl);
-    
-    // Realizar fetches paralelos con peticiones optimizadas
-    const promises = [
-        // Datos de vibración para gráficos con manejo de errores mejorado
-        fetch(vibrationUrl)
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error(`Error en ${vibrationUrl}: ${response.status} ${response.statusText}`);
-                }
-                return response.json();
-            })
-            .catch(error => {
-                console.error('Error al obtener datos de vibración:', error);
-                return { items: [] }; // Retornar datos vacíos en caso de error
-            }),
-        
-        // Alertas para contadores y gráfico de alertas con manejo de errores mejorado
-        fetch(alertsUrl)
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error(`Error en ${alertsUrl}: ${response.status} ${response.statusText}`);
-                }
-                return response.json();
-            })
-            .catch(error => {
-                console.error('Error al obtener alertas:', error);
-                return { items: [] }; // Retornar datos vacíos en caso de error
-            }),
-        
-        // Estadísticas para límites de control con manejo de errores mejorado
-        fetch(statsUrl)
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error(`Error en ${statsUrl}: ${response.status} ${response.statusText}`);
-                }
-                return response.json();
-            })
-            .catch(error => {
-                console.error('Error al obtener estadísticas:', error);
-                return null; // Retornar null en caso de error
-            }),
-    ];
-    
-    return Promise.all(promises)
-        .then(([vibrationData, alertsData, statsData]) => {
-            // Guardar datos en caché
-            dashboardCache[cacheKey] = {
-                vibrationData,
-                alertsData,
-                statsData,
-                timestamp: new Date().getTime()
-            };
+    return fetch(url)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`Error al cargar datos del dashboard: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('Datos del dashboard recibidos:', data);
             
-            // Actualizar estado global con la caché
-            setGlobalState('dashboardCache', dashboardCache);
-            
-            // Procesar datos de vibración para las gráficas
-            if (vibrationData && vibrationData.items) {
-                processVibrationData(vibrationData.items);
+            // Procesar datos
+            if (data.vibration_data) {
+                processVibrationData(data.vibration_data);
             }
             
-            // Procesar alertas y actualizar contadores
-            if (alertsData && alertsData.items) {
-                // Contar alertas por nivel de severidad
-                const alertCounts = {
-                    level1: 0,
-                    level2: 0,
-                    level3: 0,
-                    total: 0
-                };
-                
-                alertsData.items.forEach(alert => {
-                    if (alert.severity === 1) alertCounts.level1++;
-                    else if (alert.severity === 2) alertCounts.level2++;
-                    else if (alert.severity === 3) alertCounts.level3++;
+            if (data.alerts) {
+                updateAlertCounters({
+                    level1: data.alerts.filter(a => a.error_type === 1).length,
+                    level2: data.alerts.filter(a => a.error_type === 2).length,
+                    level3: data.alerts.filter(a => a.error_type === 3).length
                 });
+            }
+            
+            if (data.limits) {
+                // Actualizar límites
+                setGlobalState('limits', data.limits);
                 
-                alertCounts.total = alertCounts.level1 + alertCounts.level2 + alertCounts.level3;
-                updateAlertCounters(alertCounts);
+                // Guardar en localStorage para persistencia
+                localStorage.setItem('limitConfig', JSON.stringify({
+                    x_2inf: data.limits.x_2inf,
+                    x_2sup: data.limits.x_2sup,
+                    x_3inf: data.limits.x_3inf,
+                    x_3sup: data.limits.x_3sup,
+                    y_2inf: data.limits.y_2inf,
+                    y_2sup: data.limits.y_2sup,
+                    y_3inf: data.limits.y_3inf,
+                    y_3sup: data.limits.y_3sup,
+                    z_2inf: data.limits.z_2inf,
+                    z_2sup: data.limits.z_2sup,
+                    z_3inf: data.limits.z_3inf,
+                    z_3sup: data.limits.z_3sup
+                }));
+                
+                updateStatisticalDisplayValues();
             }
             
-            // Procesar datos estadísticos
-            if (statsData) {
-                const processedStatsData = processStatsData(statsData);
-                updateGlobalStats(processedStatsData);
+            // Actualizar últimos valores de severidad
+            if (data.vibration_data && data.vibration_data.length > 0) {
+                const lastData = data.vibration_data[data.vibration_data.length - 1];
+                
+                // Si hay una alerta de tipo 3 (severidad 3), mostrar alerta
+                if (lastData.severity === 3) {
+                    showCriticalAlert();
+                }
             }
             
-            // Actualizar elementos visuales
-            updateVisualElements();
+            // Actualizar gráficos
+            updateAllCharts();
             
-            // Mostrar indicación de éxito
+            // Mostrar gráficos si están ocultos
+            showCharts();
+            
+            // Ocultar indicador de carga
             hideLoadingIndicator();
-            updateLastUpdateTime();
-            showToast('Datos actualizados correctamente', 'success');
             
-            return { vibrationData, alertsData, statsData };
+            // Actualizar timestamp de última actualización
+            document.getElementById('lastUpdateTime').textContent = 
+                new Date().toLocaleTimeString();
+                
+            return data;
         })
         .catch(error => {
             console.error('Error al actualizar datos del dashboard:', error);
             hideLoadingIndicator();
-            showToast('Error al actualizar datos del dashboard: ' + error.message, 'error');
-            throw error;
+            showToast('Error al cargar datos del panel', 'error');
+            return null;
         });
 }
 
-// Función para procesar datos estadísticos
-function processStatsData(statsData) {
-    // Verificar que tenemos datos válidos
-    if (!statsData || !statsData.mean) {
-        return {
-            x: { 
-                mean: 0, std: 0, min: 0, max: 0,
-                sigma2: { lower: 0, upper: 0 },
-                sigma3: { lower: 0, upper: 0 }
-            },
-            y: {
-                mean: 0, std: 0, min: 0, max: 0,
-                sigma2: { lower: 0, upper: 0 },
-                sigma3: { lower: 0, upper: 0 }
-            },
-            z: {
-                mean: 0, std: 0, min: 0, max: 0,
-                sigma2: { lower: 0, upper: 0 },
-                sigma3: { lower: 0, upper: 0 }
-            }
-        };
+// Función para verificar si hay una configuración válida
+function checkValidConfiguration() {
+    const cache = getGlobalState('dashboardCache') || {};
+    
+    // Verificar si hay al menos una máquina con sensor asignado
+    if (!cache.machines || cache.machines.length === 0) {
+        return false;
     }
     
-    // Convertir el formato de la API al formato esperado por updateGlobalStats
-    return {
-        x: {
-            mean: statsData.mean?.x || 0,
-            std: statsData.std?.x || 0,
-            min: statsData.min?.x || 0,
-            max: statsData.max?.x || 0,
-            sigma2: {
-                lower: statsData.mean?.x - 2 * statsData.std?.x || 0,
-                upper: statsData.mean?.x + 2 * statsData.std?.x || 0
-            },
-            sigma3: {
-                lower: statsData.mean?.x - 3 * statsData.std?.x || 0,
-                upper: statsData.mean?.x + 3 * statsData.std?.x || 0
-            }
-        },
-        y: {
-            mean: statsData.mean?.y || 0,
-            std: statsData.std?.y || 0,
-            min: statsData.min?.y || 0,
-            max: statsData.max?.y || 0,
-            sigma2: {
-                lower: statsData.mean?.y - 2 * statsData.std?.y || 0,
-                upper: statsData.mean?.y + 2 * statsData.std?.y || 0
-            },
-            sigma3: {
-                lower: statsData.mean?.y - 3 * statsData.std?.y || 0,
-                upper: statsData.mean?.y + 3 * statsData.std?.y || 0
-            }
-        },
-        z: {
-            mean: statsData.mean?.z || 0,
-            std: statsData.std?.z || 0,
-            min: statsData.min?.z || 0,
-            max: statsData.max?.z || 0,
-            sigma2: {
-                lower: statsData.mean?.z - 2 * statsData.std?.z || 0,
-                upper: statsData.mean?.z + 2 * statsData.std?.z || 0
-            },
-            sigma3: {
-                lower: statsData.mean?.z - 3 * statsData.std?.z || 0,
-                upper: statsData.mean?.z + 3 * statsData.std?.z || 0
+    // Verificar que al menos una máquina tenga sensor y que el sensor tenga modelo
+    let hasValidSetup = false;
+    
+    // Obtener datos de sensores desde el caché
+    const sensors = cache.sensors || {};
+    
+    // Verificar cada máquina para encontrar una configuración válida
+    for (const machine of cache.machines) {
+        if (machine.sensor_id) {
+            // Buscar información del sensor para esta máquina
+            if (sensors[machine.sensor_id] && sensors[machine.sensor_id].model_id) {
+                hasValidSetup = true;
+                break;
             }
         }
-    };
+    }
+    
+    return hasValidSetup;
 }
 
-// Función auxiliar para actualizar elementos visuales del dashboard
-function updateVisualElements() {
-    // Actualizar gráficos de vibración
-    if (typeof updateVibrationChartX === 'function') updateVibrationChartX();
-    if (typeof updateVibrationChartY === 'function') updateVibrationChartY();
-    if (typeof updateVibrationChartZ === 'function') updateVibrationChartZ();
-    
-    // Actualizar gráfico de historial de alertas
-    if (typeof fetchAlertsHistoryData === 'function') fetchAlertsHistoryData();
-    
-    // Mostrar estadísticas actualizadas
-    updateStatisticalDisplayValues();
-    
-    // Mostrar gráficos si estaban ocultos
-    showCharts();
-}
-
-// Procesar datos de vibración para las gráficas
+// Procesamiento de datos de vibración actualizado
 function processVibrationData(vibrationData) {
     if (!vibrationData || vibrationData.length === 0) {
         console.warn('No hay datos de vibración para procesar');
@@ -817,12 +680,240 @@ function processVibrationData(vibrationData) {
     chartData.z = vibrationData.map(item => item.acceleration_z !== undefined ? parseFloat(item.acceleration_z) : null);
     chartData.status = vibrationData.map(item => item.severity !== undefined ? parseInt(item.severity) : 0);
     
+    // Actualizar indicadores de severidad en los gráficos
+    updateSeverityIndicators(vibrationData);
+    
     console.log('Datos procesados para gráficas', {
         timestamps: chartData.timestamps.length,
         x: chartData.x.length,
         y: chartData.y.length,
         z: chartData.z.length
     });
+}
+
+// Actualizar indicadores de severidad
+function updateSeverityIndicators(vibrationData) {
+    // Si no hay datos, no hacer nada
+    if (!vibrationData || vibrationData.length === 0) return;
+    
+    // Obtener el último elemento de datos para mostrar la severidad actual
+    const lastData = vibrationData[vibrationData.length - 1];
+    
+    // Obtener elementos DOM para actualizar
+    const xAxisSeverity = document.getElementById('xAxisSeverity');
+    const yAxisSeverity = document.getElementById('yAxisSeverity');
+    const zAxisSeverity = document.getElementById('zAxisSeverity');
+    
+    if (xAxisSeverity && yAxisSeverity && zAxisSeverity) {
+        // Resetear clases
+        xAxisSeverity.className = 'severity-value';
+        yAxisSeverity.className = 'severity-value';
+        zAxisSeverity.className = 'severity-value';
+        
+        // Aplicar clase según severidad
+        const severityClass = getSeverityClass(lastData.severity);
+        const severityText = getSeverityText(lastData.severity);
+        
+        xAxisSeverity.classList.add(severityClass);
+        yAxisSeverity.classList.add(severityClass);
+        zAxisSeverity.classList.add(severityClass);
+        
+        xAxisSeverity.textContent = severityText;
+        yAxisSeverity.textContent = severityText;
+        zAxisSeverity.textContent = severityText;
+    }
+}
+
+// Obtener clase CSS según la severidad
+function getSeverityClass(severity) {
+    switch (parseInt(severity)) {
+        case 0:
+            return 'normal';
+        case 1:
+            return 'warning-level-1';
+        case 2:
+            return 'warning-level-2';
+        case 3:
+            return 'critical';
+        default:
+            return 'normal';
+    }
+}
+
+// Obtener texto según la severidad
+function getSeverityText(severity) {
+    switch (parseInt(severity)) {
+        case 0:
+            return 'Normal';
+        case 1:
+            return 'Alerta Nivel 1';
+        case 2:
+            return 'Alerta Nivel 2';
+        case 3:
+            return 'Crítico (Nivel 3)';
+        default:
+            return 'Normal';
+    }
+}
+
+// Mostrar alerta crítica
+function showCriticalAlert() {
+    // Solo mostrar la alerta si no estamos en modo silencioso
+    const isSilent = localStorage.getItem('silentAlerts') === 'true';
+    
+    if (!isSilent) {
+        // Crear elemento de alerta crítica
+        const alertEl = document.createElement('div');
+        alertEl.className = 'critical-alert-popup';
+        alertEl.innerHTML = `
+            <div class="critical-alert-content">
+                <div class="alert-icon">
+                    <i class="fas fa-radiation-alt fa-pulse"></i>
+                </div>
+                <div class="alert-message">
+                    <h3>¡Alerta Crítica!</h3>
+                    <p>Se ha detectado un nivel crítico de vibración (Nivel 3).</p>
+                    <p>Se recomienda revisión inmediata del equipo.</p>
+                </div>
+                <button class="alert-close-btn">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        `;
+        
+        // Agregar a la página
+        document.body.appendChild(alertEl);
+        
+        // Efecto de entrada
+        setTimeout(() => {
+            alertEl.classList.add('show');
+        }, 100);
+        
+        // Configurar botón de cierre
+        const closeBtn = alertEl.querySelector('.alert-close-btn');
+        if (closeBtn) {
+            closeBtn.addEventListener('click', () => {
+                alertEl.classList.remove('show');
+                setTimeout(() => {
+                    alertEl.remove();
+                }, 300);
+            });
+        }
+        
+        // Reproducir sonido de alerta
+        playAlertSound();
+        
+        // Auto-cerrar después de 10 segundos
+        setTimeout(() => {
+            if (alertEl.parentNode) {
+                alertEl.classList.remove('show');
+                setTimeout(() => {
+                    if (alertEl.parentNode) {
+                        alertEl.remove();
+                    }
+                }, 300);
+            }
+        }, 10000);
+    }
+}
+
+// Reproducir sonido de alerta
+function playAlertSound() {
+    const isMuted = localStorage.getItem('muteAlerts') === 'true';
+    
+    if (!isMuted) {
+        try {
+            const audio = new Audio('/static/audio/alert.mp3');
+            audio.volume = 0.5;
+            audio.play();
+        } catch (e) {
+            console.warn('No se pudo reproducir el sonido de alerta:', e);
+        }
+    }
+}
+
+// Inicializar botón de monitoreo
+function initMonitoringButton() {
+    const startMonitoringBtn = document.getElementById('startMonitoringBtn');
+    const monitoringStatus = document.getElementById('monitoringStatus');
+    
+    if (startMonitoringBtn && monitoringStatus) {
+        startMonitoringBtn.addEventListener('click', function() {
+            if (!hasValidConfiguration) {
+                showToast('No hay configuración válida para iniciar el monitoreo', 'error');
+                return;
+            }
+            
+            if (!isMonitoring) {
+                // Iniciar monitoreo
+                startMonitoring();
+                
+                // Cambiar apariencia del botón
+                startMonitoringBtn.innerHTML = '<i class="fas fa-stop-circle mr-2"></i> Detener Monitoreo';
+                startMonitoringBtn.classList.remove('btn-primary');
+                startMonitoringBtn.classList.add('btn-danger');
+                
+                // Actualizar estado
+                const statusIndicator = monitoringStatus.querySelector('.status-indicator');
+                const statusText = monitoringStatus.querySelector('.status-text');
+                
+                if (statusIndicator && statusText) {
+                    statusIndicator.classList.add('active');
+                    statusText.textContent = 'Monitoreo activo';
+                }
+            } else {
+                // Detener monitoreo
+                stopMonitoring();
+                
+                // Cambiar apariencia del botón
+                startMonitoringBtn.innerHTML = '<i class="fas fa-play-circle mr-2"></i> Iniciar Monitoreo';
+                startMonitoringBtn.classList.remove('btn-danger');
+                startMonitoringBtn.classList.add('btn-primary');
+                
+                // Actualizar estado
+                const statusIndicator = monitoringStatus.querySelector('.status-indicator');
+                const statusText = monitoringStatus.querySelector('.status-text');
+                
+                if (statusIndicator && statusText) {
+                    statusIndicator.classList.remove('active');
+                    statusText.textContent = 'Monitoreo detenido';
+                }
+            }
+        });
+    }
+}
+
+// Iniciar monitoreo
+function startMonitoring() {
+    if (monitoringInterval !== null) {
+        clearInterval(monitoringInterval);
+    }
+    
+    // Realizar una actualización inmediata
+    updateDashboardData();
+    
+    // Establecer intervalo de actualización (cada 5 segundos)
+    monitoringInterval = setInterval(() => {
+        updateDashboardData();
+    }, 5000);
+    
+    // Actualizar estado
+    isMonitoring = true;
+    
+    showToast('Monitoreo iniciado correctamente', 'success');
+}
+
+// Detener monitoreo
+function stopMonitoring() {
+    if (monitoringInterval !== null) {
+        clearInterval(monitoringInterval);
+        monitoringInterval = null;
+    }
+    
+    // Actualizar estado
+    isMonitoring = false;
+    
+    showToast('Monitoreo detenido', 'info');
 }
 
 // ==========================================================================
@@ -1804,22 +1895,6 @@ function viewVibrationDetails(dataId) {
             console.error('Error al cargar detalles de datos de vibración:', error);
             showToast('Error al cargar detalles: ' + error.message, 'error');
         });
-}
-
-// Obtener texto descriptivo de severidad
-function getSeverityText(severity) {
-    switch(severity) {
-        case 0:
-            return 'Normal';
-        case 1:
-            return 'Nivel 1 - Advertencia';
-        case 2:
-            return 'Nivel 2 - Atención Requerida';
-        case 3:
-            return 'Nivel 3 - Crítico';
-        default:
-            return 'Desconocido';
-    }
 }
 
 // Actualizar contadores de alertas en el dashboard
