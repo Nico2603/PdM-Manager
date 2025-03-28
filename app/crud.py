@@ -2,7 +2,7 @@
 
 from sqlalchemy.orm import Session
 from datetime import datetime
-from app.models import Sensor, VibrationData, Machine, Model, Alert, UserConfig, LimitConfig
+from app.models import Sensor, VibrationData, Machine, Model, Alert, LimitConfig
 from typing import List, Dict, Any, Optional
 
 def remove_sa_instance(obj_dict):
@@ -31,6 +31,10 @@ def get_sensor(db: Session, sensor_id: int) -> Optional[Dict[str, Any]]:
 
 def create_sensor(db: Session, sensor: Sensor) -> Dict[str, Any]:
     """Crea un nuevo sensor"""
+    # El model_id es obligatorio para crear un sensor
+    if sensor.model_id is None:
+        raise ValueError("El campo model_id es obligatorio para crear un sensor")
+    
     db.add(sensor)
     db.commit()
     db.refresh(sensor)
@@ -51,10 +55,10 @@ def delete_sensor(db: Session, sensor_id: int) -> bool:
         return True
     return False
 
-def get_sensors_by_machine(db: Session, machine_id: int) -> List[Dict[str, Any]]:
-    """Obtiene todos los sensores asociados a una máquina"""
-    sensors = db.query(Sensor).filter(Sensor.machine_id == machine_id).all()
-    return [remove_sa_instance(sensor.__dict__) for sensor in sensors]
+def get_machines_by_sensor(db: Session, sensor_id: int) -> List[Dict[str, Any]]:
+    """Obtiene todas las máquinas asociadas a un sensor"""
+    machines = db.query(Machine).filter(Machine.sensor_id == sensor_id).all()
+    return [remove_sa_instance(machine.__dict__) for machine in machines]
 
 # --- Funciones CRUD para Datos de Vibración ---
 
@@ -65,22 +69,16 @@ def create_vibration_data(
     acceleration_y: float,
     acceleration_z: float,
     severity: int = 0,
-    magnitude: float = None,
     custom_date: datetime = None
 ) -> VibrationData:
     """Crea un nuevo registro de datos de vibración"""
-    # Calcular la magnitud si no se proporciona
-    if magnitude is None:
-        import numpy as np
-        magnitude = np.sqrt(acceleration_x**2 + acceleration_y**2 + acceleration_z**2)
-        
+    
     db_data = VibrationData(
         sensor_id=sensor_id,
         acceleration_x=acceleration_x,
         acceleration_y=acceleration_y,
         acceleration_z=acceleration_z,
-        severity=severity,
-        magnitude=magnitude
+        severity=severity
     )
     
     if custom_date:
@@ -133,17 +131,13 @@ def create_alert(db: Session, alert: Alert) -> Alert:
 def get_alerts(
     db: Session,
     sensor_id: Optional[int] = None,
-    acknowledged: Optional[bool] = None,
     limit: int = 100
 ) -> List[Dict[str, Any]]:
-    """Obtiene alertas, opcionalmente filtradas por sensor_id y/o estado"""
+    """Obtiene alertas, opcionalmente filtradas por sensor_id"""
     query = db.query(Alert)
     
     if sensor_id is not None:
         query = query.filter(Alert.sensor_id == sensor_id)
-    
-    if acknowledged is not None:
-        query = query.filter(Alert.acknowledged == acknowledged)
     
     alerts = query.order_by(Alert.timestamp.desc()).limit(limit).all()
     return [remove_sa_instance(alert.__dict__) for alert in alerts]
@@ -151,15 +145,6 @@ def get_alerts(
 def get_alert_by_id(db: Session, alert_id: int) -> Optional[Alert]:
     """Obtiene una alerta por su ID"""
     return db.query(Alert).filter(Alert.log_id == alert_id).first()
-
-def acknowledge_alert(db: Session, alert_id: int) -> bool:
-    """Marca una alerta como reconocida"""
-    alert = get_alert_by_id(db, alert_id)
-    if alert:
-        alert.acknowledged = True
-        db.commit()
-        return True
-    return False
 
 def get_alerts_by_sensor_and_dates(
     db: Session,
@@ -191,43 +176,39 @@ def get_machines_with_status(db: Session, skip: int = 0, limit: int = 100) -> Li
     result = []
     
     for machine in machines:
-        # Obtener sensores asociados a esta máquina
-        sensors = db.query(Sensor).filter(Sensor.machine_id == machine.machine_id).all()
-        sensor_ids = [s.sensor_id for s in sensors]
+        # Obtener el sensor asociado a esta máquina
+        sensor = db.query(Sensor).filter(Sensor.sensor_id == machine["sensor_id"]).first()
         
-        # Contar alertas no reconocidas por nivel de severidad
+        # Inicializar contadores de alerta
         level1_count = 0
         level2_count = 0
         level3_count = 0
         
-        if sensor_ids:
+        if sensor:
+            # Contar alertas por tipo de error
             level1_count = db.query(Alert).filter(
-                Alert.sensor_id.in_(sensor_ids),
-                Alert.severity == 1,
-                Alert.acknowledged == False
+                Alert.sensor_id == sensor.sensor_id,
+                Alert.error_type == 1
             ).count()
             
             level2_count = db.query(Alert).filter(
-                Alert.sensor_id.in_(sensor_ids),
-                Alert.severity == 2,
-                Alert.acknowledged == False
+                Alert.sensor_id == sensor.sensor_id,
+                Alert.error_type == 2
             ).count()
             
             level3_count = db.query(Alert).filter(
-                Alert.sensor_id.in_(sensor_ids),
-                Alert.severity == 3,
-                Alert.acknowledged == False
+                Alert.sensor_id == sensor.sensor_id,
+                Alert.error_type == 3
             ).count()
         
         # Crear diccionario con datos de la máquina y alertas
-        machine_dict = remove_sa_instance(machine.__dict__)
+        machine_dict = machine.copy()
         machine_dict["alerts"] = {
             "level1": level1_count,
             "level2": level2_count,
             "level3": level3_count,
             "total": level1_count + level2_count + level3_count
         }
-        machine_dict["sensors_count"] = len(sensors)
         
         result.append(machine_dict)
     
@@ -235,6 +216,10 @@ def get_machines_with_status(db: Session, skip: int = 0, limit: int = 100) -> Li
 
 def create_machine(db: Session, machine: Machine) -> Dict[str, Any]:
     """Crea una nueva máquina"""
+    # El sensor_id es obligatorio para crear una máquina
+    if machine.sensor_id is None:
+        raise ValueError("El campo sensor_id es obligatorio para crear una máquina")
+    
     db.add(machine)
     db.commit()
     db.refresh(machine)
@@ -295,15 +280,15 @@ def get_alert(db: Session, alert_id: int) -> Optional[Alert]:
     return db.query(Alert).filter(Alert.log_id == alert_id).first()
 
 def get_alert_counts(db: Session, sensor_id: Optional[int] = None) -> Dict[str, int]:
-    """Obtiene el conteo de alertas por nivel de severidad"""
-    query = db.query(Alert).filter(Alert.acknowledged == False)
+    """Obtiene el conteo de alertas por tipo de error"""
+    query = db.query(Alert)
     
     if sensor_id is not None:
         query = query.filter(Alert.sensor_id == sensor_id)
     
-    level1_count = query.filter(Alert.severity == 1).count()
-    level2_count = query.filter(Alert.severity == 2).count()
-    level3_count = query.filter(Alert.severity == 3).count()
+    level1_count = query.filter(Alert.error_type == 1).count()
+    level2_count = query.filter(Alert.error_type == 2).count()
+    level3_count = query.filter(Alert.error_type == 3).count()
     
     return {
         "level1": level1_count,
@@ -311,54 +296,6 @@ def get_alert_counts(db: Session, sensor_id: Optional[int] = None) -> Dict[str, 
         "level3": level3_count,
         "total": level1_count + level2_count + level3_count
     }
-
-# --- Funciones CRUD para Configuraciones de Usuario ---
-
-def get_configs(db: Session, user_id: int = 1) -> List[UserConfig]:
-    """Obtiene todas las configuraciones de un usuario"""
-    return db.query(UserConfig).filter(UserConfig.user_id == user_id).all()
-
-def get_config_by_id(db: Session, config_id: int) -> Optional[UserConfig]:
-    """Obtiene una configuración por su ID"""
-    return db.query(UserConfig).filter(UserConfig.config_id == config_id).first()
-
-def get_config_by_name(db: Session, name: str, user_id: int = 1) -> Optional[UserConfig]:
-    """Obtiene una configuración por su nombre"""
-    return db.query(UserConfig).filter(
-        UserConfig.name == name,
-        UserConfig.user_id == user_id
-    ).first()
-
-def create_config(db: Session, config: UserConfig) -> UserConfig:
-    """Crea una nueva configuración de usuario"""
-    db.add(config)
-    db.commit()
-    db.refresh(config)
-    return config
-
-def update_config(db: Session, config: UserConfig) -> UserConfig:
-    """Actualiza una configuración existente"""
-    db.commit()
-    db.refresh(config)
-    return config
-
-def delete_config(db: Session, config_id: int) -> bool:
-    """Elimina una configuración por su ID"""
-    config = get_config_by_id(db, config_id)
-    if config:
-        db.delete(config)
-        db.commit()
-        return True
-    return False
-
-def delete_config_by_name(db: Session, name: str, user_id: int = 1) -> bool:
-    """Elimina una configuración por su nombre"""
-    config = get_config_by_name(db, name, user_id)
-    if config:
-        db.delete(config)
-        db.commit()
-        return True
-    return False
 
 # --- Funciones CRUD para Límites de Aceleración ---
 
