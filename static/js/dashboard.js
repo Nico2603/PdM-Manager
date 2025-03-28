@@ -16,48 +16,88 @@
 // INICIALIZACIÓN DEL DASHBOARD
 // ==========================================================================
 
-// Inicializar el dashboard
 function initDashboard() {
     console.log('Inicializando dashboard...');
     
-    // Inicializar componentes de UI personalizados
-    initCustomUIComponents();
-    
-    // Inicializar filtros visuales
-    initVisualFilters();
-    
-    // Inicializar gráficos (pero no mostrarlos todavía)
-    if (typeof initVibrationChart === 'function') {
-        initVibrationChart();
+    try {
+        // Inicializar componentes de UI primero (no requieren datos de la API)
+        initCustomUIComponents();
+        initVisualFilters();
+        initExportButtons();
+        initAdjustLimitsButton();
+        initVibrationDataSection();
+        
+        // Ocultar gráficos hasta que se carguen datos
+        hideCharts();
+        
+        // Inicializar botones de filtros
+        initApplyFiltersButton();
+        
+        // Leer valores iniciales de filtros
+        const initialFilters = getVibrationFilters();
+        
+        // Establecer valores iniciales en el estado global
+        setGlobalState('selectedMachine', initialFilters.machineId || '');
+        setGlobalState('selectedSensor', initialFilters.sensorId || '');
+        setGlobalState('timeRange', initialFilters.timeRange || '24h');
+        
+        // Configurar opciones de visualización de gráficos
+        setGlobalState('chartOptions', {
+            showMean: false,
+            show2Sigma: true,
+            show3Sigma: true
+        });
+        
+        // Crear objeto para cachear las respuestas (evita llamadas redundantes)
+        setGlobalState('dashboardCache', {});
+        
+        // Mostrar indicador de carga mientras se inicializa
+        showLoadingIndicator('Inicializando panel de control...');
+        
+        // Cargar datos en secuencia para optimizar rendimiento
+        Promise.resolve()
+            .then(() => {
+                // Cargar máquinas primero
+                return loadMachines();
+            })
+            .then(() => {
+                // Cargar sensores después de que se hayan cargado las máquinas
+                const selectedMachine = getGlobalState('selectedMachine');
+                if (selectedMachine) {
+                    return loadSensors(selectedMachine);
+                }
+                return Promise.resolve([]);
+            })
+            .then(() => {
+                // Comprobar si hay una configuración válida antes de cargar datos
+                if ((!cache.machines || cache.machines.length === 0) && 
+                    (!cache.sensors || Object.keys(cache.sensors).length === 0)) {
+                    hideLoadingIndicator();
+                    showNoConfigurationMessage();
+                    return Promise.reject('No hay configuración válida');
+                }
+                
+                // Una vez cargados los datos de configuración, cargar datos del dashboard
+                return updateDashboardData();
+            })
+            .then(() => {
+                console.log('Dashboard inicializado correctamente');
+                hideLoadingIndicator();
+                showToast('Panel de control inicializado', 'success');
+            })
+            .catch(error => {
+                if (error !== 'No hay configuración válida') {
+                    console.error('Error al inicializar dashboard:', error);
+                    showToast('Error al inicializar el panel', 'error');
+                }
+                hideLoadingIndicator();
+            });
+        
+    } catch (error) {
+        console.error('Error catastrófico al inicializar dashboard:', error);
+        showToast('Error crítico al inicializar el panel', 'error');
+        hideLoadingIndicator();
     }
-    
-    if (typeof initAlertsHistoryChart === 'function') {
-        initAlertsHistoryChart();
-    }
-    
-    // Ocultar gráficos hasta que se apliquen filtros
-    hideCharts();
-    
-    // Inicializar botones de exportación individuales
-    initExportButtons();
-    
-    // Inicializar botón de aplicar filtros
-    initApplyFiltersButton();
-    
-    // Inicializar botones de ajuste de límites
-    initAdjustLimitsButton();
-    
-    // Inicializar sección de datos de vibración
-    initVibrationDataSection();
-    
-    // Comprobar estado de simulación
-    checkSimulationStatus();
-    
-    // Cargar datos iniciales
-    loadInitialData();
-    
-    // Configurar escucha para cambios de estado global
-    document.addEventListener('globalStateChange', handleGlobalStateChange);
 }
 
 // Manejar cambios en el estado global
@@ -85,6 +125,9 @@ function initCustomUIComponents() {
     
     // Inicializar colapso de filtros
     initCollapseFilters();
+    
+    // Inicializar dropdowns de gráficos
+    initChartDropdowns();
     
     // Inicializar botones de descarga de gráficos
     if (typeof initChartDownloadButtons === 'function') {
@@ -155,6 +198,36 @@ function initCollapseFilters() {
             }
         });
     }
+}
+
+// Inicializar dropdowns en gráficos
+function initChartDropdowns() {
+    const chartDropdowns = document.querySelectorAll('.chart-dropdown');
+    
+    chartDropdowns.forEach(dropdown => {
+        const toggle = dropdown.querySelector('.chart-dropdown-toggle');
+        
+        if (toggle) {
+            toggle.addEventListener('click', (e) => {
+                e.stopPropagation();
+                dropdown.classList.toggle('active');
+                
+                // Cerrar otros dropdowns abiertos
+                chartDropdowns.forEach(otherDropdown => {
+                    if (otherDropdown !== dropdown && otherDropdown.classList.contains('active')) {
+                        otherDropdown.classList.remove('active');
+                    }
+                });
+            });
+        }
+    });
+    
+    // Cerrar dropdowns al hacer clic en cualquier parte
+    document.addEventListener('click', () => {
+        chartDropdowns.forEach(dropdown => {
+            dropdown.classList.remove('active');
+        });
+    });
 }
 
 // Inicializar filtros visuales
@@ -442,81 +515,285 @@ function updateDashboardData() {
     const sensorId = getGlobalState('selectedSensor');
     const timeRange = getGlobalState('timeRange');
     
-    // Construir una URL de búsqueda con los filtros
-    let url = '/api/dashboard-data';
-    let params = new URLSearchParams();
+    // Variable para almacenar en caché los datos
+    const dashboardCache = getGlobalState('dashboardCache') || {};
+    const cacheKey = `${machineId}-${sensorId}-${timeRange}`;
     
-    if (machineId) params.append('machine_id', machineId);
-    if (sensorId) params.append('sensor_id', sensorId);
-    if (timeRange) params.append('time_range', timeRange);
-    
-    const searchUrl = `${url}?${params.toString()}`;
-    
-    // Realizar fetches paralelos para los diferentes tipos de datos
-    const promises = [
-        // Datos de vibración para gráficos
-        fetch(`${searchUrl}&data_type=vibration`)
-            .then(response => response.json())
-            .then(data => {
-                if (data && data.items) {
-                    processVibrationData(data.items);
-                }
-                return data;
-            }),
+    // Comprobar si tenemos datos en caché que no estén expirados (5 minutos)
+    const currentTime = new Date().getTime();
+    if (dashboardCache[cacheKey] && 
+        dashboardCache[cacheKey].timestamp && 
+        (currentTime - dashboardCache[cacheKey].timestamp < 300000)) {
         
-        // Alertas para contadores y gráfico de alertas
-        fetch(`${searchUrl}&data_type=alerts`)
-            .then(response => response.json())
-            .then(data => {
-                if (data && data.items) {
-                    updateAlertCounters(data.items);
-                }
-                return data;
-            }),
+        console.log('Usando datos en caché para:', cacheKey);
         
-        // Estadísticas para límites de control
-        fetch(`${searchUrl}&data_type=stats`)
-            .then(response => response.json())
-            .then(data => {
-                if (data && data.limits) {
-                    updateGlobalStats(data.limits);
-                }
-                return data;
-            }),
+        // Usar datos en caché
+        const cachedData = dashboardCache[cacheKey];
+        
+        // Procesar datos de vibración para las gráficas
+        if (cachedData.vibrationData && cachedData.vibrationData.items) {
+            processVibrationData(cachedData.vibrationData.items);
+        }
+        
+        // Actualizar contadores de alertas
+        if (cachedData.alertsData && cachedData.alertsData.items) {
+            // Contar alertas por nivel de severidad
+            const alertCounts = {
+                level1: 0,
+                level2: 0,
+                level3: 0,
+                total: 0
+            };
             
-        // Cargar datos de vibración para la tabla
-        loadVibrationData(1, {
-            machine_id: machineId,
-            sensor_id: sensorId
-        })
+            cachedData.alertsData.items.forEach(alert => {
+                if (alert.severity === 1) alertCounts.level1++;
+                else if (alert.severity === 2) alertCounts.level2++;
+                else if (alert.severity === 3) alertCounts.level3++;
+            });
+            
+            alertCounts.total = alertCounts.level1 + alertCounts.level2 + alertCounts.level3;
+            updateAlertCounters(alertCounts);
+        }
+        
+        // Actualizar datos estadísticos
+        if (cachedData.statsData) {
+            // Procesar datos estadísticos
+            const statsData = processStatsData(cachedData.statsData);
+            updateGlobalStats(statsData);
+        }
+        
+        // Actualizar la interfaz
+        hideLoadingIndicator();
+        updateLastUpdateTime();
+        updateVisualElements();
+        
+        showToast('Datos actualizados desde caché', 'success');
+        return Promise.resolve(cachedData);
+    }
+    
+    // Formato correcto para la URL: añadir data_type como parámetro, no como parte de la URL
+    let baseUrl = '/api/dashboard-data';
+    let vibrationParams = new URLSearchParams();
+    let alertsParams = new URLSearchParams();
+    let statsParams = new URLSearchParams();
+    
+    // Parámetros comunes
+    if (sensorId) {
+        vibrationParams.append('sensor_id', sensorId);
+        alertsParams.append('sensor_id', sensorId);
+        statsParams.append('sensor_id', sensorId);
+    }
+    
+    // Parámetros específicos
+    vibrationParams.append('data_type', 'vibration');
+    vibrationParams.append('page', '1');
+    vibrationParams.append('limit', '50'); // Cantidad de datos suficiente para gráficas
+    
+    alertsParams.append('data_type', 'alerts');
+    alertsParams.append('page', '1');
+    alertsParams.append('limit', '10'); // Limitar cantidad de alertas para evitar sobrecarga
+    
+    statsParams.append('data_type', 'stats');
+    
+    // URLs completas
+    const vibrationUrl = `${baseUrl}?${vibrationParams.toString()}`;
+    const alertsUrl = `${baseUrl}?${alertsParams.toString()}`;
+    const statsUrl = `${baseUrl}?${statsParams.toString()}`;
+    
+    console.log('Realizando peticiones a:');
+    console.log('- Vibración:', vibrationUrl);
+    console.log('- Alertas:', alertsUrl);
+    console.log('- Estadísticas:', statsUrl);
+    
+    // Realizar fetches paralelos con peticiones optimizadas
+    const promises = [
+        // Datos de vibración para gráficos con manejo de errores mejorado
+        fetch(vibrationUrl)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`Error en ${vibrationUrl}: ${response.status} ${response.statusText}`);
+                }
+                return response.json();
+            })
+            .catch(error => {
+                console.error('Error al obtener datos de vibración:', error);
+                return { items: [] }; // Retornar datos vacíos en caso de error
+            }),
+        
+        // Alertas para contadores y gráfico de alertas con manejo de errores mejorado
+        fetch(alertsUrl)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`Error en ${alertsUrl}: ${response.status} ${response.statusText}`);
+                }
+                return response.json();
+            })
+            .catch(error => {
+                console.error('Error al obtener alertas:', error);
+                return { items: [] }; // Retornar datos vacíos en caso de error
+            }),
+        
+        // Estadísticas para límites de control con manejo de errores mejorado
+        fetch(statsUrl)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`Error en ${statsUrl}: ${response.status} ${response.statusText}`);
+                }
+                return response.json();
+            })
+            .catch(error => {
+                console.error('Error al obtener estadísticas:', error);
+                return null; // Retornar null en caso de error
+            }),
     ];
     
     return Promise.all(promises)
         .then(([vibrationData, alertsData, statsData]) => {
-            // Todos los datos se han cargado correctamente
+            // Guardar datos en caché
+            dashboardCache[cacheKey] = {
+                vibrationData,
+                alertsData,
+                statsData,
+                timestamp: new Date().getTime()
+            };
+            
+            // Actualizar estado global con la caché
+            setGlobalState('dashboardCache', dashboardCache);
+            
+            // Procesar datos de vibración para las gráficas
+            if (vibrationData && vibrationData.items) {
+                processVibrationData(vibrationData.items);
+            }
+            
+            // Procesar alertas y actualizar contadores
+            if (alertsData && alertsData.items) {
+                // Contar alertas por nivel de severidad
+                const alertCounts = {
+                    level1: 0,
+                    level2: 0,
+                    level3: 0,
+                    total: 0
+                };
+                
+                alertsData.items.forEach(alert => {
+                    if (alert.severity === 1) alertCounts.level1++;
+                    else if (alert.severity === 2) alertCounts.level2++;
+                    else if (alert.severity === 3) alertCounts.level3++;
+                });
+                
+                alertCounts.total = alertCounts.level1 + alertCounts.level2 + alertCounts.level3;
+                updateAlertCounters(alertCounts);
+            }
+            
+            // Procesar datos estadísticos
+            if (statsData) {
+                const processedStatsData = processStatsData(statsData);
+                updateGlobalStats(processedStatsData);
+            }
+            
+            // Actualizar elementos visuales
+            updateVisualElements();
+            
+            // Mostrar indicación de éxito
             hideLoadingIndicator();
             updateLastUpdateTime();
-            
-            // Actualizar gráficos de vibración
-            if (typeof updateVibrationChartX === 'function') updateVibrationChartX();
-            if (typeof updateVibrationChartY === 'function') updateVibrationChartY();
-            if (typeof updateVibrationChartZ === 'function') updateVibrationChartZ();
-            
-            // Actualizar gráfico de historial de alertas
-            if (typeof fetchAlertsHistoryData === 'function') fetchAlertsHistoryData();
-            
-            // Mostrar estadísticas actualizadas
-            updateStatisticalDisplayValues();
-            
             showToast('Datos actualizados correctamente', 'success');
+            
             return { vibrationData, alertsData, statsData };
         })
         .catch(error => {
             console.error('Error al actualizar datos del dashboard:', error);
             hideLoadingIndicator();
-            showToast('Error al actualizar datos del dashboard', 'error');
+            showToast('Error al actualizar datos del dashboard: ' + error.message, 'error');
             throw error;
         });
+}
+
+// Función para procesar datos estadísticos
+function processStatsData(statsData) {
+    // Verificar que tenemos datos válidos
+    if (!statsData || !statsData.mean) {
+        return {
+            x: { 
+                mean: 0, std: 0, min: 0, max: 0,
+                sigma2: { lower: 0, upper: 0 },
+                sigma3: { lower: 0, upper: 0 }
+            },
+            y: {
+                mean: 0, std: 0, min: 0, max: 0,
+                sigma2: { lower: 0, upper: 0 },
+                sigma3: { lower: 0, upper: 0 }
+            },
+            z: {
+                mean: 0, std: 0, min: 0, max: 0,
+                sigma2: { lower: 0, upper: 0 },
+                sigma3: { lower: 0, upper: 0 }
+            }
+        };
+    }
+    
+    // Convertir el formato de la API al formato esperado por updateGlobalStats
+    return {
+        x: {
+            mean: statsData.mean?.x || 0,
+            std: statsData.std?.x || 0,
+            min: statsData.min?.x || 0,
+            max: statsData.max?.x || 0,
+            sigma2: {
+                lower: statsData.mean?.x - 2 * statsData.std?.x || 0,
+                upper: statsData.mean?.x + 2 * statsData.std?.x || 0
+            },
+            sigma3: {
+                lower: statsData.mean?.x - 3 * statsData.std?.x || 0,
+                upper: statsData.mean?.x + 3 * statsData.std?.x || 0
+            }
+        },
+        y: {
+            mean: statsData.mean?.y || 0,
+            std: statsData.std?.y || 0,
+            min: statsData.min?.y || 0,
+            max: statsData.max?.y || 0,
+            sigma2: {
+                lower: statsData.mean?.y - 2 * statsData.std?.y || 0,
+                upper: statsData.mean?.y + 2 * statsData.std?.y || 0
+            },
+            sigma3: {
+                lower: statsData.mean?.y - 3 * statsData.std?.y || 0,
+                upper: statsData.mean?.y + 3 * statsData.std?.y || 0
+            }
+        },
+        z: {
+            mean: statsData.mean?.z || 0,
+            std: statsData.std?.z || 0,
+            min: statsData.min?.z || 0,
+            max: statsData.max?.z || 0,
+            sigma2: {
+                lower: statsData.mean?.z - 2 * statsData.std?.z || 0,
+                upper: statsData.mean?.z + 2 * statsData.std?.z || 0
+            },
+            sigma3: {
+                lower: statsData.mean?.z - 3 * statsData.std?.z || 0,
+                upper: statsData.mean?.z + 3 * statsData.std?.z || 0
+            }
+        }
+    };
+}
+
+// Función auxiliar para actualizar elementos visuales del dashboard
+function updateVisualElements() {
+    // Actualizar gráficos de vibración
+    if (typeof updateVibrationChartX === 'function') updateVibrationChartX();
+    if (typeof updateVibrationChartY === 'function') updateVibrationChartY();
+    if (typeof updateVibrationChartZ === 'function') updateVibrationChartZ();
+    
+    // Actualizar gráfico de historial de alertas
+    if (typeof fetchAlertsHistoryData === 'function') fetchAlertsHistoryData();
+    
+    // Mostrar estadísticas actualizadas
+    updateStatisticalDisplayValues();
+    
+    // Mostrar gráficos si estaban ocultos
+    showCharts();
 }
 
 // Procesar datos de vibración para las gráficas
@@ -529,15 +806,15 @@ function processVibrationData(vibrationData) {
     console.log('Procesando datos de vibración:', vibrationData.length);
     
     // Asegurarse de que los datos estén ordenados por timestamp
-    vibrationData.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+    vibrationData.sort((a, b) => new Date(a.date) - new Date(b.date));
     
     // Actualizar datos de gráficos
-    chartData.timestamps = vibrationData.map(item => new Date(item.timestamp).toLocaleTimeString());
+    chartData.timestamps = vibrationData.map(item => new Date(item.date).toLocaleTimeString());
     
     // Preparar datos para cada eje
-    chartData.x = vibrationData.map(item => item.accel_x !== undefined ? parseFloat(item.accel_x) : null);
-    chartData.y = vibrationData.map(item => item.accel_y !== undefined ? parseFloat(item.accel_y) : null);
-    chartData.z = vibrationData.map(item => item.accel_z !== undefined ? parseFloat(item.accel_z) : null);
+    chartData.x = vibrationData.map(item => item.acceleration_x !== undefined ? parseFloat(item.acceleration_x) : null);
+    chartData.y = vibrationData.map(item => item.acceleration_y !== undefined ? parseFloat(item.acceleration_y) : null);
+    chartData.z = vibrationData.map(item => item.acceleration_z !== undefined ? parseFloat(item.acceleration_z) : null);
     chartData.status = vibrationData.map(item => item.severity !== undefined ? parseInt(item.severity) : 0);
     
     console.log('Datos procesados para gráficas', {
@@ -751,10 +1028,8 @@ function exportAxisToPDF(axis) {
             showToast(`PDF para eje ${axis.toUpperCase()} generado correctamente`, 'success');
         })
         .catch(error => {
-            console.error('Error al exportar a PDF:', error);
-            showToast('Error al generar PDF', 'error');
-        })
-        .finally(() => {
+            console.error('Error al capturar gráfico:', error);
+            showToast('Error al preparar datos para PDF', 'error');
             hideLoadingIndicator();
         });
     } catch (error) {
@@ -766,74 +1041,58 @@ function exportAxisToPDF(axis) {
 
 // Inicializar botón de ajuste de límites
 function initAdjustLimitsButton() {
-    const adjustBtn = document.getElementById('adjustLimitsBtn');
-    if (!adjustBtn) return;
+    const adjustLimitsBtn = document.getElementById('adjustLimitsBtn');
     
-    adjustBtn.addEventListener('click', () => {
-        // Abrir directamente el modal en el dashboard
-        const modal = document.getElementById('adjustLimitsModal');
-        if (modal) {
-            modal.classList.add('show');
-            loadLimitsIntoModal();
-        }
-    });
-}
-
-// Cargar límites actuales en el modal
-function loadLimitsIntoModal() {
-    // Obtener los valores actuales de los límites desde el DOM o el estado global
-    fetch('/api/limits')
-        .then(response => response.json())
-        .then(limits => {
-            // Actualizar campos del formulario con los límites actuales
-            for (const axis of ['x', 'y', 'z']) {
-                document.getElementById(`${axis}2SigmaLowerInput`).value = limits[axis]?.sigma2?.lower || '';
-                document.getElementById(`${axis}2SigmaUpperInput`).value = limits[axis]?.sigma2?.upper || '';
-                document.getElementById(`${axis}3SigmaLowerInput`).value = limits[axis]?.sigma3?.lower || '';
-                document.getElementById(`${axis}3SigmaUpperInput`).value = limits[axis]?.sigma3?.upper || '';
+    if (adjustLimitsBtn) {
+        adjustLimitsBtn.addEventListener('click', () => {
+            // Abrir el modal
+            const modal = document.getElementById('adjustLimitsModal');
+            if (modal) {
+                // Cargar los valores actuales en el formulario
+                loadCurrentLimitsToModal();
+                
+                // Mostrar el modal
+                modal.classList.add('show');
             }
-            
-            // Configurar los botones del modal
-            setupModalButtons();
-        })
-        .catch(error => {
-            console.error('Error al cargar límites actuales:', error);
-            showToast('Error al cargar límites actuales', 'error');
         });
-}
-
-// Configurar botones del modal
-function setupModalButtons() {
-    // Configurar el botón de cierre del modal
-    const closeBtn = document.querySelector('#adjustLimitsModal .modal-close');
-    if (closeBtn) {
-        closeBtn.addEventListener('click', () => {
+    }
+    
+    // Inicializar botones del modal
+    const saveLimitsBtn = document.getElementById('saveLimitsBtn');
+    const resetLimitsBtn = document.getElementById('resetLimitsBtn');
+    const closeModalBtn = document.querySelector('#adjustLimitsModal .modal-close');
+    
+    if (saveLimitsBtn) {
+        saveLimitsBtn.addEventListener('click', saveLimitsFromModal);
+    }
+    
+    if (resetLimitsBtn) {
+        resetLimitsBtn.addEventListener('click', resetLimitsFromModal);
+    }
+    
+    if (closeModalBtn) {
+        closeModalBtn.addEventListener('click', () => {
             document.getElementById('adjustLimitsModal').classList.remove('show');
         });
     }
+}
+
+// Cargar los límites actuales en el modal
+function loadCurrentLimitsToModal() {
+    // Obtener límites actuales del estado global
+    const stats = getGlobalState('stats') || {};
     
-    // Configurar el botón de guardar
-    const saveBtn = document.getElementById('saveLimitsBtn');
-    if (saveBtn) {
-        // Eliminar todos los event listeners anteriores
-        const newSaveBtn = saveBtn.cloneNode(true);
-        saveBtn.parentNode.replaceChild(newSaveBtn, saveBtn);
+    // Establecer valores en los campos del formulario
+    for (const axis of ['x', 'y', 'z']) {
+        if (stats[axis]?.sigma2) {
+            document.getElementById(`${axis}2SigmaLowerInput`).value = stats[axis].sigma2.lower;
+            document.getElementById(`${axis}2SigmaUpperInput`).value = stats[axis].sigma2.upper;
+        }
         
-        newSaveBtn.addEventListener('click', () => {
-            saveLimitsFromModal();
-        });
-    }
-    
-    // Configurar el botón de resetear
-    const resetBtn = document.getElementById('resetLimitsBtn');
-    if (resetBtn) {
-        // Eliminar todos los event listeners anteriores
-        const newResetBtn = resetBtn.cloneNode(true);
-        resetBtn.parentNode.replaceChild(newResetBtn, resetBtn);
-        
-        newResetBtn.addEventListener('click', () => {
-            resetLimitsFromModal();
-        });
+        if (stats[axis]?.sigma3) {
+            document.getElementById(`${axis}3SigmaLowerInput`).value = stats[axis].sigma3.lower;
+            document.getElementById(`${axis}3SigmaUpperInput`).value = stats[axis].sigma3.upper;
+        }
     }
 }
 
@@ -990,6 +1249,8 @@ function initApplyFiltersButton() {
                 const sensorId = sensorSelector.querySelector('.selected')?.getAttribute('data-value') || '';
                 const timeRange = timeRangeSelector.querySelector('.selected')?.getAttribute('data-value') || '24h';
                 
+                console.log('Aplicando filtros:', { machineId, sensorId, timeRange });
+                
                 // Actualizar estado global con las selecciones
                 setGlobalState('selectedMachine', machineId);
                 setGlobalState('selectedSensor', sensorId);
@@ -997,18 +1258,32 @@ function initApplyFiltersButton() {
             }
             
             // Leer estado de los toggles de visualización
-            const show2Sigma = document.getElementById('show2Sigma')?.checked || false;
-            const show3Sigma = document.getElementById('show3Sigma')?.checked || false;
+            const show2Sigma = document.getElementById('show2Sigma')?.checked;
+            const show3Sigma = document.getElementById('show3Sigma')?.checked;
             
             // Actualizar opciones de visualización en el estado global
             const chartOptions = getGlobalState('chartOptions') || {};
-            chartOptions.show2Sigma = show2Sigma;
-            chartOptions.show3Sigma = show3Sigma;
+            chartOptions.show2Sigma = show2Sigma !== undefined ? show2Sigma : chartOptions.show2Sigma;
+            chartOptions.show3Sigma = show3Sigma !== undefined ? show3Sigma : chartOptions.show3Sigma;
             setGlobalState('chartOptions', chartOptions);
             
             // Actualizar datos y gráficos
-            updateDashboardData()
+            Promise.resolve()
                 .then(() => {
+                    // Mostrar mensajes de depuración
+                    console.log('Estado global actualizado:', {
+                        machine: getGlobalState('selectedMachine'),
+                        sensor: getGlobalState('selectedSensor'),
+                        timeRange: getGlobalState('timeRange'),
+                        chartOptions: getGlobalState('chartOptions')
+                    });
+                    
+                    // Actualizar datos del dashboard
+                    return updateDashboardData();
+                })
+                .then(() => {
+                    console.log('Datos del dashboard actualizados');
+                    
                     // Mostrar gráficos después de cargar datos
                     showCharts();
                     
@@ -1021,10 +1296,16 @@ function initApplyFiltersButton() {
                     updateDashboardAlertCounts();
                     
                     // Cargar datos de vibración recientes
-                    loadVibrationData(1);
+                    return loadVibrationData(1);
+                })
+                .then(() => {
+                    console.log('Datos de vibración cargados');
                     
                     // Cargar alertas simplificadas
-                    loadSimplifiedAlerts();
+                    return loadSimplifiedAlerts();
+                })
+                .then(() => {
+                    console.log('Alertas simplificadas cargadas');
                     
                     // Mostrar mensaje de éxito
                     showToast('Filtros aplicados correctamente', 'success');
@@ -1174,58 +1455,93 @@ function updateAlertsTable(alerts) {
 // Cargar datos de vibración
 function loadVibrationData(page = 1, filters = {}) {
     // Mostrar indicador de carga
-    showLoadingIndicator('Cargando datos de vibración...');
+    const showLoader = !filters.silentLoad;
+    if (showLoader) {
+        showLoadingIndicator('Cargando datos de vibración...');
+    }
     
     // Obtener filtros globales del dashboard si no se proporcionan filtros específicos
-    if (!filters.machine_id && !filters.sensor_id) {
+    if (!filters.sensor_id && !filters.machine_id) {
         const selectedMachine = getGlobalState('selectedMachine');
         const selectedSensor = getGlobalState('selectedSensor');
-        
-        if (selectedMachine) {
-            filters.machine_id = selectedMachine;
-        }
         
         if (selectedSensor) {
             filters.sensor_id = selectedSensor;
         }
+        
+        if (selectedMachine) {
+            filters.machine_id = selectedMachine;
+        }
     }
     
-    // Construir URL con parámetros de paginación y filtros
-    let url = `/api/vibration-data?page=${page}&limit=10`;
+    // Construir URL para el endpoint optimizado
+    const limit = filters.limit || 10;
     
-    // Añadir filtros a la URL si están definidos
-    if (filters.machine_id) {
-        url += `&machine_id=${filters.machine_id}`;
-    }
+    // Usar el endpoint dashboard-data para obtener datos de vibración
+    let url = `/api/dashboard-data?data_type=vibration&page=${page}&limit=${limit}`;
     
+    // Añadir filtros
     if (filters.sensor_id) {
         url += `&sensor_id=${filters.sensor_id}`;
     }
     
+    // Para filtros adicionales que puedan ser necesarios
     if (filters.severity !== undefined && filters.severity !== '') {
         url += `&severity=${filters.severity}`;
     }
     
-    if (filters.date) {
-        url += `&date=${filters.date}`;
+    if (filters.date_start) {
+        url += `&date_start=${filters.date_start}`;
+    }
+    
+    if (filters.date_end) {
+        url += `&date_end=${filters.date_end}`;
     }
     
     // Realizar petición a la API
-    fetch(url)
-        .then(response => response.json())
+    return fetch(url)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`Error al obtener datos de vibración: ${response.status} ${response.statusText}`);
+            }
+            return response.json();
+        })
         .then(data => {
-            hideLoadingIndicator();
+            if (showLoader) {
+                hideLoadingIndicator();
+            }
+            
+            if (!data) {
+                console.warn('No se recibieron datos de vibración');
+                return null;
+            }
+            
+            // Estructurar los datos para compatibilidad con el formato anterior
+            const formattedData = {
+                items: data.items || [],
+                total: data.total || 0,
+                page: data.page || page,
+                limit: data.limit || limit,
+                pages: data.pages || Math.ceil((data.total || 0) / limit)
+            };
             
             // Actualizar la tabla con los datos recibidos
-            updateVibrationDataTable(data.items || []);
+            updateVibrationDataTable(formattedData.items);
             
             // Actualizar la información de paginación
-            updateVibrationPagination(data.total, data.page, data.pages);
+            updateVibrationPagination(formattedData.total, formattedData.page, formattedData.pages);
+            
+            return formattedData;
         })
         .catch(error => {
-            hideLoadingIndicator();
+            if (showLoader) {
+                hideLoadingIndicator();
+            }
             console.error('Error al cargar datos de vibración:', error);
-            showToast('Error al cargar datos de vibración', 'error');
+            if (showLoader) {
+                showToast('Error al cargar datos de vibración: ' + error.message, 'error');
+            }
+            return null;
         });
 }
 
@@ -1249,7 +1565,7 @@ function updateVibrationDataTable(vibrationData) {
         const row = document.createElement('tr');
         
         // Formatear fecha
-        const date = new Date(item.timestamp);
+        const date = new Date(item.date || item.timestamp);
         const formattedDate = date.toLocaleString('es-ES', {
             year: 'numeric',
             month: '2-digit',
@@ -1276,18 +1592,26 @@ function updateVibrationDataTable(vibrationData) {
                 break;
         }
         
+        // Adaptar a los nombres de campo del nuevo endpoint
+        const dataId = item.id || item.data_id || item.vibration_data_id;
+        const sensorId = item.sensor_id;
+        const accelX = item.acceleration_x !== undefined ? item.acceleration_x : (item.accel_x || 0);
+        const accelY = item.acceleration_y !== undefined ? item.acceleration_y : (item.accel_y || 0);
+        const accelZ = item.acceleration_z !== undefined ? item.acceleration_z : (item.accel_z || 0);
+        const magnitude = item.magnitude || 0;
+        
         row.innerHTML = `
-            <td>${item.vibration_data_id}</td>
-            <td>${item.sensor_id}</td>
+            <td>${dataId}</td>
+            <td>${sensorId}</td>
             <td>${formattedDate}</td>
-            <td>${item.accel_x.toFixed(3)}</td>
-            <td>${item.accel_y.toFixed(3)}</td>
-            <td>${item.accel_z.toFixed(3)}</td>
+            <td>${parseFloat(accelX).toFixed(3)}</td>
+            <td>${parseFloat(accelY).toFixed(3)}</td>
+            <td>${parseFloat(accelZ).toFixed(3)}</td>
             <td><span class="${severityClass}">${getSeverityText(item.severity)}</span></td>
-            <td>${item.magnitude.toFixed(3)}</td>
+            <td>${parseFloat(magnitude).toFixed(3)}</td>
             <td class="column-actions">
                 <div class="table-actions">
-                    <button class="btn-icon btn-view" title="Ver detalles" data-id="${item.vibration_data_id}">
+                    <button class="btn-icon btn-view" title="Ver detalles" data-id="${dataId}">
                         <i class="fas fa-eye"></i>
                     </button>
                 </div>
@@ -1341,15 +1665,49 @@ function updateVibrationPagination(total, currentPage, totalPages) {
 function getVibrationFilters() {
     return {
         machine_id: getGlobalState('selectedMachine'),
-        sensor_id: getGlobalState('selectedSensor')
+        sensor_id: getGlobalState('selectedSensor'),
+        timeRange: getGlobalState('timeRange')
     };
 }
 
 // Ver detalles de datos de vibración
 function viewVibrationDetails(dataId) {
-    fetch(`/api/vibration-data/${dataId}`)
-        .then(response => response.json())
+    // Construir URL para el endpoint de detalles
+    const url = `/api/dashboard-data?data_type=vibration&id=${dataId}`;
+    
+    showLoadingIndicator('Cargando detalles de vibración...');
+    
+    fetch(url)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`Error al obtener detalles: ${response.status} ${response.statusText}`);
+            }
+            return response.json();
+        })
         .then(data => {
+            hideLoadingIndicator();
+            
+            // Si tenemos un arreglo de items, tomar el primero (el que coincide con el ID)
+            const item = data.items && data.items.length > 0 ? data.items[0] : data;
+            
+            // Verificar que tenemos datos válidos
+            if (!item || !item.id) {
+                showToast('No se encontraron detalles para este registro', 'warning');
+                return;
+            }
+            
+            // Adaptar a los nombres de campo del nuevo endpoint
+            const detailData = {
+                data_id: item.id || item.data_id,
+                sensor_id: item.sensor_id,
+                date: item.date || item.timestamp,
+                acceleration_x: item.acceleration_x !== undefined ? item.acceleration_x : (item.accel_x || 0),
+                acceleration_y: item.acceleration_y !== undefined ? item.acceleration_y : (item.accel_y || 0),
+                acceleration_z: item.acceleration_z !== undefined ? item.acceleration_z : (item.accel_z || 0),
+                severity: item.severity,
+                magnitude: item.magnitude || 0
+            };
+            
             // Crear un modal dinámico para mostrar los detalles
             const modalHtml = `
                 <div class="modal" id="vibrationDetailModal">
@@ -1365,35 +1723,35 @@ function viewVibrationDetails(dataId) {
                                 <div class="details-grid">
                                     <div class="detail-item">
                                         <div class="detail-label">ID:</div>
-                                        <div class="detail-value">${data.data_id}</div>
+                                        <div class="detail-value">${detailData.data_id}</div>
                                     </div>
                                     <div class="detail-item">
                                         <div class="detail-label">Sensor ID:</div>
-                                        <div class="detail-value">${data.sensor_id}</div>
+                                        <div class="detail-value">${detailData.sensor_id}</div>
                                     </div>
                                     <div class="detail-item">
                                         <div class="detail-label">Fecha y Hora:</div>
-                                        <div class="detail-value">${new Date(data.date).toLocaleString()}</div>
+                                        <div class="detail-value">${new Date(detailData.date).toLocaleString()}</div>
                                     </div>
                                     <div class="detail-item">
                                         <div class="detail-label">Aceleración X:</div>
-                                        <div class="detail-value">${data.acceleration_x !== null ? data.acceleration_x.toFixed(6) : 'N/A'}</div>
+                                        <div class="detail-value">${detailData.acceleration_x !== null ? parseFloat(detailData.acceleration_x).toFixed(6) : 'N/A'}</div>
                                     </div>
                                     <div class="detail-item">
                                         <div class="detail-label">Aceleración Y:</div>
-                                        <div class="detail-value">${data.acceleration_y !== null ? data.acceleration_y.toFixed(6) : 'N/A'}</div>
+                                        <div class="detail-value">${detailData.acceleration_y !== null ? parseFloat(detailData.acceleration_y).toFixed(6) : 'N/A'}</div>
                                     </div>
                                     <div class="detail-item">
                                         <div class="detail-label">Aceleración Z:</div>
-                                        <div class="detail-value">${data.acceleration_z !== null ? data.acceleration_z.toFixed(6) : 'N/A'}</div>
+                                        <div class="detail-value">${detailData.acceleration_z !== null ? parseFloat(detailData.acceleration_z).toFixed(6) : 'N/A'}</div>
                                     </div>
                                     <div class="detail-item">
                                         <div class="detail-label">Severidad:</div>
-                                        <div class="detail-value">${getSeverityText(data.severity)}</div>
+                                        <div class="detail-value">${getSeverityText(detailData.severity)}</div>
                                     </div>
                                     <div class="detail-item">
                                         <div class="detail-label">Magnitud:</div>
-                                        <div class="detail-value">${data.magnitude !== null ? data.magnitude.toFixed(6) : 'N/A'}</div>
+                                        <div class="detail-value">${detailData.magnitude !== null ? parseFloat(detailData.magnitude).toFixed(6) : 'N/A'}</div>
                                     </div>
                                 </div>
                             </div>
@@ -1442,8 +1800,9 @@ function viewVibrationDetails(dataId) {
             }, 10);
         })
         .catch(error => {
+            hideLoadingIndicator();
             console.error('Error al cargar detalles de datos de vibración:', error);
-            showToast('Error al cargar detalles de datos de vibración', 'error');
+            showToast('Error al cargar detalles: ' + error.message, 'error');
         });
 }
 

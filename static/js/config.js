@@ -58,30 +58,37 @@ function refreshConfigData() {
 // GESTIÓN DE MÁQUINAS
 // ==========================================================================
 
-// Inicialización de la gestión de máquinas
+// Inicializar gestión de máquinas
 function initMachineManagement() {
-    // Cargar lista de máquinas
-    loadMachinesTable();
+    // Cargar máquinas existentes
+    loadMachines();
     
-    // Cargar selectores para el modal
-    loadSensorsForSelect();
-    
-    // Configurar evento para añadir nueva máquina
+    // Configurar botón para añadir máquina
     const addMachineBtn = document.getElementById('addMachineBtn');
     if (addMachineBtn) {
         addMachineBtn.addEventListener('click', () => {
-            // Limpiar el formulario
-            document.getElementById('machineForm').reset();
-            document.getElementById('machineId').value = '';
+            // Resetear formulario
             document.getElementById('machineModalTitle').textContent = 'Nueva Máquina';
+            document.getElementById('machineId').value = '';
+            document.getElementById('machineName').value = '';
+            document.getElementById('machineDescription').value = '';
+            document.getElementById('machineLocation').value = '';
+            document.getElementById('machineRoute').value = '';
             
-            // Mostrar el modal
-            const modal = document.getElementById('machineModal');
-            modal.classList.add('show');
+            // Establecer estado por defecto
+            const statusSelect = document.getElementById('machineStatus');
+            if (statusSelect) statusSelect.value = 'operativo';
+            
+            // Resetear selects a "Ninguno"
+            const sensorSelect = document.getElementById('machineSensor');
+            if (sensorSelect) sensorSelect.value = '';
+            
+            // Mostrar modal
+            document.getElementById('machineModal').classList.add('show');
         });
     }
     
-    // Configurar evento para guardar máquina
+    // Configurar botón para guardar máquina
     const saveMachineBtn = document.getElementById('saveMachineBtn');
     if (saveMachineBtn) {
         saveMachineBtn.addEventListener('click', saveMachine);
@@ -407,33 +414,34 @@ function deleteMachine(machineId) {
 
 // Inicializar gestión de sensores
 function initSensorManagement() {
-    // Cargar lista de sensores
-    loadSensorsTable();
+    // Cargar sensores existentes
+    loadSensors();
     
-    // Cargar selectores para el modal (máquinas y modelos disponibles)
-    loadMachinesForSelect();
-    loadModelsForSelect();
-    
-    // Configurar evento para añadir nuevo sensor
+    // Configurar botón para añadir sensor
     const addSensorBtn = document.getElementById('addSensorBtn');
     if (addSensorBtn) {
         addSensorBtn.addEventListener('click', () => {
-            // Limpiar el formulario
-            document.getElementById('sensorForm').reset();
-            document.getElementById('sensorId').value = '';
+            // Resetear formulario
             document.getElementById('sensorModalTitle').textContent = 'Nuevo Sensor';
+            document.getElementById('sensorId').value = '';
+            document.getElementById('sensorName').value = '';
+            document.getElementById('sensorDescription').value = '';
+            document.getElementById('sensorLocation').value = '';
+            document.getElementById('sensorType').value = '';
             
-            // Actualizar selectores
-            loadMachinesForSelect('sensorMachine');
-            loadModelsForSelect('sensorModel');
+            // Resetear selects a "Ninguno"
+            const machineSelect = document.getElementById('sensorMachine');
+            const modelSelect = document.getElementById('sensorModel');
             
-            // Mostrar el modal
-            const modal = document.getElementById('sensorModal');
-            modal.classList.add('show');
+            if (machineSelect) machineSelect.value = '';
+            if (modelSelect) modelSelect.value = '';
+            
+            // Mostrar modal
+            document.getElementById('sensorModal').classList.add('show');
         });
     }
     
-    // Configurar evento para guardar sensor
+    // Configurar botón para guardar sensor
     const saveSensorBtn = document.getElementById('saveSensorBtn');
     if (saveSensorBtn) {
         saveSensorBtn.addEventListener('click', saveSensor);
@@ -788,51 +796,62 @@ function deleteSensor(sensorId) {
 
 // Inicializar gestión de modelos
 function initModelManagement() {
-    // Cargar tabla de modelos
-    loadModelsTable();
+    // Cargar modelos existentes
+    loadModels();
     
-    // Configurar evento para añadir nuevo modelo
+    // Configurar botón para añadir modelo
     const addModelBtn = document.getElementById('addModelBtn');
     if (addModelBtn) {
         addModelBtn.addEventListener('click', () => {
-            // Limpiar el formulario
-            document.getElementById('modelForm').reset();
+            // Resetear formulario
+            document.getElementById('modelModalTitle').textContent = 'Añadir Modelo';
             document.getElementById('modelId').value = '';
-            document.getElementById('modelModalTitle').textContent = 'Nuevo Modelo';
+            document.getElementById('modelName').value = '';
+            document.getElementById('modelDescription').value = '';
+            document.getElementById('modelAccuracy').value = '';
+            document.getElementById('modelConfigParams').value = '';
             
-            // Mostrar elementos necesarios para un nuevo modelo
-            document.getElementById('modelFileRequired').style.display = 'block';
-            document.getElementById('modelFileOptional').style.display = 'none';
+            // Resetear campos de archivo
+            if (document.getElementById('modelFileName')) {
+                document.getElementById('modelFileName').textContent = 'Ningún archivo seleccionado';
+            }
+            if (document.getElementById('scalerFileName')) {
+                document.getElementById('scalerFileName').textContent = 'Ningún archivo seleccionado';
+            }
             
-            // Resetear los nombres de archivos seleccionados
-            document.getElementById('modelFileName').textContent = 'Ningún archivo seleccionado';
-            document.getElementById('scalerFileName').textContent = 'Ningún archivo seleccionado';
+            // Configurar mensaje de requerimiento para archivo del modelo
+            toggleModelFileRequired(true);
             
-            // Mostrar el modal
-            const modal = document.getElementById('modelModal');
-            modal.classList.add('show');
+            // Mostrar modal
+            document.getElementById('modelModal').classList.add('show');
         });
     }
     
-    // Configurar evento para guardar modelo
+    // Configurar botón para guardar modelo
     const saveModelBtn = document.getElementById('saveModelBtn');
     if (saveModelBtn) {
         saveModelBtn.addEventListener('click', saveModel);
     }
     
-    // Configurar evento para confirmar eliminación de modelo
-    const confirmDeleteModelBtn = document.getElementById('confirmDeleteModelBtn');
-    if (confirmDeleteModelBtn) {
-        confirmDeleteModelBtn.addEventListener('click', () => {
-            const modelId = document.getElementById('deleteModelId').value;
-            if (modelId) {
-                deleteModel(modelId);
+    // Configurar botones para cerrar modales
+    const closeButtons = document.querySelectorAll('.modal-close, .btn[data-dismiss="modal"]');
+    closeButtons.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const modal = e.target.closest('.modal');
+            if (modal) {
+                modal.classList.remove('show');
             }
         });
+    });
+    
+    // Configurar botón para confirmar eliminación
+    const confirmDeleteBtn = document.getElementById('confirmDeleteModelBtn');
+    if (confirmDeleteBtn) {
+        confirmDeleteBtn.addEventListener('click', deleteModel);
     }
     
-    // Configurar eventos para los inputs de archivo
-    setupFileInputs();
+    // Inicializar campos de archivo
+    initFileInputs();
 }
 
 // Configurar inputs de archivo personalizados
@@ -1371,4 +1390,118 @@ function loadSensorForm(sensorId = null) {
                 showToast('Error al cargar datos del sensor', 'error');
             });
     }
+}
+
+// Inicializar inputs de archivos personalizados
+function initFileInputs() {
+    const modelFileInput = document.getElementById('modelFile');
+    const scalerFileInput = document.getElementById('scalerFile');
+    const modelFileName = document.getElementById('modelFileName');
+    const scalerFileName = document.getElementById('scalerFileName');
+    
+    if (modelFileInput && modelFileName) {
+        modelFileInput.addEventListener('change', function(e) {
+            if (this.files && this.files.length > 0) {
+                modelFileName.textContent = this.files[0].name;
+            } else {
+                modelFileName.textContent = 'Ningún archivo seleccionado';
+            }
+        });
+    }
+    
+    if (scalerFileInput && scalerFileName) {
+        scalerFileInput.addEventListener('change', function(e) {
+            if (this.files && this.files.length > 0) {
+                scalerFileName.textContent = this.files[0].name;
+            } else {
+                scalerFileName.textContent = 'Ningún archivo seleccionado';
+            }
+        });
+    }
+    
+    // Configurar los botones de selección de archivo
+    const fileButtons = document.querySelectorAll('.custom-file-button');
+    fileButtons.forEach(button => {
+        const fileInput = button.parentElement.querySelector('.custom-file-input');
+        if (fileInput) {
+            button.addEventListener('click', () => {
+                fileInput.click();
+            });
+        }
+    });
+}
+
+// Función para mostrar/ocultar mensajes de requerimiento de archivo
+function toggleModelFileRequired(isNew) {
+    const requiredNote = document.getElementById('modelFileRequired');
+    const optionalNote = document.getElementById('modelFileOptional');
+    
+    if (requiredNote && optionalNote) {
+        if (isNew) {
+            // Nuevo modelo: el archivo es requerido
+            requiredNote.style.display = 'block';
+            optionalNote.style.display = 'none';
+        } else {
+            // Editar modelo: el archivo es opcional
+            requiredNote.style.display = 'none';
+            optionalNote.style.display = 'block';
+        }
+    }
+}
+
+// Función para cargar máquinas
+function loadMachines() {
+    showLoadingIndicator('Cargando máquinas...');
+    
+    fetch('/api/machines')
+        .then(response => response.json())
+        .then(data => {
+            updateMachinesTable(data);
+            loadMachinesForSelect();
+        })
+        .catch(error => {
+            console.error('Error al cargar máquinas:', error);
+            showToast('Error al cargar máquinas', 'error');
+        })
+        .finally(() => {
+            hideLoadingIndicator();
+        });
+}
+
+// Función para cargar sensores
+function loadSensors() {
+    showLoadingIndicator('Cargando sensores...');
+    
+    fetch('/api/sensors')
+        .then(response => response.json())
+        .then(data => {
+            updateSensorsTable(data);
+            loadSensorsForSelect();
+        })
+        .catch(error => {
+            console.error('Error al cargar sensores:', error);
+            showToast('Error al cargar sensores', 'error');
+        })
+        .finally(() => {
+            hideLoadingIndicator();
+        });
+}
+
+// Función para cargar modelos
+function loadModels() {
+    showLoadingIndicator('Cargando modelos...');
+    
+    fetch('/api/models')
+        .then(response => response.json())
+        .then(data => {
+            updateModelsTable(data);
+            loadModelsForSelect();
+        })
+        .catch(error => {
+            console.error('Error al cargar modelos:', error);
+            showToast('Error al cargar modelos', 'error');
+        })
+        .finally(() => {
+            hideLoadingIndicator();
+        });
 }

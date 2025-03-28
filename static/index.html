@@ -332,12 +332,19 @@
                   <button class="btn-icon" id="zoomResetBtnX" title="Restablecer zoom">
                     <i class="fas fa-compress-arrows-alt"></i>
                   </button>
-                  <button class="btn-icon" id="downloadChartX" title="Descargar gráfico">
-                    <i class="fas fa-download"></i>
-                  </button>
-                  <button class="btn-icon" id="exportPdfX" title="Exportar a PDF">
-                    <i class="fas fa-file-pdf"></i>
-                  </button>
+                  <div class="chart-dropdown">
+                    <button class="btn-icon chart-dropdown-toggle" title="Opciones">
+                      <i class="fas fa-ellipsis-v"></i>
+                    </button>
+                    <div class="chart-dropdown-menu">
+                      <button class="chart-dropdown-item" id="downloadChartX">
+                        <i class="fas fa-download"></i> Descargar PNG
+                      </button>
+                      <button class="chart-dropdown-item" id="exportPdfX">
+                        <i class="fas fa-file-pdf"></i> Exportar PDF
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
               <div class="chart-body">
@@ -355,12 +362,19 @@
                   <button class="btn-icon" id="zoomResetBtnY" title="Restablecer zoom">
                     <i class="fas fa-compress-arrows-alt"></i>
                   </button>
-                  <button class="btn-icon" id="downloadChartY" title="Descargar gráfico">
-                    <i class="fas fa-download"></i>
-                  </button>
-                  <button class="btn-icon" id="exportPdfY" title="Exportar a PDF">
-                    <i class="fas fa-file-pdf"></i>
-                  </button>
+                  <div class="chart-dropdown">
+                    <button class="btn-icon chart-dropdown-toggle" title="Opciones">
+                      <i class="fas fa-ellipsis-v"></i>
+                    </button>
+                    <div class="chart-dropdown-menu">
+                      <button class="chart-dropdown-item" id="downloadChartY">
+                        <i class="fas fa-download"></i> Descargar PNG
+                      </button>
+                      <button class="chart-dropdown-item" id="exportPdfY">
+                        <i class="fas fa-file-pdf"></i> Exportar PDF
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
               <div class="chart-body">
@@ -378,12 +392,19 @@
                   <button class="btn-icon" id="zoomResetBtnZ" title="Restablecer zoom">
                     <i class="fas fa-compress-arrows-alt"></i>
                   </button>
-                  <button class="btn-icon" id="downloadChartZ" title="Descargar gráfico">
-                    <i class="fas fa-download"></i>
-                  </button>
-                  <button class="btn-icon" id="exportPdfZ" title="Exportar a PDF">
-                    <i class="fas fa-file-pdf"></i>
-                  </button>
+                  <div class="chart-dropdown">
+                    <button class="btn-icon chart-dropdown-toggle" title="Opciones">
+                      <i class="fas fa-ellipsis-v"></i>
+                    </button>
+                    <div class="chart-dropdown-menu">
+                      <button class="chart-dropdown-item" id="downloadChartZ">
+                        <i class="fas fa-download"></i> Descargar PNG
+                      </button>
+                      <button class="chart-dropdown-item" id="exportPdfZ">
+                        <i class="fas fa-file-pdf"></i> Exportar PDF
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
               <div class="chart-body">
@@ -398,9 +419,16 @@
                   <span>Historial de Alertas</span>
                 </div>
                 <div class="chart-actions">
-                  <button class="btn-icon" id="downloadChartAlerts" title="Descargar gráfico">
-                    <i class="fas fa-download"></i>
-                  </button>
+                  <div class="chart-dropdown">
+                    <button class="btn-icon chart-dropdown-toggle" title="Opciones">
+                      <i class="fas fa-ellipsis-v"></i>
+                    </button>
+                    <div class="chart-dropdown-menu">
+                      <button class="chart-dropdown-item" id="downloadChartAlerts">
+                        <i class="fas fa-download"></i> Descargar PNG
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
               <div class="chart-body">
@@ -589,19 +617,19 @@
                     <h6 class="form-section-title">Eje X</h6>
                     <div class="form-group">
                       <label class="form-label">X - Límite 2σ Inferior:</label>
-                      <input type="number" class="form-control" id="x2SigmaLower" step="0.01">
+                      <input type="number" class="form-control" id="x2SigmaLower" step="0.01" placeholder="Valor límite inferior 2σ">
                     </div>
                     <div class="form-group">
                       <label class="form-label">X - Límite 2σ Superior:</label>
-                      <input type="number" class="form-control" id="x2SigmaUpper" step="0.01">
+                      <input type="number" class="form-control" id="x2SigmaUpper" step="0.01" placeholder="Valor límite superior 2σ">
                     </div>
                     <div class="form-group">
                       <label class="form-label">X - Límite 3σ Inferior:</label>
-                      <input type="number" class="form-control" id="x3SigmaLower" step="0.01">
+                      <input type="number" class="form-control" id="x3SigmaLower" step="0.01" placeholder="Valor límite inferior 3σ">
                     </div>
                     <div class="form-group">
                       <label class="form-label">X - Límite 3σ Superior:</label>
-                      <input type="number" class="form-control" id="x3SigmaUpper" step="0.01">
+                      <input type="number" class="form-control" id="x3SigmaUpper" step="0.01" placeholder="Valor límite superior 3σ">
                     </div>
                   </div>
                   
@@ -610,19 +638,19 @@
                     <h6 class="form-section-title">Eje Y</h6>
                     <div class="form-group">
                       <label class="form-label">Y - Límite 2σ Inferior:</label>
-                      <input type="number" class="form-control" id="y2SigmaLower" step="0.01">
+                      <input type="number" class="form-control" id="y2SigmaLower" step="0.01" placeholder="Valor límite inferior 2σ">
                     </div>
                     <div class="form-group">
                       <label class="form-label">Y - Límite 2σ Superior:</label>
-                      <input type="number" class="form-control" id="y2SigmaUpper" step="0.01">
+                      <input type="number" class="form-control" id="y2SigmaUpper" step="0.01" placeholder="Valor límite superior 2σ">
                     </div>
                     <div class="form-group">
                       <label class="form-label">Y - Límite 3σ Inferior:</label>
-                      <input type="number" class="form-control" id="y3SigmaLower" step="0.01">
+                      <input type="number" class="form-control" id="y3SigmaLower" step="0.01" placeholder="Valor límite inferior 3σ">
                     </div>
                     <div class="form-group">
                       <label class="form-label">Y - Límite 3σ Superior:</label>
-                      <input type="number" class="form-control" id="y3SigmaUpper" step="0.01">
+                      <input type="number" class="form-control" id="y3SigmaUpper" step="0.01" placeholder="Valor límite superior 3σ">
                     </div>
                   </div>
                   
@@ -631,19 +659,19 @@
                     <h6 class="form-section-title">Eje Z</h6>
                     <div class="form-group">
                       <label class="form-label">Z - Límite 2σ Inferior:</label>
-                      <input type="number" class="form-control" id="z2SigmaLower" step="0.01">
+                      <input type="number" class="form-control" id="z2SigmaLower" step="0.01" placeholder="Valor límite inferior 2σ">
                     </div>
                     <div class="form-group">
                       <label class="form-label">Z - Límite 2σ Superior:</label>
-                      <input type="number" class="form-control" id="z2SigmaUpper" step="0.01">
+                      <input type="number" class="form-control" id="z2SigmaUpper" step="0.01" placeholder="Valor límite superior 2σ">
                     </div>
                     <div class="form-group">
                       <label class="form-label">Z - Límite 3σ Inferior:</label>
-                      <input type="number" class="form-control" id="z3SigmaLower" step="0.01">
+                      <input type="number" class="form-control" id="z3SigmaLower" step="0.01" placeholder="Valor límite inferior 3σ">
                     </div>
                     <div class="form-group">
                       <label class="form-label">Z - Límite 3σ Superior:</label>
-                      <input type="number" class="form-control" id="z3SigmaUpper" step="0.01">
+                      <input type="number" class="form-control" id="z3SigmaUpper" step="0.01" placeholder="Valor límite superior 3σ">
                     </div>
                   </div>
                 </div>
@@ -652,7 +680,7 @@
                   <button class="btn btn-secondary mr-2" id="limitsResetBtn">
                     <i class="fas fa-undo mr-2"></i> Restablecer
                   </button>
-                  <button class="btn" id="limitsSaveBtn">
+                  <button class="btn btn-primary" id="limitsSaveBtn">
                     <i class="fas fa-save mr-2"></i> Guardar
                   </button>
                 </div>
@@ -667,90 +695,103 @@
     </div>
   </div>
   
-  <!-- Modal de Ajuste de Límites -->
+  <!-- Scripts modularizados -->
+  <script src="/static/js/utils.js"></script>
+  <script src="/static/js/navigation.js"></script>
+  <script src="/static/js/dashboard.js"></script>
+  <script src="/static/js/config.js"></script>
+  <script src="/static/js/charts.js"></script>
+  
+  <!-- Modal para ajustar límites -->
   <div class="modal" id="adjustLimitsModal">
     <div class="modal-dialog">
       <div class="modal-content">
         <div class="modal-header">
-          <h5 class="modal-title">Ajustar Límites Estadísticos</h5>
+          <h5 class="modal-title">Ajustar Límites</h5>
           <button type="button" class="modal-close" data-dismiss="modal">
             <i class="fas fa-times"></i>
           </button>
         </div>
         <div class="modal-body">
-          <form id="adjustLimitsForm">
-            <div class="form-grid">
-              <!-- Columna del Eje X -->
-              <div>
-                <h6 class="form-section-title">Eje X</h6>
-                <div class="form-group">
-                  <label class="form-label">X - Límite 2σ Inferior:</label>
-                  <input type="number" class="form-control" id="x2SigmaLowerInput" step="0.000001">
+          <p class="mb-3">Configure los límites de control para cada eje. Estos valores se usarán para detectar anomalías en los datos de vibración.</p>
+          
+          <div class="limits-form">
+            <!-- Límites para eje X -->
+            <div class="limits-section">
+              <h6 class="axis-title"><span class="axis-indicator">X</span> Eje X</h6>
+              <div class="limit-group">
+                <div class="limit-row">
+                  <label>Límite 2σ Inferior:</label>
+                  <input type="number" id="x2SigmaLowerInput" step="0.01" class="form-control" placeholder="Valor límite inferior 2σ">
                 </div>
-                <div class="form-group">
-                  <label class="form-label">X - Límite 2σ Superior:</label>
-                  <input type="number" class="form-control" id="x2SigmaUpperInput" step="0.000001">
+                <div class="limit-row">
+                  <label>Límite 2σ Superior:</label>
+                  <input type="number" id="x2SigmaUpperInput" step="0.01" class="form-control" placeholder="Valor límite superior 2σ">
                 </div>
-                <div class="form-group">
-                  <label class="form-label">X - Límite 3σ Inferior:</label>
-                  <input type="number" class="form-control" id="x3SigmaLowerInput" step="0.000001">
+                <div class="limit-row">
+                  <label>Límite 3σ Inferior:</label>
+                  <input type="number" id="x3SigmaLowerInput" step="0.01" class="form-control" placeholder="Valor límite inferior 3σ">
                 </div>
-                <div class="form-group">
-                  <label class="form-label">X - Límite 3σ Superior:</label>
-                  <input type="number" class="form-control" id="x3SigmaUpperInput" step="0.000001">
-                </div>
-              </div>
-              
-              <!-- Columna del Eje Y -->
-              <div>
-                <h6 class="form-section-title">Eje Y</h6>
-                <div class="form-group">
-                  <label class="form-label">Y - Límite 2σ Inferior:</label>
-                  <input type="number" class="form-control" id="y2SigmaLowerInput" step="0.000001">
-                </div>
-                <div class="form-group">
-                  <label class="form-label">Y - Límite 2σ Superior:</label>
-                  <input type="number" class="form-control" id="y2SigmaUpperInput" step="0.000001">
-                </div>
-                <div class="form-group">
-                  <label class="form-label">Y - Límite 3σ Inferior:</label>
-                  <input type="number" class="form-control" id="y3SigmaLowerInput" step="0.000001">
-                </div>
-                <div class="form-group">
-                  <label class="form-label">Y - Límite 3σ Superior:</label>
-                  <input type="number" class="form-control" id="y3SigmaUpperInput" step="0.000001">
-                </div>
-              </div>
-              
-              <!-- Columna del Eje Z -->
-              <div>
-                <h6 class="form-section-title">Eje Z</h6>
-                <div class="form-group">
-                  <label class="form-label">Z - Límite 2σ Inferior:</label>
-                  <input type="number" class="form-control" id="z2SigmaLowerInput" step="0.000001">
-                </div>
-                <div class="form-group">
-                  <label class="form-label">Z - Límite 2σ Superior:</label>
-                  <input type="number" class="form-control" id="z2SigmaUpperInput" step="0.000001">
-                </div>
-                <div class="form-group">
-                  <label class="form-label">Z - Límite 3σ Inferior:</label>
-                  <input type="number" class="form-control" id="z3SigmaLowerInput" step="0.000001">
-                </div>
-                <div class="form-group">
-                  <label class="form-label">Z - Límite 3σ Superior:</label>
-                  <input type="number" class="form-control" id="z3SigmaUpperInput" step="0.000001">
+                <div class="limit-row">
+                  <label>Límite 3σ Superior:</label>
+                  <input type="number" id="x3SigmaUpperInput" step="0.01" class="form-control" placeholder="Valor límite superior 3σ">
                 </div>
               </div>
             </div>
-          </form>
+            
+            <!-- Límites para eje Y -->
+            <div class="limits-section">
+              <h6 class="axis-title"><span class="axis-indicator">Y</span> Eje Y</h6>
+              <div class="limit-group">
+                <div class="limit-row">
+                  <label>Límite 2σ Inferior:</label>
+                  <input type="number" id="y2SigmaLowerInput" step="0.01" class="form-control" placeholder="Valor límite inferior 2σ">
+                </div>
+                <div class="limit-row">
+                  <label>Límite 2σ Superior:</label>
+                  <input type="number" id="y2SigmaUpperInput" step="0.01" class="form-control" placeholder="Valor límite superior 2σ">
+                </div>
+                <div class="limit-row">
+                  <label>Límite 3σ Inferior:</label>
+                  <input type="number" id="y3SigmaLowerInput" step="0.01" class="form-control" placeholder="Valor límite inferior 3σ">
+                </div>
+                <div class="limit-row">
+                  <label>Límite 3σ Superior:</label>
+                  <input type="number" id="y3SigmaUpperInput" step="0.01" class="form-control" placeholder="Valor límite superior 3σ">
+                </div>
+              </div>
+            </div>
+            
+            <!-- Límites para eje Z -->
+            <div class="limits-section">
+              <h6 class="axis-title"><span class="axis-indicator">Z</span> Eje Z</h6>
+              <div class="limit-group">
+                <div class="limit-row">
+                  <label>Límite 2σ Inferior:</label>
+                  <input type="number" id="z2SigmaLowerInput" step="0.01" class="form-control" placeholder="Valor límite inferior 2σ">
+                </div>
+                <div class="limit-row">
+                  <label>Límite 2σ Superior:</label>
+                  <input type="number" id="z2SigmaUpperInput" step="0.01" class="form-control" placeholder="Valor límite superior 2σ">
+                </div>
+                <div class="limit-row">
+                  <label>Límite 3σ Inferior:</label>
+                  <input type="number" id="z3SigmaLowerInput" step="0.01" class="form-control" placeholder="Valor límite inferior 3σ">
+                </div>
+                <div class="limit-row">
+                  <label>Límite 3σ Superior:</label>
+                  <input type="number" id="z3SigmaUpperInput" step="0.01" class="form-control" placeholder="Valor límite superior 3σ">
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
         <div class="modal-footer">
-          <button class="btn btn-secondary" id="resetLimitsBtn">
-            <i class="fas fa-undo mr-2"></i> Restablecer
+          <button type="button" class="btn btn-secondary" id="resetLimitsBtn">
+            <i class="fas fa-undo mr-2"></i>Restablecer Valores
           </button>
-          <button class="btn" id="saveLimitsBtn">
-            <i class="fas fa-save mr-2"></i> Guardar
+          <button type="button" class="btn btn-primary" id="saveLimitsBtn">
+            <i class="fas fa-save mr-2"></i>Guardar Cambios
           </button>
         </div>
       </div>
@@ -813,17 +854,19 @@
                 <option value="">Ninguno</option>
                 <!-- Opciones cargadas dinámicamente -->
               </select>
+              <div class="form-note">* Opcional</div>
             </div>
             
             <div class="form-group">
               <label class="form-label">Ruta:</label>
               <input type="text" class="form-control" id="machineRoute" name="route">
+              <div class="form-note">* Ubicación física o lógica de la máquina</div>
             </div>
           </form>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
-          <button type="button" class="btn" id="saveMachineBtn">Guardar</button>
+          <button type="button" class="btn btn-primary" id="saveMachineBtn">Guardar</button>
         </div>
       </div>
     </div>
@@ -869,6 +912,7 @@
                 <option value="">Ninguna</option>
                 <!-- Opciones cargadas dinámicamente -->
               </select>
+              <div class="form-note">* Opcional</div>
             </div>
             
             <div class="form-group">
@@ -877,12 +921,13 @@
                 <option value="">Ninguno</option>
                 <!-- Opciones cargadas dinámicamente -->
               </select>
+              <div class="form-note">* Opcional</div>
             </div>
           </form>
         </div>
         <div class="modal-footer">
-          <button type="button" class="button" data-dismiss="modal">Cancelar</button>
-          <button type="button" class="button primary" id="saveSensorBtn">Guardar</button>
+          <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+          <button type="button" class="btn btn-primary" id="saveSensorBtn">Guardar</button>
         </div>
       </div>
     </div>
@@ -944,7 +989,7 @@
                 <span id="modelFileName" class="selected-file-name">Ningún archivo seleccionado</span>
               </div>
               <div class="form-note" id="modelFileRequired">* Obligatorio para añadir un nuevo modelo</div>
-              <div class="form-note" id="modelFileOptional">* Opcional al editar (dejar vacío para mantener el archivo actual)</div>
+              <div class="form-note" id="modelFileOptional" style="display: none;">* Opcional al editar (dejar vacío para mantener el archivo actual)</div>
             </div>
             
             <div class="form-group">
@@ -972,7 +1017,7 @@
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
-          <button type="button" class="btn" id="saveModelBtn">Guardar</button>
+          <button type="button" class="btn btn-primary" id="saveModelBtn">Guardar</button>
         </div>
       </div>
     </div>
@@ -1057,13 +1102,6 @@
       </div>
     </div>
   </div>
-  
-  <!-- Scripts modularizados -->
-  <script src="/static/js/utils.js"></script>
-  <script src="/static/js/navigation.js"></script>
-  <script src="/static/js/dashboard.js"></script>
-  <script src="/static/js/config.js"></script>
-  <script src="/static/js/charts.js"></script>
   
   <!-- Inicialización de la aplicación -->
   <script>

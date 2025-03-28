@@ -607,43 +607,58 @@ function updateAxisChartLimits(chart, axis, limits) {
 
 // Actualizar la visibilidad de los elementos en los gráficos
 function updateChartsVisibility() {
+    console.log('Actualizando visibilidad de elementos en gráficos...');
+    
     // Obtener estados de los switches
-    const show2Sigma = document.getElementById('show2Sigma')?.checked || false;
-    const show3Sigma = document.getElementById('show3Sigma')?.checked || false;
+    const show2Sigma = document.getElementById('show2Sigma')?.checked;
+    const show3Sigma = document.getElementById('show3Sigma')?.checked;
+    
+    console.log('Estado de toggles:', { show2Sigma, show3Sigma });
     
     // Actualizar opciones de visualización en el estado global
     const chartOptions = getGlobalState('chartOptions') || {};
-    chartOptions.show2Sigma = show2Sigma;
-    chartOptions.show3Sigma = show3Sigma;
+    chartOptions.show2Sigma = show2Sigma !== undefined ? show2Sigma : chartOptions.show2Sigma;
+    chartOptions.show3Sigma = show3Sigma !== undefined ? show3Sigma : chartOptions.show3Sigma;
     setGlobalState('chartOptions', chartOptions);
     
+    console.log('Opciones de gráfico actualizadas:', chartOptions);
+    
     // Actualizar todos los gráficos de ejes
-    if (vibrationChartX) updateAxisChartVisibility(vibrationChartX, 'x');
-    if (vibrationChartY) updateAxisChartVisibility(vibrationChartY, 'y');
-    if (vibrationChartZ) updateAxisChartVisibility(vibrationChartZ, 'z');
+    if (typeof vibrationChartX !== 'undefined') {
+        updateAxisChartVisibility(vibrationChartX, 'x', chartOptions);
+    }
+    
+    if (typeof vibrationChartY !== 'undefined') {
+        updateAxisChartVisibility(vibrationChartY, 'y', chartOptions);
+    }
+    
+    if (typeof vibrationChartZ !== 'undefined') {
+        updateAxisChartVisibility(vibrationChartZ, 'z', chartOptions);
+    }
 }
 
 // Actualizar visibilidad específica de un gráfico de eje
-function updateAxisChartVisibility(chart, axis) {
-    if (!chart) return;
+function updateAxisChartVisibility(chart, axis, options) {
+    if (!chart || !chart.data || !chart.data.datasets) {
+        console.warn(`No se puede actualizar visibilidad del gráfico para eje ${axis}`);
+        return;
+    }
     
-    const chartOptions = getGlobalState('chartOptions');
-    const datasets = chart.data.datasets;
+    const chartOptions = options || getGlobalState('chartOptions') || { show2Sigma: true, show3Sigma: true };
+    console.log(`Actualizando visibilidad del gráfico para eje ${axis}:`, chartOptions);
     
-    // Buscar y actualizar visibilidad de las líneas 2-sigma
-    for (let i = 0; i < datasets.length; i++) {
-        const dataset = datasets[i];
-        
-        // Líneas 2-sigma (buscar por el label que contiene '2σ')
+    // Buscar y actualizar visibilidad de las líneas
+    chart.data.datasets.forEach(dataset => {
+        // Líneas 2-sigma
         if (dataset.label && dataset.label.includes('2σ')) {
             dataset.hidden = !chartOptions.show2Sigma;
         }
         
-        // Líneas 3-sigma (buscar por el label que contiene '3σ')
+        // Líneas 3-sigma
         if (dataset.label && dataset.label.includes('3σ')) {
             dataset.hidden = !chartOptions.show3Sigma;
         }
-    }
+    });
     
     // Actualizar gráfico
     chart.update();

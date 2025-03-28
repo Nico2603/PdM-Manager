@@ -5,11 +5,15 @@ from datetime import datetime, timedelta
 import numpy as np
 import pickle
 import joblib
+import shutil
+import hashlib
+import pandas as pd
 
 from fastapi import FastAPI, Depends, HTTPException, Body, File, UploadFile, Form, Query
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from sqlalchemy.orm import Session
+from sqlalchemy import func, desc
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any, Union
 from fastapi.middleware.cors import CORSMiddleware
@@ -150,52 +154,93 @@ def get_vibration_data(
     sensor_id: int,
     start_date: str,
     end_date: str,
+    limit: Optional[int] = None,
     db: Session = Depends(get_db)
 ):
     """
     Devuelve datos de vibración para un sensor y rango de fechas.
+    Incluye opción de limitar resultados para mejor rendimiento.
     """
     # Convertir fechas a datetime
     try:
         start_dt = datetime.strptime(start_date, "%Y-%m-%d")
-        end_dt = datetime.strptime(end_date, "%Y-%m-%d")
+        end_dt = datetime.strptime(end_date, "%Y-%m-%d") + timedelta(days=1)  # Incluir todo el día final
     except ValueError:
         raise HTTPException(
             status_code=400,
             detail="Formato de fecha inválido. Usa YYYY-MM-DD."
         )
+    
+    # Optimización: Consultar solo campos necesarios y aplicar filtros directamente
+    query = db.query(
+        models.VibrationData.date,
+        models.VibrationData.acceleration_x,
+        models.VibrationData.acceleration_y,
+        models.VibrationData.acceleration_z,
+        models.VibrationData.severity
+    ).filter(
+        models.VibrationData.sensor_id == sensor_id,
+        models.VibrationData.date >= start_dt,
+        models.VibrationData.date <= end_dt
+    ).order_by(models.VibrationData.date.asc())
+    
+    # Aplicar muestreo solo si el rango de tiempo es grande y hay límite establecido
+    if limit and (end_dt - start_dt).days > 7:
+        # Contar registros totales
+        total_count = db.query(func.count(models.VibrationData.data_id)).filter(
+            models.VibrationData.sensor_id == sensor_id,
+            models.VibrationData.date >= start_dt,
+            models.VibrationData.date <= end_dt
+        ).scalar()
+        
+        # Si hay muchos registros, aplicar muestreo
+        if total_count > limit:
+            # Calculamos frecuencia de muestreo
+            sampling_rate = total_count // limit
+            
+            # Obtener datos muestreados
+            data_list = []
+            for offset in range(0, total_count, sampling_rate):
+                sample = query.offset(offset).limit(1).first()
+                if sample:
+                    data_list.append(sample)
+        else:
+            data_list = query.limit(limit).all()
+    else:
+        # Si no hay límite o el rango es pequeño, obtener todos los datos
+        data_list = query.all()
 
-    # Obtener registros de la BD
-    data_list = crud.get_vibration_data_by_sensor_and_dates(db, sensor_id, start_dt, end_dt)
-
-    # Extraer datos en listas para JSON
-    acceleration_x = []
-    acceleration_y = []
-    acceleration_z = []
-    fechas = []
-    severities = []
-    severity_texts = []
+    # Extraer datos en listas para JSON (formato optimizado)
+    result = {
+        "sensor_id": sensor_id,
+        "fechas": [],
+        "acceleration_x": [],
+        "acceleration_y": [],
+        "acceleration_z": [],
+        "severities": [],
+        "severity_texts": []
+    }
 
     for d in data_list:
-        acceleration_x.append(float(d.acceleration_x) if d.acceleration_x is not None else None)
-        acceleration_y.append(float(d.acceleration_y) if d.acceleration_y is not None else None)
-        acceleration_z.append(float(d.acceleration_z) if d.acceleration_z is not None else None)
-        fechas.append(d.date.isoformat())
+        result["fechas"].append(d.date.isoformat())
+        result["acceleration_x"].append(float(d.acceleration_x) if d.acceleration_x is not None else None)
+        result["acceleration_y"].append(float(d.acceleration_y) if d.acceleration_y is not None else None)
+        result["acceleration_z"].append(float(d.acceleration_z) if d.acceleration_z is not None else None)
         
         # Añadir severidad y texto correspondiente
         severity = d.severity
-        severities.append(severity)
-        severity_texts.append(SEVERITY_MAPPING.get(severity, "Desconocido") if severity is not None else None)
+        result["severities"].append(severity)
+        result["severity_texts"].append(SEVERITY_MAPPING.get(severity, "Desconocido") if severity is not None else None)
 
-    return {
-        "sensor_id": sensor_id,
-        "fechas": fechas,
-        "acceleration_x": acceleration_x,
-        "acceleration_y": acceleration_y,
-        "acceleration_z": acceleration_z,
-        "severities": severities,
-        "severity_texts": severity_texts
-    }
+    # Agregar información de muestreo si se aplicó
+    if limit and 'sampling_rate' in locals():
+        result["sampling_info"] = {
+            "original_count": total_count,
+            "sampled_count": len(data_list),
+            "sampling_rate": sampling_rate
+        }
+
+    return result
 
 @app.get("/predict_condition")
 def predict_condition(
@@ -954,21 +999,33 @@ def get_dashboard_data(sensor_id: Optional[int] = None, db: Session = Depends(ge
         "recent_data": []
     }
     
-    # Contar alertas no reconocidas
-    query = db.query(models.Alert).filter(models.Alert.acknowledged == False)
+    # Optimización: Contar alertas por nivel en una sola consulta
     if sensor_id:
-        query = query.filter(models.Alert.sensor_id == sensor_id)
+        # Consulta optimizada para un sensor específico
+        alert_counts = db.query(
+            models.Alert.severity,
+            func.count(models.Alert.log_id).label("count")
+        ).filter(
+            models.Alert.acknowledged == False,
+            models.Alert.sensor_id == sensor_id
+        ).group_by(models.Alert.severity).all()
+    else:
+        # Consulta optimizada para todos los sensores
+        alert_counts = db.query(
+            models.Alert.severity,
+            func.count(models.Alert.log_id).label("count")
+        ).filter(
+            models.Alert.acknowledged == False
+        ).group_by(models.Alert.severity).all()
     
-    alerts = query.order_by(models.Alert.timestamp.desc()).all()
-    
-    # Contar por nivel
-    for alert in alerts:
-        if alert.severity == 1:
-            result["alert_counts"]["level1"] += 1
-        elif alert.severity == 2:
-            result["alert_counts"]["level2"] += 1
-        elif alert.severity == 3:
-            result["alert_counts"]["level3"] += 1
+    # Procesar recuentos
+    for severity, count in alert_counts:
+        if severity == 1:
+            result["alert_counts"]["level1"] = count
+        elif severity == 2:
+            result["alert_counts"]["level2"] = count
+        elif severity == 3:
+            result["alert_counts"]["level3"] = count
     
     result["alert_counts"]["total"] = (
         result["alert_counts"]["level1"] +
@@ -976,29 +1033,48 @@ def get_dashboard_data(sensor_id: Optional[int] = None, db: Session = Depends(ge
         result["alert_counts"]["level3"]
     )
     
-    # Obtener alertas recientes (máximo 10)
-    recent_alerts = alerts[:10]
-    for alert in recent_alerts:
-        sensor = crud.get_sensor_by_id(db, alert.sensor_id)
-        sensor_name = sensor.name if sensor else f"Sensor {alert.sensor_id}"
+    # Optimización: Obtener alertas recientes con join para incluir información del sensor
+    alert_query = db.query(
+        models.Alert,
+        models.Sensor.name.label("sensor_name")
+    ).join(
+        models.Sensor,
+        models.Alert.sensor_id == models.Sensor.sensor_id,
+        isouter=True
+    ).filter(
+        models.Alert.acknowledged == False
+    )
+    
+    if sensor_id:
+        alert_query = alert_query.filter(models.Alert.sensor_id == sensor_id)
+    
+    # Obtener solo las 10 alertas más recientes (optimización)
+    recent_alerts_data = alert_query.order_by(models.Alert.timestamp.desc()).limit(10).all()
+    
+    # Procesar alertas recientes
+    for alert, sensor_name in recent_alerts_data:
+        # Aplicar remove_sa_instance para serialización segura
+        alert_dict = remove_sa_instance(alert.__dict__.copy())
         
         result["recent_alerts"].append({
             "id": alert.log_id,
             "timestamp": alert.timestamp.isoformat(),
             "sensor_id": alert.sensor_id,
-            "sensor_name": sensor_name,
+            "sensor_name": sensor_name or f"Sensor {alert.sensor_id}",
             "severity": alert.severity,
             "severity_text": SEVERITY_MAPPING.get(alert.severity, "Desconocido"),
             "message": alert.message
         })
     
-    # Obtener datos recientes de vibración (máximo 50)
-    query = db.query(models.VibrationData)
+    # Optimización: Obtener datos recientes de vibración (máximo 50)
+    vib_query = db.query(models.VibrationData)
     if sensor_id:
-        query = query.filter(models.VibrationData.sensor_id == sensor_id)
+        vib_query = vib_query.filter(models.VibrationData.sensor_id == sensor_id)
     
-    recent_data = query.order_by(models.VibrationData.date.desc()).limit(50).all()
+    # Limitar a los 50 más recientes y seleccionar solo las columnas necesarias
+    recent_data = vib_query.order_by(models.VibrationData.date.desc()).limit(50).all()
     
+    # Extraer datos en listas para JSON
     timestamps = []
     values_x = []
     values_y = []
@@ -1068,6 +1144,42 @@ def get_machine_info(machine_id: int, db: Session = Depends(get_db)):
     
     return result
 
+def remove_sa_instance(obj_dict):
+    """
+    Elimina el atributo _sa_instance_state de un diccionario y convierte tipos de datos
+    complejos a formatos serializables.
+    
+    Args:
+        obj_dict: Diccionario a procesar, normalmente de un objeto SQLAlchemy
+        
+    Returns:
+        Diccionario limpio listo para serialización JSON
+    """
+    if not isinstance(obj_dict, dict):
+        return obj_dict
+        
+    # Eliminar atributo _sa_instance_state
+    if '_sa_instance_state' in obj_dict:
+        obj_dict.pop('_sa_instance_state')
+    
+    # Convertir tipos de datos no serializables
+    for key, value in list(obj_dict.items()):
+        # Manejar fechas y timestamps
+        if isinstance(value, datetime):
+            obj_dict[key] = value.isoformat()
+        # Manejar valores numéricos especiales
+        elif isinstance(value, (float, int)) and (value != value or value == float('inf') or value == float('-inf')):
+            # NaN, inf, -inf no son serializables en JSON
+            obj_dict[key] = None
+        # Manejar objetos anidados
+        elif isinstance(value, dict):
+            obj_dict[key] = remove_sa_instance(value)
+        # Manejar listas/iterables
+        elif isinstance(value, (list, tuple)):
+            obj_dict[key] = [remove_sa_instance(item) if isinstance(item, dict) else item for item in value]
+    
+    return obj_dict
+
 @app.post("/api/machines")
 def create_machine_info(machine_data: Dict[str, Any] = Body(...), db: Session = Depends(get_db)):
     """
@@ -1096,10 +1208,10 @@ def create_machine_info(machine_data: Dict[str, Any] = Body(...), db: Session = 
         # Buscar el sensor especificado
         sensor = crud.get_sensor_by_id(db, sensor_id)
         if sensor:
-            sensor.machine_id = saved_machine.machine_id
+            sensor.machine_id = saved_machine.get('machine_id')
             db.commit()
     
-    return saved_machine.__dict__
+    return saved_machine
 
 @app.put("/api/machines/{machine_id}")
 def update_machine_info(machine_id: int, data: Dict[str, Any] = Body(...), db: Session = Depends(get_db)):
@@ -1126,7 +1238,7 @@ def update_machine_info(machine_id: int, data: Dict[str, Any] = Body(...), db: S
             
     updated_machine = crud.update_machine(db, machine)
     
-    return updated_machine.__dict__
+    return updated_machine
 
 @app.delete("/api/machines/{machine_id}")
 def delete_machine_info(machine_id: int, db: Session = Depends(get_db)):
@@ -1145,7 +1257,7 @@ def get_all_models(db: Session = Depends(get_db)):
     Obtiene la lista de todos los modelos
     """
     models_list = crud.get_models(db)
-    return [model.__dict__ for model in models_list]
+    return models_list
 
 @app.get("/api/models/{model_id}")
 def get_model_info(model_id: int, db: Session = Depends(get_db)):
@@ -1155,7 +1267,7 @@ def get_model_info(model_id: int, db: Session = Depends(get_db)):
     model = crud.get_model_by_id(db, model_id)
     if not model:
         raise HTTPException(status_code=404, detail="Modelo no encontrado")
-    return model.__dict__
+    return remove_sa_instance(model.__dict__)
 
 @app.post("/api/models")
 async def create_model(
@@ -1653,8 +1765,20 @@ def get_data_for_dashboard(
     Endpoint principal para obtener datos para el dashboard.
     Verifica configuración y carga datos específicos de la máquina y sensor seleccionados.
     """
-    # Verificar que existe configuración
-    if not check_configuration_exists(db):
+    # Verificar que existe configuración (cache para mejorar rendimiento)
+    config_exists = True  # Valor por defecto
+    
+    # Consultas optimizadas para verificación de configuración
+    machines_count = db.query(func.count(models.Machine.machine_id)).scalar()
+    sensors_count = db.query(func.count(models.Sensor.sensor_id)).scalar()
+    models_count = db.query(func.count(models.Model.model_id)).scalar()
+    sensor_with_model_count = db.query(func.count(models.Sensor.sensor_id)).filter(models.Sensor.model_id != None).scalar()
+    
+    if (machines_count == 0 or sensors_count == 0 or 
+        models_count == 0 or sensor_with_model_count == 0):
+        config_exists = False
+    
+    if not config_exists:
         return JSONResponse(
             status_code=400,
             content={
@@ -1663,27 +1787,41 @@ def get_data_for_dashboard(
             }
         )
     
-    # Obtener la máquina seleccionada
-    machine_obj = crud.get_machine_by_id(db, machine)
-    if not machine_obj:
-        return JSONResponse(
-            status_code=404,
-            content={
-                "status": "error",
-                "message": f"Máquina con ID {machine} no encontrada"
-            }
-        )
+    # Consulta optimizada: Obtener tanto la máquina como el sensor en una sola consulta
+    query = db.query(
+        models.Machine,
+        models.Sensor
+    ).join(
+        models.Sensor,
+        models.Sensor.machine_id == models.Machine.machine_id
+    ).filter(
+        models.Machine.machine_id == machine,
+        models.Sensor.sensor_id == sensor
+    ).first()
     
-    # Obtener el sensor seleccionado
-    sensor_obj = crud.get_sensor_by_id(db, sensor)
-    if not sensor_obj:
-        return JSONResponse(
-            status_code=404,
-            content={
-                "status": "error",
-                "message": f"Sensor con ID {sensor} no encontrado"
-            }
-        )
+    if not query:
+        # Si no podemos obtener ambos en una sola consulta, comprobamos por separado
+        machine_obj = crud.get_machine_by_id(db, machine)
+        if not machine_obj:
+            return JSONResponse(
+                status_code=404,
+                content={
+                    "status": "error",
+                    "message": f"Máquina con ID {machine} no encontrada"
+                }
+            )
+        
+        sensor_obj = crud.get_sensor_by_id(db, sensor)
+        if not sensor_obj:
+            return JSONResponse(
+                status_code=404,
+                content={
+                    "status": "error",
+                    "message": f"Sensor con ID {sensor} no encontrado"
+                }
+            )
+    else:
+        machine_obj, sensor_obj = query
     
     # Verificar que el sensor tiene un modelo asociado
     if not sensor_obj.model_id:
@@ -1719,11 +1857,43 @@ def get_data_for_dashboard(
     else:
         start_date = now - timedelta(days=1)  # Default: 1 día
     
-    # Obtener datos de vibración
-    vibration_data = crud.get_vibration_data_by_sensor_and_dates(db, sensor, start_date, now)
+    # Consulta optimizada: Obtener solo los datos necesarios para el rango de tiempo
+    vibration_query = db.query(
+        models.VibrationData.date,
+        models.VibrationData.acceleration_x,
+        models.VibrationData.acceleration_y,
+        models.VibrationData.acceleration_z,
+        models.VibrationData.severity
+    ).filter(
+        models.VibrationData.sensor_id == sensor,
+        models.VibrationData.date >= start_date,
+        models.VibrationData.date <= now
+    ).order_by(models.VibrationData.date.asc())
     
-    # Obtener límites configurados para este sensor
-    limits = get_limits(db)
+    # Si es un rango grande de tiempo, muestrear para mejor rendimiento
+    if timeRange in ["week", "month"]:
+        # Aproximadamente 1000 puntos debería ser suficiente para visualización
+        # sin sobrecargar el navegador o la red
+        max_points = 1000
+        total_count = db.query(func.count(models.VibrationData.data_id)).filter(
+            models.VibrationData.sensor_id == sensor,
+            models.VibrationData.date >= start_date,
+            models.VibrationData.date <= now
+        ).scalar()
+        
+        if total_count > max_points:
+            # Calculamos la frecuencia de muestreo
+            sampling_rate = total_count // max_points
+            # Aplicamos muestreo utilizando LIMIT y OFFSET
+            vibration_data = []
+            for offset in range(0, total_count, sampling_rate):
+                sample = vibration_query.offset(offset).limit(1).first()
+                if sample:
+                    vibration_data.append(sample)
+        else:
+            vibration_data = vibration_query.all()
+    else:
+        vibration_data = vibration_query.all()
     
     # Formatear datos para el dashboard
     timestamps = []
@@ -1739,15 +1909,65 @@ def get_data_for_dashboard(
         values_z.append(float(data.acceleration_z) if data.acceleration_z is not None else None)
         status.append(data.severity)
     
-    # Calcular estadísticas
-    stats = {
-        "x": calculate_statistics(values_x, limits),
-        "y": calculate_statistics(values_y, limits),
-        "z": calculate_statistics(values_z, limits)
+    # Calcular estadísticas usando datos muestreados
+    # Función optimizada para calcular estadísticas solo si tenemos datos
+    if values_x and values_y and values_z:
+        stats = {
+            "x": calculate_statistics(values_x, {}),
+            "y": calculate_statistics(values_y, {}),
+            "z": calculate_statistics(values_z, {})
+        }
+    else:
+        stats = {
+            "x": {
+                "mean": 0, "std": 0, "min": 0, "max": 0,
+                "sigma2": {"upper": 0, "lower": 0},
+                "sigma3": {"upper": 0, "lower": 0}
+            },
+            "y": {
+                "mean": 0, "std": 0, "min": 0, "max": 0,
+                "sigma2": {"upper": 0, "lower": 0},
+                "sigma3": {"upper": 0, "lower": 0}
+            },
+            "z": {
+                "mean": 0, "std": 0, "min": 0, "max": 0,
+                "sigma2": {"upper": 0, "lower": 0},
+                "sigma3": {"upper": 0, "lower": 0}
+            }
+        }
+    
+    # Obtener límites configurados para este sensor
+    limits = get_limits(db)
+    
+    # Consulta optimizada: Obtener alertas con una sola consulta
+    alerts_counts = db.query(
+        models.Alert.severity,
+        func.count(models.Alert.log_id).label("count")
+    ).filter(
+        models.Alert.sensor_id == sensor
+    ).group_by(models.Alert.severity).all()
+    
+    # Generar diccionario de alertas
+    alerts = {
+        "level1": 0,
+        "level2": 0,
+        "level3": 0,
+        "total": 0
     }
     
-    # Obtener alertas
-    alerts = crud.get_alert_counts(db, sensor)
+    for severity, count in alerts_counts:
+        if severity == 1:
+            alerts["level1"] = count
+        elif severity == 2:
+            alerts["level2"] = count
+        elif severity == 3:
+            alerts["level3"] = count
+    
+    alerts["total"] = alerts["level1"] + alerts["level2"] + alerts["level3"]
+    
+    # Limpiar objetos para serialización JSON
+    machine_dict = remove_sa_instance(machine_obj.__dict__.copy())
+    model_dict = remove_sa_instance(model_obj.__dict__.copy())
     
     return {
         "status": "success",
@@ -2122,3 +2342,219 @@ def get_machines_with_status(db: Session, skip: int = 0, limit: int = 100) -> Li
         result.append(machine_info)
     
     return result
+
+@app.get("/api/dashboard-data")
+def get_dashboard_data_new(
+    data_type: str,
+    sensor_id: Optional[int] = None,
+    page: int = 1,
+    limit: int = 10,
+    db: Session = Depends(get_db)
+):
+    """
+    Endpoint para obtener datos específicos para el dashboard según el tipo solicitado.
+    
+    Parámetros:
+    - data_type: Tipo de datos solicitados ('stats', 'alerts', 'vibration')
+    - sensor_id: ID del sensor (opcional)
+    - page: Número de página para paginación (por defecto: 1)
+    - limit: Límite de registros por página (por defecto: 10)
+    
+    Retorna:
+    - JSON con los datos solicitados según el data_type
+    """
+    # Calcular offset para paginación
+    offset = (page - 1) * limit
+    
+    if data_type == "stats":
+        # Optimización: Obtener resumen estadístico de datos de vibración para las últimas 24h
+        # usando consultas nativas de SQL en lugar de cargar todos los datos
+        last_24h = datetime.now() - timedelta(hours=24)
+        
+        # Base de la consulta
+        query = db.query(
+            func.avg(models.VibrationData.acceleration_x).label("mean_x"),
+            func.avg(models.VibrationData.acceleration_y).label("mean_y"),
+            func.avg(models.VibrationData.acceleration_z).label("mean_z"),
+            func.min(models.VibrationData.acceleration_x).label("min_x"),
+            func.min(models.VibrationData.acceleration_y).label("min_y"),
+            func.min(models.VibrationData.acceleration_z).label("min_z"),
+            func.max(models.VibrationData.acceleration_x).label("max_x"),
+            func.max(models.VibrationData.acceleration_y).label("max_y"),
+            func.max(models.VibrationData.acceleration_z).label("max_z"),
+            func.count(models.VibrationData.data_id).label("count")
+        ).filter(models.VibrationData.date >= last_24h)
+        
+        # Filtrar por sensor si se proporciona
+        if sensor_id:
+            query = query.filter(models.VibrationData.sensor_id == sensor_id)
+        
+        # Ejecutar consulta
+        stats_result = query.first()
+        
+        # Si no hay datos, devolver valores por defecto
+        if not stats_result or stats_result.count == 0:
+            return {
+                "mean": {"x": 0, "y": 0, "z": 0, "magnitude": 0},
+                "std": {"x": 0, "y": 0, "z": 0, "magnitude": 0},
+                "min": {"x": 0, "y": 0, "z": 0, "magnitude": 0},
+                "max": {"x": 0, "y": 0, "z": 0, "magnitude": 0},
+                "count": 0,
+                "time_range": {
+                    "start": last_24h.isoformat(),
+                    "end": datetime.now().isoformat()
+                }
+            }
+        
+        # Para calcular desviación estándar, necesitamos una consulta separada
+        # ya que algunas bases de datos no tienen función de desviación estándar nativa
+        # Obtenemos un conjunto de datos pequeño para calcular std sin sobrecargar la memoria
+        std_query = db.query(
+            models.VibrationData.acceleration_x,
+            models.VibrationData.acceleration_y,
+            models.VibrationData.acceleration_z
+        ).filter(models.VibrationData.date >= last_24h)
+        
+        if sensor_id:
+            std_query = std_query.filter(models.VibrationData.sensor_id == sensor_id)
+        
+        # Limitar la cantidad de datos para el cálculo de std (suficiente para estadísticas precisas)
+        std_data = std_query.limit(1000).all()
+        
+        # Extraer valores para cálculo de std
+        values_x = [float(d.acceleration_x) for d in std_data if d.acceleration_x is not None]
+        values_y = [float(d.acceleration_y) for d in std_data if d.acceleration_y is not None]
+        values_z = [float(d.acceleration_z) for d in std_data if d.acceleration_z is not None]
+        
+        # Calcular std
+        std_x = np.std(values_x) if values_x else 0
+        std_y = np.std(values_y) if values_y else 0
+        std_z = np.std(values_z) if values_z else 0
+        
+        # Calcular magnitud media (aproximación)
+        mean_magnitude = np.sqrt(
+            (stats_result.mean_x or 0)**2 + 
+            (stats_result.mean_y or 0)**2 + 
+            (stats_result.mean_z or 0)**2
+        )
+        
+        # Formar respuesta
+        return {
+            "mean": {
+                "x": float(stats_result.mean_x) if stats_result.mean_x is not None else 0,
+                "y": float(stats_result.mean_y) if stats_result.mean_y is not None else 0,
+                "z": float(stats_result.mean_z) if stats_result.mean_z is not None else 0,
+                "magnitude": float(mean_magnitude)
+            },
+            "std": {
+                "x": float(std_x),
+                "y": float(std_y),
+                "z": float(std_z),
+                "magnitude": float(np.sqrt(std_x**2 + std_y**2 + std_z**2))
+            },
+            "min": {
+                "x": float(stats_result.min_x) if stats_result.min_x is not None else 0,
+                "y": float(stats_result.min_y) if stats_result.min_y is not None else 0,
+                "z": float(stats_result.min_z) if stats_result.min_z is not None else 0,
+                "magnitude": 0  # Aproximación
+            },
+            "max": {
+                "x": float(stats_result.max_x) if stats_result.max_x is not None else 0,
+                "y": float(stats_result.max_y) if stats_result.max_y is not None else 0,
+                "z": float(stats_result.max_z) if stats_result.max_z is not None else 0,
+                "magnitude": 0  # Aproximación
+            },
+            "count": stats_result.count,
+            "time_range": {
+                "start": last_24h.isoformat(),
+                "end": datetime.now().isoformat()
+            }
+        }
+    
+    elif data_type == "alerts":
+        # Optimización: Usar join para obtener datos del sensor en una sola consulta
+        query = db.query(
+            models.Alert,
+            models.Sensor.name.label("sensor_name")
+        ).join(
+            models.Sensor,
+            models.Alert.sensor_id == models.Sensor.sensor_id,
+            isouter=True
+        )
+        
+        if sensor_id:
+            query = query.filter(models.Alert.sensor_id == sensor_id)
+        
+        # Contar total para paginación (optimizado para evitar cargar todos los registros)
+        total_count = db.query(func.count(models.Alert.log_id))
+        if sensor_id:
+            total_count = total_count.filter(models.Alert.sensor_id == sensor_id)
+        total_count = total_count.scalar()
+        
+        # Obtener datos para la página actual
+        results = query.order_by(models.Alert.timestamp.desc()).offset(offset).limit(limit).all()
+        
+        # Formatear resultados
+        items = []
+        for alert, sensor_name in results:
+            # Usar remove_sa_instance para evitar problemas de serialización
+            alert_dict = remove_sa_instance(alert.__dict__.copy())
+            
+            # Formatear campos específicos
+            alert_dict["timestamp"] = alert.timestamp.isoformat()
+            alert_dict["sensor_name"] = sensor_name or f"Sensor {alert.sensor_id}"
+            
+            items.append(alert_dict)
+        
+        return {
+            "items": items,
+            "total": total_count,
+            "page": page,
+            "limit": limit,
+            "pages": (total_count + limit - 1) // limit  # Cálculo de número total de páginas
+        }
+    
+    elif data_type == "vibration":
+        # Optimización: Consulta optimizada para datos de vibración
+        query = db.query(models.VibrationData)
+        
+        if sensor_id:
+            query = query.filter(models.VibrationData.sensor_id == sensor_id)
+        
+        # Contar total para paginación (optimizado)
+        total_count = db.query(func.count(models.VibrationData.data_id))
+        if sensor_id:
+            total_count = total_count.filter(models.VibrationData.sensor_id == sensor_id)
+        total_count = total_count.scalar()
+        
+        # Obtener datos para la página actual
+        vibration_data = query.order_by(models.VibrationData.date.desc()).offset(offset).limit(limit).all()
+        
+        # Formatear resultados
+        result = []
+        for data in vibration_data:
+            # Usar remove_sa_instance para evitar problemas de serialización
+            data_dict = remove_sa_instance(data.__dict__.copy())
+            
+            # Formatear campos específicos
+            data_dict["date"] = data.date.isoformat()
+            data_dict["acceleration_x"] = float(data.acceleration_x) if data.acceleration_x is not None else None
+            data_dict["acceleration_y"] = float(data.acceleration_y) if data.acceleration_y is not None else None
+            data_dict["acceleration_z"] = float(data.acceleration_z) if data.acceleration_z is not None else None
+            data_dict["magnitude"] = float(data.magnitude) if data.magnitude is not None else None
+            
+            result.append(data_dict)
+        
+        return {
+            "items": result,
+            "total": total_count,
+            "page": page,
+            "limit": limit,
+            "pages": (total_count + limit - 1) // limit
+        }
+    
+    else:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Tipo de datos '{data_type}' no válido. Valores aceptados: 'stats', 'alerts', 'vibration'"
+        )

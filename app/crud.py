@@ -5,12 +5,18 @@ from datetime import datetime
 from app.models import Sensor, VibrationData, Machine, Model, Alert, UserConfig, LimitConfig
 from typing import List, Dict, Any, Optional
 
+def remove_sa_instance(obj_dict):
+    """Elimina el atributo _sa_instance_state de un diccionario"""
+    if '_sa_instance_state' in obj_dict:
+        obj_dict.pop('_sa_instance_state')
+    return obj_dict
+
 # --- Funciones CRUD para Sensores ---
 
 def get_sensors(db: Session, skip: int = 0, limit: int = 100) -> List[Dict[str, Any]]:
     """Obtiene la lista de todos los sensores"""
     sensors = db.query(Sensor).offset(skip).limit(limit).all()
-    return [sensor.__dict__ for sensor in sensors]
+    return [remove_sa_instance(sensor.__dict__) for sensor in sensors]
 
 def get_sensor_by_id(db: Session, sensor_id: int) -> Optional[Sensor]:
     """Obtiene un sensor por su ID"""
@@ -20,7 +26,7 @@ def get_sensor(db: Session, sensor_id: int) -> Optional[Dict[str, Any]]:
     """Obtiene un sensor por su ID (como diccionario)"""
     sensor = get_sensor_by_id(db, sensor_id)
     if sensor:
-        return sensor.__dict__
+        return remove_sa_instance(sensor.__dict__)
     return None
 
 def create_sensor(db: Session, sensor: Sensor) -> Dict[str, Any]:
@@ -28,13 +34,13 @@ def create_sensor(db: Session, sensor: Sensor) -> Dict[str, Any]:
     db.add(sensor)
     db.commit()
     db.refresh(sensor)
-    return sensor.__dict__
+    return remove_sa_instance(sensor.__dict__)
 
 def update_sensor(db: Session, sensor: Sensor) -> Dict[str, Any]:
     """Actualiza un sensor existente"""
     db.commit()
     db.refresh(sensor)
-    return sensor.__dict__
+    return remove_sa_instance(sensor.__dict__)
 
 def delete_sensor(db: Session, sensor_id: int) -> bool:
     """Elimina un sensor"""
@@ -48,7 +54,7 @@ def delete_sensor(db: Session, sensor_id: int) -> bool:
 def get_sensors_by_machine(db: Session, machine_id: int) -> List[Dict[str, Any]]:
     """Obtiene todos los sensores asociados a una máquina"""
     sensors = db.query(Sensor).filter(Sensor.machine_id == machine_id).all()
-    return [sensor.__dict__ for sensor in sensors]
+    return [remove_sa_instance(sensor.__dict__) for sensor in sensors]
 
 # --- Funciones CRUD para Datos de Vibración ---
 
@@ -88,18 +94,18 @@ def create_vibration_data(
 def get_vibration_data(db: Session, limit: int = 100) -> List[Dict[str, Any]]:
     """Obtiene los últimos registros de datos de vibración"""
     data = db.query(VibrationData).order_by(VibrationData.date.desc()).limit(limit).all()
-    return [item.__dict__ for item in data]
+    return [remove_sa_instance(item.__dict__) for item in data]
 
 def get_vibration_data_by_sensor(db: Session, sensor_id: int, limit: int = 100) -> List[Dict[str, Any]]:
     """Obtiene los últimos registros de datos de vibración para un sensor específico"""
     data = db.query(VibrationData).filter(VibrationData.sensor_id == sensor_id).order_by(VibrationData.date.desc()).limit(limit).all()
-    return [item.__dict__ for item in data]
+    return [remove_sa_instance(item.__dict__) for item in data]
 
 def get_vibration_data_by_id(db: Session, data_id: int) -> Optional[Dict[str, Any]]:
     """Obtiene un registro de datos de vibración por su ID"""
     data = db.query(VibrationData).filter(VibrationData.data_id == data_id).first()
     if data:
-        return data.__dict__
+        return remove_sa_instance(data.__dict__)
     return None
 
 def get_vibration_data_by_sensor_and_dates(
@@ -140,7 +146,7 @@ def get_alerts(
         query = query.filter(Alert.acknowledged == acknowledged)
     
     alerts = query.order_by(Alert.timestamp.desc()).limit(limit).all()
-    return [alert.__dict__ for alert in alerts]
+    return [remove_sa_instance(alert.__dict__) for alert in alerts]
 
 def get_alert_by_id(db: Session, alert_id: int) -> Optional[Alert]:
     """Obtiene una alerta por su ID"""
@@ -170,9 +176,10 @@ def get_alerts_by_sensor_and_dates(
 
 # --- Funciones CRUD para Máquinas ---
 
-def get_machines(db: Session, skip: int = 0, limit: int = 100) -> List[Machine]:
+def get_machines(db: Session, skip: int = 0, limit: int = 100) -> List[Dict[str, Any]]:
     """Obtiene la lista de todas las máquinas"""
-    return db.query(Machine).offset(skip).limit(limit).all()
+    machines = db.query(Machine).offset(skip).limit(limit).all()
+    return [remove_sa_instance(machine.__dict__) for machine in machines]
 
 def get_machine_by_id(db: Session, machine_id: int) -> Optional[Machine]:
     """Obtiene una máquina por su ID"""
@@ -212,45 +219,32 @@ def get_machines_with_status(db: Session, skip: int = 0, limit: int = 100) -> Li
                 Alert.acknowledged == False
             ).count()
         
-        # Determinar estado de la máquina basado en las alertas
-        status = "normal"  # Por defecto
-        
-        if level3_count > 0:
-            status = "critical"
-        elif level2_count > 0:
-            status = "warning"
-        elif level1_count > 0:
-            status = "attention"
-        
-        # Crear objeto de respuesta
-        machine_info = {
-            "id": machine.machine_id,
-            "name": machine.name,
-            "status": machine.status or status,
-            "alert_counts": {
-                "level1": level1_count,
-                "level2": level2_count,
-                "level3": level3_count,
-                "total": level1_count + level2_count + level3_count
-            }
+        # Crear diccionario con datos de la máquina y alertas
+        machine_dict = remove_sa_instance(machine.__dict__)
+        machine_dict["alerts"] = {
+            "level1": level1_count,
+            "level2": level2_count,
+            "level3": level3_count,
+            "total": level1_count + level2_count + level3_count
         }
+        machine_dict["sensors_count"] = len(sensors)
         
-        result.append(machine_info)
+        result.append(machine_dict)
     
     return result
 
-def create_machine(db: Session, machine: Machine) -> Machine:
+def create_machine(db: Session, machine: Machine) -> Dict[str, Any]:
     """Crea una nueva máquina"""
     db.add(machine)
     db.commit()
     db.refresh(machine)
-    return machine
+    return remove_sa_instance(machine.__dict__)
 
-def update_machine(db: Session, machine: Machine) -> Machine:
+def update_machine(db: Session, machine: Machine) -> Dict[str, Any]:
     """Actualiza una máquina existente"""
     db.commit()
     db.refresh(machine)
-    return machine
+    return remove_sa_instance(machine.__dict__)
 
 def delete_machine(db: Session, machine_id: int) -> bool:
     """Elimina una máquina"""
@@ -263,26 +257,27 @@ def delete_machine(db: Session, machine_id: int) -> bool:
 
 # --- Funciones CRUD para Modelos ---
 
-def get_models(db: Session, skip: int = 0, limit: int = 100) -> List[Model]:
+def get_models(db: Session, skip: int = 0, limit: int = 100) -> List[Dict[str, Any]]:
     """Obtiene la lista de todos los modelos"""
-    return db.query(Model).offset(skip).limit(limit).all()
+    models_list = db.query(Model).offset(skip).limit(limit).all()
+    return [remove_sa_instance(model.__dict__) for model in models_list]
 
 def get_model_by_id(db: Session, model_id: int) -> Optional[Model]:
     """Obtiene un modelo por su ID"""
     return db.query(Model).filter(Model.model_id == model_id).first()
 
-def create_model(db: Session, model: Model) -> Model:
+def create_model(db: Session, model: Model) -> Dict[str, Any]:
     """Crea un nuevo modelo"""
     db.add(model)
     db.commit()
     db.refresh(model)
-    return model
+    return remove_sa_instance(model.__dict__)
 
-def update_model(db: Session, model: Model) -> Model:
+def update_model(db: Session, model: Model) -> Dict[str, Any]:
     """Actualiza un modelo existente"""
     db.commit()
     db.refresh(model)
-    return model
+    return remove_sa_instance(model.__dict__)
 
 def delete_model(db: Session, model_id: int) -> bool:
     """Elimina un modelo"""
