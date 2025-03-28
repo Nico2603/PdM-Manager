@@ -40,7 +40,7 @@ class Alert(Base):
     log_id = Column(Integer, primary_key=True, index=True)
     sensor_id = Column(Integer, ForeignKey("sensor.sensor_id"), nullable=False)
     timestamp = Column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
-    error_type = Column(Integer, nullable=True)
+    error_type = Column(Integer, nullable=True)  # 1, 2 (clasificación del modelo) o 3 (generado por software)
     data_id = Column(Integer, ForeignKey("vibration_data.data_id"), nullable=True)
 
 class LimitConfig(Base):

@@ -1503,16 +1503,20 @@ function updateAlertsTable(alerts) {
     for (const alert of alertsToShow) {
         const row = tableBody.insertRow();
         
-        // Determinar el nivel de alerta y aplicar clase
-        let alertLevel = 1;
-        if (alert.error_type.includes('Nivel 3') || alert.error_type.includes('Level 3') || alert.error_type.includes('Crítico')) {
-            alertLevel = 3;
-            row.classList.add('level-3');
-        } else if (alert.error_type.includes('Nivel 2') || alert.error_type.includes('Level 2')) {
-            alertLevel = 2;
-            row.classList.add('level-2');
-        } else {
-            row.classList.add('level-1');
+        // Determinar el nivel de alerta y aplicar clase según el error_type numérico
+        const errorType = parseInt(alert.error_type);
+        switch (errorType) {
+            case 3:
+                row.classList.add('level-3');
+                break;
+            case 2:
+                row.classList.add('level-2');
+                break;
+            case 1:
+                row.classList.add('level-1');
+                break;
+            default:
+                row.classList.add('level-1');
         }
         
         // ID
@@ -1530,9 +1534,10 @@ function updateAlertsTable(alerts) {
         timestampCell.textContent = date.toLocaleString();
         timestampCell.className = 'column-datetime';
         
-        // Tipo de error
+        // Tipo de error - ahora mostramos el error_type directamente
         const errorTypeCell = row.insertCell();
-        errorTypeCell.textContent = alert.error_type;
+        const errorText = getSeverityText(errorType);
+        errorTypeCell.textContent = errorText;
     }
     
     // Inicializar el botón de actualizar

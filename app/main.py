@@ -309,82 +309,35 @@ def predict_condition(
         }
     }
 
-def check_level3_condition(db, sensor_id: int, time_window_minutes: int = 15, threshold: int = 3) -> bool:
-    """
-    Determina si un sensor ha entrado en condición de Nivel 3.
-    Se considera Nivel 3 cuando hay un número de alertas de Nivel 2 mayor al umbral
-    en una ventana de tiempo determinada.
-    
-    Args:
-        db: Sesión de base de datos
-        sensor_id: ID del sensor a verificar
-        time_window_minutes: Ventana de tiempo en minutos para considerar alertas recientes
-        threshold: Umbral de alertas de Nivel 2 para considerar como Nivel 3
-        
-    Returns:
-        bool: True si se cumple la condición de Nivel 3, False en caso contrario
-    """
-    try:
-        # Calcular el límite de tiempo para la ventana
-        time_limit = datetime.now() - timedelta(minutes=time_window_minutes)
-        
-        # Consultar alertas recientes de Nivel 2 para este sensor
-        query = db.query(models.Alert).filter(
-            models.Alert.sensor_id == sensor_id,
-            models.Alert.error_type == 2,  # Nivel 2
-            models.Alert.timestamp >= time_limit
-        ).count()
-        
-        # Determinar si supera el umbral
-        return query >= threshold
-    
-    except Exception as e:
-        print(f"Error al verificar condición de Nivel 3: {e}")
-        return False
-
 @app.post("/api/sensor_data")
 def receive_sensor_data(sensor_data: SensorData, db: Session = Depends(get_db)):
     """
-    Recibe datos del sensor triaxial, clasifica y guarda en la base de datos
+    Recibe datos del sensor y procesa:
+    1. Validación
+    2. Predicción con modelo
+    3. Registro en base de datos
+    4. Generación de alertas si severity >= 1
     """
-    # Verificar que el sensor existe
-    sensor = crud.get_sensor_by_id(db, sensor_data.sensor_id)
+    # Obtener sensor
+    sensor = crud.get_sensor(db, sensor_id=sensor_data.sensor_id)
     if not sensor:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Sensor con ID {sensor_data.sensor_id} no encontrado"
-        )
+        raise HTTPException(status_code=404, detail=f"Sensor {sensor_data.sensor_id} no encontrado")
     
-    # Si no hay modelo asociado al sensor, usar el modelo por defecto
-    modelo_to_use = modelo
-    scaler_to_use = scaler
+    # Verificar si hay un modelo asociado al sensor
+    model_to_use = None
+    scaler_to_use = None
     
     if sensor.model_id:
-        # Cargar el modelo y escalador específicos del sensor
-        model_info = crud.get_model_by_id(db, sensor.model_id)
-        if model_info:
+        model = crud.get_model(db, model_id=sensor.model_id)
+        if model and model.route_h5 and model.route_pkl:
             try:
-                # Cargar modelo desde la ruta especificada
-                custom_model_path = model_info.route_h5
-                if not os.path.isabs(custom_model_path):
-                    custom_model_path = os.path.join(BASE_DIR, custom_model_path)
-                
-                # Cargar modelo
-                if os.path.exists(custom_model_path):
-                    modelo_to_use = load_model(custom_model_path)
-                    
-                    # Cargar escalador si existe
-                    if model_info.route_pkl:
-                        custom_scaler_path = model_info.route_pkl
-                        if not os.path.isabs(custom_scaler_path):
-                            custom_scaler_path = os.path.join(BASE_DIR, custom_scaler_path)
-                        
-                        if os.path.exists(custom_scaler_path):
-                            scaler_to_use = joblib.load(custom_scaler_path)
+                # Intentar cargar el modelo y escalador
+                model_to_use = load_model_if_available(model.route_h5)
+                scaler_to_use = load_scaler_if_available(model.route_pkl)
             except Exception as e:
-                print(f"Error al cargar modelo personalizado: {str(e)}. Usando modelo por defecto.")
+                logger.error(f"Error al cargar modelo/escalador: {str(e)}")
     
-    # Buscar la máquina asociada al sensor para límites configurados
+    # Buscar si este sensor está asociado a una máquina
     machine = None
     if sensor.sensor_id:
         machines = crud.get_machines_by_sensor(db, sensor.sensor_id)
@@ -416,12 +369,12 @@ def receive_sensor_data(sensor_data: SensorData, db: Session = Depends(get_db)):
         severity = 0
         confidence = 0
     
-    # Verificar si aplica condición de Nivel 3 basada en histórico
-    elevated_to_level3 = False
-    if severity == 2:  # Si ya es nivel 2, verificar si pasa a nivel 3
-        elevated_to_level3 = check_level3_condition(db, sensor_data.sensor_id)
-        if elevated_to_level3:
-            severity = 3  # Elevar a Nivel 3
+    # Calcular magnitud (para referencia)
+    magnitude = np.sqrt(
+        sensor_data.acceleration_x**2 + 
+        sensor_data.acceleration_y**2 + 
+        sensor_data.acceleration_z**2
+    )
     
     # Guardar registro en la base de datos
     vibration_data = crud.create_vibration_data(
@@ -437,7 +390,7 @@ def receive_sensor_data(sensor_data: SensorData, db: Session = Depends(get_db)):
     if severity >= 1:
         alert = models.Alert(
             sensor_id=sensor_data.sensor_id,
-            error_type=severity,  # Ahora es un valor entero
+            error_type=severity,  # Asignar el valor de severidad al error_type (1 o 2)
             data_id=vibration_data.data_id
         )
         crud.create_alert(db, alert)
@@ -529,13 +482,6 @@ def receive_sensor_data_batch(batch_data: SensorDataBatch, db: Session = Depends
             # Si no hay modelo disponible, poner severidad neutral
             severity = 0
             confidence = 0
-        
-        # Verificar si aplica condición de Nivel 3
-        elevated_to_level3 = False
-        if severity == 2:  # Si ya es nivel 2, verificar si pasa a nivel 3
-            elevated_to_level3 = check_level3_condition(db, record.sensor_id)
-            if elevated_to_level3:
-                severity = 3  # Elevar a Nivel 3
         
         # Guardar registro en la base de datos
         vibration_data = crud.create_vibration_data(
@@ -1023,3 +969,110 @@ def save_limits(
     
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al guardar límites: {str(e)}")
+
+@app.post("/api/sensor_batch_data")
+def process_batch_data(data_batch: List[SensorData], db: Session = Depends(get_db)):
+    """
+    Procesa un lote de datos de sensores y retorna los resultados
+    """
+    results = []
+    
+    for record in data_batch:
+        # Verificar que el sensor existe
+        sensor = crud.get_sensor_by_id(db, record.sensor_id)
+        if not sensor:
+            # Si no existe, registrar error y continuar con el siguiente
+            results.append({
+                "sensor_id": record.sensor_id,
+                "status": "error",
+                "error": f"Sensor con ID {record.sensor_id} no encontrado"
+            })
+            continue
+        
+        # Si no hay modelo asociado al sensor, usar el modelo por defecto
+        modelo_to_use = modelo
+        scaler_to_use = scaler
+        
+        if sensor.model_id:
+            # Cargar el modelo y escalador específicos del sensor
+            model_info = crud.get_model_by_id(db, sensor.model_id)
+            if model_info:
+                try:
+                    # Cargar modelo desde la ruta especificada
+                    custom_model_path = model_info.route_h5
+                    if not os.path.isabs(custom_model_path):
+                        custom_model_path = os.path.join(BASE_DIR, custom_model_path)
+                    
+                    # Cargar modelo
+                    if os.path.exists(custom_model_path):
+                        modelo_to_use = load_model(custom_model_path)
+                        
+                        # Cargar escalador si existe
+                        if model_info.route_pkl:
+                            custom_scaler_path = model_info.route_pkl
+                            if not os.path.isabs(custom_scaler_path):
+                                custom_scaler_path = os.path.join(BASE_DIR, custom_scaler_path)
+                            
+                            if os.path.exists(custom_scaler_path):
+                                scaler_to_use = joblib.load(custom_scaler_path)
+                except Exception as e:
+                    print(f"Error al cargar modelo personalizado: {str(e)}. Usando modelo por defecto.")
+        
+        # Preparar los datos para el modelo (triaxial)
+        data_array = np.array([[
+            record.acceleration_x,
+            record.acceleration_y,
+            record.acceleration_z
+        ]], dtype=np.float32)
+        
+        # Escalar datos si el escalador está disponible
+        if scaler_to_use:
+            data_array = scaler_to_use.transform(data_array)
+        
+        # Ajustar forma para el modelo RNN (1, timesteps, features)
+        rnn_input = data_array.reshape(1, 1, 3)
+        
+        # Hacer predicción con el modelo
+        if modelo_to_use:
+            prediction = modelo_to_use.predict(rnn_input, verbose=0)
+            severity = int(np.argmax(prediction[0]))
+            confidence = float(np.max(prediction)) * 100
+        else:
+            # Si no hay modelo disponible, poner severidad neutral
+            severity = 0
+            confidence = 0
+        
+        # Guardar registro en la base de datos
+        vibration_data = crud.create_vibration_data(
+            db=db,
+            sensor_id=record.sensor_id,
+            acceleration_x=record.acceleration_x,
+            acceleration_y=record.acceleration_y,
+            acceleration_z=record.acceleration_z,
+            severity=severity
+        )
+        
+        # Crear alerta si es nivel 1 o superior
+        if severity >= 1:
+            alert = models.Alert(
+                sensor_id=record.sensor_id,
+                error_type=severity,  # Asignar el valor de severity al error_type (1 o 2)
+                data_id=vibration_data.data_id
+            )
+            crud.create_alert(db, alert)
+        
+        # Agregar resultado
+        results.append({
+            "sensor_id": record.sensor_id,
+            "status": "success",
+            "data_id": vibration_data.data_id,
+            "severity": severity,
+            "severity_text": SEVERITY_MAPPING.get(severity, "Desconocido"),
+            "confidence": confidence
+        })
+    
+    return {
+        "status": "success",
+        "procesados": len(results),
+        "resultados": results
+    }
