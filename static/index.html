@@ -27,7 +27,7 @@
 <body>
   <div class="app-container">
     <!-- Sidebar -->
-    <div class="sidebar">
+    <div class="sidebar" id="sidebar">
       <div class="sidebar-header">
         <div class="logo-container">
           <i class="fas fa-microchip logo-icon pulse"></i>
@@ -78,7 +78,7 @@
       <!-- Header -->
       <div class="content-header">
         <div class="d-flex align-items-center">
-          <button class="btn-icon mobile-menu-toggle d-md-none mr-3">
+          <button class="btn-icon mobile-menu-toggle d-md-none" id="sidebarToggle">
             <i class="fas fa-bars"></i>
           </button>
           
@@ -91,7 +91,7 @@
         </div>
         
         <div class="header-actions">
-          <!-- El elemento de usuario Admin ha sido eliminado -->
+          <!-- Acciones de cabecera si son necesarias -->
         </div>
       </div>
       
@@ -521,555 +521,385 @@
         </div>
         
         <!-- Sección de Configuración -->
-        <div id="configuracion-section" class="content-section animate-fade-in">
+        <div id="configuracion-section" class="content-section">
           <div class="section-header">
             <h2>
               <i class="fas fa-cog text-accent"></i>
               Configuración
             </h2>
-            <p class="section-description">Configuración y gestión de componentes del sistema</p>
+            <p class="section-description">Gestión de máquinas, sensores y modelos de predicción</p>
           </div>
           
-          <!-- Pestañas de navegación para los subapartados -->
+          <!-- Tabs de Configuración -->
           <div class="config-tabs">
-            <div class="tab-item active" data-tab="modelos">
-              <i class="fas fa-brain"></i>
-              <span>Modelos</span>
+            <div class="tab-item active" data-tab="machines">
+              <i class="fas fa-industry"></i>
+              <span>Máquinas</span>
             </div>
-            <div class="tab-item" data-tab="sensores">
+            <div class="tab-item" data-tab="sensors">
               <i class="fas fa-microchip"></i>
               <span>Sensores</span>
             </div>
-            <div class="tab-item" data-tab="maquinas">
-              <i class="fas fa-cogs"></i>
-              <span>Máquinas</span>
+            <div class="tab-item" data-tab="models">
+              <i class="fas fa-brain"></i>
+              <span>Modelos</span>
             </div>
-            <div class="tab-item" data-tab="limites">
+            <div class="tab-item" data-tab="limits">
               <i class="fas fa-sliders-h"></i>
               <span>Límites</span>
             </div>
+            <div class="tab-item" data-tab="notifications">
+              <i class="fas fa-bell"></i>
+              <span>Notificaciones</span>
+            </div>
           </div>
           
-          <!-- Contenido de las pestañas -->
+          <!-- Contenido de las Tabs -->
           <div class="config-content">
-            <!-- 1. Pestaña de Modelos -->
-            <div class="tab-content active" id="modelos-tab">
-              <div class="card animate-slide-up" style="animation-delay: 0.15s">
-                <div class="card-header">
-                  <h5><i class="fas fa-brain"></i> Modelos de Inteligencia Artificial</h5>
-                  <button class="btn-icon" id="addModelBtn">
-                    <i class="fas fa-plus"></i>
-                  </button>
-                </div>
-                <div class="card-body">
-                  <p class="card-description">
-                    Gestiona los modelos de IA para la predicción de fallos. Estos modelos son usados por los sensores para detectar anomalías.
-                  </p>
+            <!-- Tab Máquinas -->
+            <div id="machines-tab" class="tab-content active">
+              <div class="config-form-grid">
+                <div class="config-card">
+                  <h3>Agregar Máquina</h3>
+                  <p class="card-description">Configure una nueva máquina para monitorear</p>
                   
-                  <!-- Tabla de modelos -->
-                  <div class="table-responsive">
-                    <table class="data-table">
-                      <thead>
-                        <tr>
-                          <th>Model ID</th>
-                          <th>Nombre</th>
-                          <th>Descripción</th>
-                          <th>Ruta .h5</th>
-                          <th>Ruta .pkl</th>
-                          <th>Acciones</th>
-                        </tr>
-                      </thead>
-                      <tbody id="modelsTableBody">
-                        <!-- Datos de modelos cargados dinámicamente -->
-                      </tbody>
-                    </table>
+                  <form id="machineForm" class="config-form">
+                    <div class="form-group">
+                      <label for="machineName" class="form-label">Nombre de la Máquina</label>
+                      <input type="text" id="machineName" class="form-control" placeholder="Ej. Bomba Centrífuga 1" required>
+                    </div>
+                    
+                    <div class="form-group">
+                      <label for="machineType" class="form-label">Tipo de Máquina</label>
+                      <select id="machineType" class="form-select" required>
+                        <option value="" disabled selected>Seleccione un tipo</option>
+                        <option value="pump">Bomba</option>
+                        <option value="motor">Motor</option>
+                        <option value="generator">Generador</option>
+                        <option value="compressor">Compresor</option>
+                        <option value="fan">Ventilador</option>
+                        <option value="other">Otro</option>
+                      </select>
+                    </div>
+                    
+                    <div class="form-group">
+                      <label for="machineLocation" class="form-label">Ubicación</label>
+                      <input type="text" id="machineLocation" class="form-control" placeholder="Ej. Planta 1, Sector A" required>
+                    </div>
+                    
+                    <div class="form-group">
+                      <label for="machineDescription" class="form-label">Descripción</label>
+                      <textarea id="machineDescription" class="form-control" rows="3" placeholder="Detalles adicionales sobre la máquina..."></textarea>
+                    </div>
+                    
+                    <div class="form-actions">
+                      <button type="button" class="btn btn-secondary" id="cancelMachineBtn">Cancelar</button>
+                      <button type="submit" class="btn btn-primary">Guardar Máquina</button>
+                    </div>
+                  </form>
+                </div>
+                
+                <div class="config-card">
+                  <h3>Máquinas Configuradas</h3>
+                  <p class="card-description">Lista de máquinas disponibles para monitoreo</p>
+                  
+                  <div class="table-container">
+                    <div class="table-responsive">
+                      <table class="data-table" id="machinesTable">
+                        <thead>
+                          <tr>
+                            <th class="column-id">ID</th>
+                            <th>Nombre</th>
+                            <th>Tipo</th>
+                            <th>Ubicación</th>
+                            <th class="column-actions">Acciones</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <!-- Se cargará dinámicamente -->
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
-
-            <!-- 2. Pestaña de Sensores -->
-            <div class="tab-content" id="sensores-tab">
-              <div class="card animate-slide-up" style="animation-delay: 0.15s">
-                <div class="card-header">
-                  <h5><i class="fas fa-microchip"></i> Gestión de Sensores</h5>
-                  <button class="btn-icon" id="addSensorBtn">
-                    <i class="fas fa-plus"></i>
-                  </button>
-                </div>
-                <div class="card-body">
-                  <p class="card-description">
-                    Los sensores recopilan datos de vibración y requieren un modelo asociado para funcionar correctamente.
-                  </p>
+            
+            <!-- Tab Sensores -->
+            <div id="sensors-tab" class="tab-content">
+              <div class="config-form-grid">
+                <div class="config-card">
+                  <h3>Configurar Sensor</h3>
+                  <p class="card-description">Asigne un sensor a una máquina para iniciar el monitoreo</p>
                   
-                  <!-- Tabla de sensores -->
-                  <div class="table-responsive">
-                    <table class="data-table">
-                      <thead>
-                        <tr>
-                          <th>Sensor ID</th>
-                          <th>Nombre</th>
-                          <th>Descripción</th>
-                          <th>Modelo Asociado</th>
-                          <th>Máquina Asociada</th>
-                          <th>Acciones</th>
-                        </tr>
-                      </thead>
-                      <tbody id="sensorsTableBody">
-                        <!-- Datos de sensores cargados dinámicamente -->
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- 3. Pestaña de Máquinas -->
-            <div class="tab-content" id="maquinas-tab">
-              <div class="card animate-slide-up" style="animation-delay: 0.15s">
-                <div class="card-header">
-                  <h5><i class="fas fa-cogs"></i> Gestión de Máquinas</h5>
-                  <button class="btn-icon" id="addMachineBtn">
-                    <i class="fas fa-plus"></i>
-                  </button>
-                </div>
-                <div class="card-body">
-                  <p class="card-description">
-                    Máquinas monitorizadas por sensores. Una máquina debe tener un sensor asociado para ser monitorizada.
-                  </p>
-                  
-                  <!-- Tabla de máquinas -->
-                  <div class="table-responsive">
-                    <table class="data-table">
-                      <thead>
-                        <tr>
-                          <th>ID</th>
-                          <th>Nombre</th>
-                          <th>Descripción</th>
-                          <th>Sensor Asociado</th>
-                          <th>Estado</th>
-                          <th>Acciones</th>
-                        </tr>
-                      </thead>
-                      <tbody id="machinesTableBody">
-                        <!-- Datos de máquinas cargados dinámicamente -->
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- 4. Pestaña de Límites -->
-            <div class="tab-content" id="limites-tab">
-              <div class="card animate-slide-up" style="animation-delay: 0.15s">
-                <div class="card-header">
-                  <h5><i class="fas fa-sliders-h"></i> Límites de Aceleración</h5>
-                  <button class="btn-icon" id="resetLimitsBtn" title="Restablecer valores por defecto">
-                    <i class="fas fa-undo"></i>
-                  </button>
-                </div>
-                <div class="card-body">
-                  <p class="card-description">
-                    Configura los límites de aceleración para la detección de anomalías en los tres ejes.
-                  </p>
-                  
-                  <!-- Formulario de límites -->
-                  <div class="limits-form">
-                    <div class="form-grid">
-                      <!-- Columna del Eje X -->
-                      <div class="axis-column">
-                        <h6 class="form-section-title">Eje X</h6>
-                        <div class="form-group">
-                          <label class="form-label">Límite 2σ Inferior:</label>
-                          <input type="number" class="form-control" id="x_2inf" step="0.01" placeholder="-2.36">
-                        </div>
-                        <div class="form-group">
-                          <label class="form-label">Límite 2σ Superior:</label>
-                          <input type="number" class="form-control" id="x_2sup" step="0.01" placeholder="2.18">
-                        </div>
-                        <div class="form-group">
-                          <label class="form-label">Límite 3σ Inferior:</label>
-                          <input type="number" class="form-control" id="x_3inf" step="0.01" placeholder="-3.50">
-                        </div>
-                        <div class="form-group">
-                          <label class="form-label">Límite 3σ Superior:</label>
-                          <input type="number" class="form-control" id="x_3sup" step="0.01" placeholder="3.32">
-                        </div>
+                  <form id="sensorForm" class="config-form">
+                    <div class="form-group">
+                      <label for="sensorMachine" class="form-label">Máquina</label>
+                      <select id="sensorMachine" class="form-select" required>
+                        <option value="" disabled selected>Seleccione una máquina</option>
+                        <!-- Se cargará dinámicamente -->
+                      </select>
+                    </div>
+                    
+                    <div class="form-group">
+                      <label for="sensorName" class="form-label">Nombre del Sensor</label>
+                      <input type="text" id="sensorName" class="form-control" placeholder="Ej. Acelerómetro Principal" required>
+                    </div>
+                    
+                    <div class="form-row">
+                      <div class="form-group">
+                        <label for="sensorType" class="form-label">Tipo de Sensor</label>
+                        <select id="sensorType" class="form-select" required>
+                          <option value="" disabled selected>Seleccione un tipo</option>
+                          <option value="accelerometer">Acelerómetro</option>
+                          <option value="temperature">Temperatura</option>
+                          <option value="vibration">Vibración</option>
+                          <option value="pressure">Presión</option>
+                          <option value="other">Otro</option>
+                        </select>
                       </div>
                       
-                      <!-- Columna del Eje Y -->
-                      <div class="axis-column">
-                        <h6 class="form-section-title">Eje Y</h6>
-                        <div class="form-group">
-                          <label class="form-label">Límite 2σ Inferior:</label>
-                          <input type="number" class="form-control" id="y_2inf" step="0.01" placeholder="7.18">
-                        </div>
-                        <div class="form-group">
-                          <label class="form-label">Límite 2σ Superior:</label>
-                          <input type="number" class="form-control" id="y_2sup" step="0.01" placeholder="12.09">
-                        </div>
-                        <div class="form-group">
-                          <label class="form-label">Límite 3σ Inferior:</label>
-                          <input type="number" class="form-control" id="y_3inf" step="0.01" placeholder="5.95">
-                        </div>
-                        <div class="form-group">
-                          <label class="form-label">Límite 3σ Superior:</label>
-                          <input type="number" class="form-control" id="y_3sup" step="0.01" placeholder="13.32">
-                        </div>
+                      <div class="form-group">
+                        <label for="sensorModel" class="form-label">Modelo Predictivo</label>
+                        <select id="sensorModel" class="form-select" required>
+                          <option value="" disabled selected>Seleccione un modelo</option>
+                          <!-- Se cargará dinámicamente -->
+                        </select>
                       </div>
-                      
-                      <!-- Columna del Eje Z -->
-                      <div class="axis-column">
-                        <h6 class="form-section-title">Eje Z</h6>
-                        <div class="form-group">
-                          <label class="form-label">Límite 2σ Inferior:</label>
-                          <input type="number" class="form-control" id="z_2inf" step="0.01" placeholder="-2.39">
-                        </div>
-                        <div class="form-group">
-                          <label class="form-label">Límite 2σ Superior:</label>
-                          <input type="number" class="form-control" id="z_2sup" step="0.01" placeholder="1.11">
-                        </div>
-                        <div class="form-group">
-                          <label class="form-label">Límite 3σ Inferior:</label>
-                          <input type="number" class="form-control" id="z_3inf" step="0.01" placeholder="-3.26">
-                        </div>
-                        <div class="form-group">
-                          <label class="form-label">Límite 3σ Superior:</label>
-                          <input type="number" class="form-control" id="z_3sup" step="0.01" placeholder="1.98">
-                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                      <label for="sensorPosition" class="form-label">Posición</label>
+                      <input type="text" id="sensorPosition" class="form-control" placeholder="Ej. Cojinete delantero" required>
+                    </div>
+                    
+                    <div class="form-actions">
+                      <button type="button" class="btn btn-secondary" id="cancelSensorBtn">Cancelar</button>
+                      <button type="submit" class="btn btn-primary">Guardar Sensor</button>
+                    </div>
+                  </form>
+                </div>
+                
+                <div class="config-card">
+                  <h3>Sensores Configurados</h3>
+                  <p class="card-description">Lista de sensores asignados a máquinas</p>
+                  
+                  <div class="table-container">
+                    <div class="table-responsive">
+                      <table class="data-table" id="sensorsTable">
+                        <thead>
+                          <tr>
+                            <th class="column-id">ID</th>
+                            <th>Nombre</th>
+                            <th>Máquina</th>
+                            <th>Tipo</th>
+                            <th>Estado</th>
+                            <th class="column-actions">Acciones</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <!-- Se cargará dinámicamente -->
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Tab Modelos -->
+            <div id="models-tab" class="tab-content">
+              <div class="config-form-grid">
+                <div class="config-card">
+                  <h3>Agregar Modelo</h3>
+                  <p class="card-description">Cargue un nuevo modelo de IA para la predicción de fallos</p>
+                  
+                  <form id="modelForm" class="config-form">
+                    <div class="form-group">
+                      <label for="modelName" class="form-label">Nombre del Modelo</label>
+                      <input type="text" id="modelName" class="form-control" placeholder="Ej. Modelo de Vibración" required>
+                    </div>
+                    
+                    <div class="form-group">
+                      <label for="modelDescription" class="form-label">Descripción</label>
+                      <textarea id="modelDescription" class="form-control" rows="3" placeholder="Detalles adicionales sobre el modelo..."></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                      <label class="form-label">Archivo del Modelo (.h5) <span id="modelFileRequired" class="required">*</span><span id="modelFileOptional" class="optional">Opcional</span></label>
+                      <div class="custom-file">
+                        <input type="file" class="custom-file-input" id="modelFile" accept=".h5,.hdf5">
+                        <button type="button" class="custom-file-button">
+                          <i class="fas fa-upload mr-2"></i> Seleccionar Archivo
+                        </button>
+                        <span class="custom-file-label" id="modelFileName">Ningún archivo seleccionado</span>
+                      </div>
+                    </div>
+                    
+                    <div class="form-group">
+                      <label class="form-label">Archivo del Escalador (.pkl) <span id="scalerFileRequired" class="required">*</span><span id="scalerFileOptional" class="optional">Opcional</span></label>
+                      <div class="custom-file">
+                        <input type="file" class="custom-file-input" id="scalerFile" accept=".pkl">
+                        <button type="button" class="custom-file-button">
+                          <i class="fas fa-upload mr-2"></i> Seleccionar Archivo
+                        </button>
+                        <span class="custom-file-label" id="scalerFileName">Ningún archivo seleccionado</span>
                       </div>
                     </div>
                     
                     <div class="form-actions">
-                      <button class="btn btn-primary" id="saveLimitsBtn">
-                        <i class="fas fa-save mr-2"></i> Guardar Límites
-                      </button>
+                      <button type="button" class="btn btn-secondary" id="cancelModelBtn">Cancelar</button>
+                      <button type="submit" class="btn btn-primary">Guardar Modelo</button>
+                    </div>
+                  </form>
+                </div>
+                
+                <div class="config-card">
+                  <h3>Modelos Configurados</h3>
+                  <p class="card-description">Lista de modelos disponibles para la predicción de fallos</p>
+                  
+                  <div class="table-container">
+                    <div class="table-responsive">
+                      <table class="data-table" id="modelsTable">
+                        <thead>
+                          <tr>
+                            <th class="column-id">ID</th>
+                            <th>Nombre</th>
+                            <th>Descripción</th>
+                            <th class="column-actions">Acciones</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <!-- Se cargará dinámicamente -->
+                        </tbody>
+                      </table>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
+            
+            <!-- Tab Límites -->
+            <div id="limits-tab" class="tab-content">
+              <div class="config-form-grid">
+                <div class="config-card">
+                  <h3>Configurar Límites</h3>
+                  <p class="card-description">Configure los límites de aceleración para la detección de anomalías</p>
+                  
+                  <form id="limitsForm" class="config-form">
+                    <div class="form-group">
+                      <label for="x_2inf" class="form-label">Límite 2σ Inferior - Eje X</label>
+                      <input type="number" id="x_2inf" class="form-control" step="0.01" placeholder="-2.36">
+                    </div>
+                    
+                    <div class="form-group">
+                      <label for="x_2sup" class="form-label">Límite 2σ Superior - Eje X</label>
+                      <input type="number" id="x_2sup" class="form-control" step="0.01" placeholder="2.18">
+                    </div>
+                    
+                    <div class="form-group">
+                      <label for="x_3inf" class="form-label">Límite 3σ Inferior - Eje X</label>
+                      <input type="number" id="x_3inf" class="form-control" step="0.01" placeholder="-3.50">
+                    </div>
+                    
+                    <div class="form-group">
+                      <label for="x_3sup" class="form-label">Límite 3σ Superior - Eje X</label>
+                      <input type="number" id="x_3sup" class="form-control" step="0.01" placeholder="3.32">
+                    </div>
+                    
+                    <div class="form-group">
+                      <label for="y_2inf" class="form-label">Límite 2σ Inferior - Eje Y</label>
+                      <input type="number" id="y_2inf" class="form-control" step="0.01" placeholder="7.18">
+                    </div>
+                    
+                    <div class="form-group">
+                      <label for="y_2sup" class="form-label">Límite 2σ Superior - Eje Y</label>
+                      <input type="number" id="y_2sup" class="form-control" step="0.01" placeholder="12.09">
+                    </div>
+                    
+                    <div class="form-group">
+                      <label for="y_3inf" class="form-label">Límite 3σ Inferior - Eje Y</label>
+                      <input type="number" id="y_3inf" class="form-control" step="0.01" placeholder="5.95">
+                    </div>
+                    
+                    <div class="form-group">
+                      <label for="y_3sup" class="form-label">Límite 3σ Superior - Eje Y</label>
+                      <input type="number" id="y_3sup" class="form-control" step="0.01" placeholder="13.32">
+                    </div>
+                    
+                    <div class="form-group">
+                      <label for="z_2inf" class="form-label">Límite 2σ Inferior - Eje Z</label>
+                      <input type="number" id="z_2inf" class="form-control" step="0.01" placeholder="-2.39">
+                    </div>
+                    
+                    <div class="form-group">
+                      <label for="z_2sup" class="form-label">Límite 2σ Superior - Eje Z</label>
+                      <input type="number" id="z_2sup" class="form-control" step="0.01" placeholder="1.11">
+                    </div>
+                    
+                    <div class="form-group">
+                      <label for="z_3inf" class="form-label">Límite 3σ Inferior - Eje Z</label>
+                      <input type="number" id="z_3inf" class="form-control" step="0.01" placeholder="-3.26">
+                    </div>
+                    
+                    <div class="form-group">
+                      <label for="z_3sup" class="form-label">Límite 3σ Superior - Eje Z</label>
+                      <input type="number" id="z_3sup" class="form-control" step="0.01" placeholder="1.98">
+                    </div>
+                    
+                    <div class="form-actions">
+                      <button type="button" class="btn btn-secondary" id="cancelLimitsBtn">Cancelar</button>
+                      <button type="submit" class="btn btn-primary">Guardar Límites</button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Tab Notificaciones -->
+            <div id="notifications-tab" class="tab-content">
+              <div class="config-form-grid">
+                <div class="config-card">
+                  <h3>Configurar Notificaciones</h3>
+                  <p class="card-description">Configure las notificaciones para la detección de anomalías</p>
+                  
+                  <form id="notificationsForm" class="config-form">
+                    <div class="form-group">
+                      <label for="notificationEmail" class="form-label">Correo Electrónico</label>
+                      <input type="email" id="notificationEmail" class="form-control" placeholder="Ej. ejemplo@correo.com">
+                    </div>
+                    
+                    <div class="form-group">
+                      <label for="notificationThreshold" class="form-label">Umbral de Alerta</label>
+                      <input type="number" id="notificationThreshold" class="form-control" step="0.01" placeholder="Ej. 2.00">
+                    </div>
+                    
+                    <div class="form-group">
+                      <label for="notificationFrequency" class="form-label">Frecuencia de Notificación</label>
+                      <select id="notificationFrequency" class="form-select">
+                        <option value="" disabled selected>Seleccione una frecuencia</option>
+                        <option value="daily">Diario</option>
+                        <option value="weekly">Semanal</option>
+                        <option value="monthly">Mensual</option>
+                      </select>
+                    </div>
+                    
+                    <div class="form-actions">
+                      <button type="button" class="btn btn-secondary" id="cancelNotificationsBtn">Cancelar</button>
+                      <button type="submit" class="btn btn-primary">Guardar Configuración</button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
-        
-        <!-- Otras secciones... -->
-        
       </div>
     </div>
   </div>
   
-  <!-- Scripts modularizados -->
-  <script src="/static/js/utils.js"></script>
-  <script src="/static/js/navigation.js"></script>
-  <script src="/static/js/dashboard.js"></script>
-  <script src="/static/js/config.js"></script>
-  <script src="/static/js/charts.js"></script>
-  
-  <!-- Modal para ajustar límites -->
-  <div class="modal" id="adjustLimitsModal">
-    <div class="modal-dialog">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title">Ajustar Límites</h5>
-          <button type="button" class="modal-close" data-dismiss="modal">
-            <i class="fas fa-times"></i>
-          </button>
-        </div>
-        <div class="modal-body">
-          <p class="mb-3">Configure los límites de control para cada eje. Estos valores se usarán para detectar anomalías en los datos de vibración.</p>
-          
-          <div class="limits-form">
-            <!-- Límites para eje X -->
-            <div class="limits-section">
-              <h6 class="axis-title"><span class="axis-indicator">X</span> Eje X</h6>
-              <div class="limit-group">
-                <div class="limit-row">
-                  <label>Límite 2σ Inferior:</label>
-                  <input type="number" id="x2SigmaLowerInput" step="0.01" class="form-control" placeholder="Valor límite inferior 2σ">
-                </div>
-                <div class="limit-row">
-                  <label>Límite 2σ Superior:</label>
-                  <input type="number" id="x2SigmaUpperInput" step="0.01" class="form-control" placeholder="Valor límite superior 2σ">
-                </div>
-                <div class="limit-row">
-                  <label>Límite 3σ Inferior:</label>
-                  <input type="number" id="x3SigmaLowerInput" step="0.01" class="form-control" placeholder="Valor límite inferior 3σ">
-                </div>
-                <div class="limit-row">
-                  <label>Límite 3σ Superior:</label>
-                  <input type="number" id="x3SigmaUpperInput" step="0.01" class="form-control" placeholder="Valor límite superior 3σ">
-                </div>
-              </div>
-            </div>
-            
-            <!-- Límites para eje Y -->
-            <div class="limits-section">
-              <h6 class="axis-title"><span class="axis-indicator">Y</span> Eje Y</h6>
-              <div class="limit-group">
-                <div class="limit-row">
-                  <label>Límite 2σ Inferior:</label>
-                  <input type="number" id="y2SigmaLowerInput" step="0.01" class="form-control" placeholder="Valor límite inferior 2σ">
-                </div>
-                <div class="limit-row">
-                  <label>Límite 2σ Superior:</label>
-                  <input type="number" id="y2SigmaUpperInput" step="0.01" class="form-control" placeholder="Valor límite superior 2σ">
-                </div>
-                <div class="limit-row">
-                  <label>Límite 3σ Inferior:</label>
-                  <input type="number" id="y3SigmaLowerInput" step="0.01" class="form-control" placeholder="Valor límite inferior 3σ">
-                </div>
-                <div class="limit-row">
-                  <label>Límite 3σ Superior:</label>
-                  <input type="number" id="y3SigmaUpperInput" step="0.01" class="form-control" placeholder="Valor límite superior 3σ">
-                </div>
-              </div>
-            </div>
-            
-            <!-- Límites para eje Z -->
-            <div class="limits-section">
-              <h6 class="axis-title"><span class="axis-indicator">Z</span> Eje Z</h6>
-              <div class="limit-group">
-                <div class="limit-row">
-                  <label>Límite 2σ Inferior:</label>
-                  <input type="number" id="z2SigmaLowerInput" step="0.01" class="form-control" placeholder="Valor límite inferior 2σ">
-                </div>
-                <div class="limit-row">
-                  <label>Límite 2σ Superior:</label>
-                  <input type="number" id="z2SigmaUpperInput" step="0.01" class="form-control" placeholder="Valor límite superior 2σ">
-                </div>
-                <div class="limit-row">
-                  <label>Límite 3σ Inferior:</label>
-                  <input type="number" id="z3SigmaLowerInput" step="0.01" class="form-control" placeholder="Valor límite inferior 3σ">
-                </div>
-                <div class="limit-row">
-                  <label>Límite 3σ Superior:</label>
-                  <input type="number" id="z3SigmaUpperInput" step="0.01" class="form-control" placeholder="Valor límite superior 3σ">
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" id="resetLimitsBtn">
-            <i class="fas fa-undo mr-2"></i>Restablecer Valores
-          </button>
-          <button type="button" class="btn btn-primary" id="saveLimitsBtn">
-            <i class="fas fa-save mr-2"></i>Guardar Cambios
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-  
-  <!-- Overlay de carga -->
-  <div id="loadingOverlay">
-    <div class="loading-spinner"></div>
-    <div class="loading-message">Cargando datos...</div>
-  </div>
-  
-  <!-- Contenedor de toasts -->
-  <div class="toast-container" id="toastContainer"></div>
-  
-  <!-- Otros modales -->
-
-  <!-- Modal para Modelo -->
-  <div class="modal" id="modelModal">
-    <div class="modal-dialog">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title" id="modelModalTitle">Nuevo Modelo</h5>
-          <button type="button" class="close" data-dismiss="modal">
-            <i class="fas fa-times"></i>
-          </button>
-        </div>
-        <div class="modal-body">
-          <form id="modelForm">
-            <input type="hidden" id="modelId">
-            
-            <div class="form-group">
-              <label for="modelName" class="form-label">Nombre del Modelo <span class="required">*</span></label>
-              <input type="text" class="form-control" id="modelName" required>
-            </div>
-            
-            <div class="form-group">
-              <label for="modelDescription" class="form-label">Descripción</label>
-              <textarea class="form-control" id="modelDescription" rows="2"></textarea>
-            </div>
-            
-            <div class="form-group">
-              <label class="form-label">Archivo del Modelo (.h5) <span id="modelFileRequired" class="required">*</span><span id="modelFileOptional" class="optional">Opcional</span></label>
-              <div class="custom-file">
-                <input type="file" class="custom-file-input" id="modelFile" accept=".h5,.hdf5">
-                <button type="button" class="custom-file-button">
-                  <i class="fas fa-upload mr-2"></i> Seleccionar Archivo
-                </button>
-                <span class="custom-file-label" id="modelFileName">Ningún archivo seleccionado</span>
-              </div>
-            </div>
-            
-            <div class="form-group">
-              <label class="form-label">Archivo del Escalador (.pkl) <span id="scalerFileRequired" class="required">*</span><span id="scalerFileOptional" class="optional">Opcional</span></label>
-              <div class="custom-file">
-                <input type="file" class="custom-file-input" id="scalerFile" accept=".pkl">
-                <button type="button" class="custom-file-button">
-                  <i class="fas fa-upload mr-2"></i> Seleccionar Archivo
-                </button>
-                <span class="custom-file-label" id="scalerFileName">Ningún archivo seleccionado</span>
-              </div>
-            </div>
-          </form>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
-          <button type="button" class="btn btn-primary" id="saveModelBtn">Guardar</button>
-        </div>
-      </div>
-    </div>
-  </div>
-  
-  <!-- Modal para Sensor -->
-  <div class="modal" id="sensorModal">
-    <div class="modal-dialog">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title" id="sensorModalTitle">Nuevo Sensor</h5>
-          <button type="button" class="close" data-dismiss="modal">
-            <i class="fas fa-times"></i>
-          </button>
-        </div>
-        <div class="modal-body">
-          <form id="sensorForm">
-            <input type="hidden" id="sensorId">
-            
-            <div class="form-group">
-              <label for="sensorName" class="form-label">Nombre del Sensor <span class="required">*</span></label>
-              <input type="text" class="form-control" id="sensorName" required>
-            </div>
-            
-            <div class="form-group">
-              <label for="sensorDescription" class="form-label">Descripción</label>
-              <textarea class="form-control" id="sensorDescription" rows="2"></textarea>
-            </div>
-            
-            <div class="form-group">
-              <label for="sensorModel" class="form-label">Modelo <span class="required">*</span></label>
-              <select class="form-select" id="sensorModel" required>
-                <option value="">Seleccione un modelo</option>
-                <!-- Opciones cargadas dinámicamente -->
-              </select>
-              <small class="form-text text-muted">El sensor necesita un modelo para procesar los datos de vibración.</small>
-            </div>
-            
-            <div class="form-group">
-              <label for="sensorMachine" class="form-label">Máquina Asociada</label>
-              <select class="form-select" id="sensorMachine">
-                <option value="">Ninguna</option>
-                <!-- Opciones cargadas dinámicamente -->
-              </select>
-            </div>
-          </form>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
-          <button type="button" class="btn btn-primary" id="saveSensorBtn">Guardar</button>
-        </div>
-      </div>
-    </div>
-  </div>
-  
-  <!-- Modal para Máquina -->
-  <div class="modal" id="machineModal">
-    <div class="modal-dialog">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title" id="machineModalTitle">Nueva Máquina</h5>
-          <button type="button" class="close" data-dismiss="modal">
-            <i class="fas fa-times"></i>
-          </button>
-        </div>
-        <div class="modal-body">
-          <form id="machineForm">
-            <input type="hidden" id="machineId">
-            
-            <div class="form-group">
-              <label for="machineName" class="form-label">Nombre de la Máquina <span class="required">*</span></label>
-              <input type="text" class="form-control" id="machineName" required>
-            </div>
-            
-            <div class="form-group">
-              <label for="machineDescription" class="form-label">Descripción</label>
-              <textarea class="form-control" id="machineDescription" rows="2"></textarea>
-            </div>
-            
-            <div class="form-group">
-              <label for="machineSensor" class="form-label">Sensor <span class="required">*</span></label>
-              <select class="form-select" id="machineSensor" required>
-                <option value="">Seleccione un sensor</option>
-                <!-- Opciones cargadas dinámicamente -->
-              </select>
-              <small class="form-text text-muted">La máquina necesita un sensor para ser monitorizada.</small>
-            </div>
-            
-            <div class="form-group">
-              <label for="machineStatus" class="form-label">Estado</label>
-              <select class="form-select" id="machineStatus">
-                <option value="operativo">Operativo</option>
-                <option value="mantenimiento">En Mantenimiento</option>
-                <option value="apagado">Apagado</option>
-              </select>
-            </div>
-          </form>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
-          <button type="button" class="btn btn-primary" id="saveMachineBtn">Guardar</button>
-        </div>
-      </div>
-    </div>
-  </div>
-  
-  <!-- Inicialización de la aplicación -->
-  <script>
-    document.addEventListener('DOMContentLoaded', () => {
-      // Inicializar componentes globales de la UI
-      initUI();
-      
-      // Inicializar navegación
-      initSidebar();
-      initNavigation();
-      
-      // Inicializar componentes del dashboard cuando la página activa sea dashboard
-      document.addEventListener('pageChanged', (e) => {
-        const page = e.detail.page;
-        
-        if (page === 'dashboard') {
-          // Inicializar funcionalidades del dashboard
-          initDashboard();
-          initVibrationDataSection();
-          loadAlerts();
-        } else if (page === 'configuracion') {
-          // Inicializar funcionalidades de configuración
-          initConfig();
-          initMachineManagement();
-          initSensorManagement();
-          initModelManagement();
-        }
-      });
-      
-      // Inicializar página actual
-      const currentPage = document.querySelector('.nav-link.active').getAttribute('data-page');
-      if (currentPage === 'dashboard') {
-        initDashboard();
-        initVibrationDataSection();
-        loadAlerts();
-      } else if (currentPage === 'configuracion') {
-        initConfig();
-        initMachineManagement();
-        initSensorManagement();
-        initModelManagement();
-      }
-    });
-  </script>
+  <!-- Scripts -->
+  <script src="/static/js/app.js"></script>
+  <script src="/static/js/responsive.js"></script>
 </body>
 </html>
