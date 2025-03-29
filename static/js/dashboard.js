@@ -25,7 +25,6 @@ function initDashboard() {
         initVisualFilters();
         initExportButtons();
         initAdjustLimitsButton();
-        initVibrationDataSection();
         
         // Inicializar nueva funcionalidad de monitoreo
         initMonitoringButton();
@@ -1600,286 +1599,6 @@ function updateAlertsTable(alerts) {
     }
 }
 
-// Cargar datos de vibración
-function loadVibrationData(page = 1, filters = {}) {
-    // Mostrar indicador de carga
-    const showLoader = !filters.silentLoad;
-    if (showLoader) {
-        showLoadingIndicator('Cargando datos de vibración...');
-    }
-    
-    // Obtener filtros globales del dashboard si no se proporcionan filtros específicos
-    if (!filters.sensor_id && !filters.machine_id) {
-        const selectedMachine = getGlobalState('selectedMachine');
-        const selectedSensor = getGlobalState('selectedSensor');
-        
-        if (selectedSensor) {
-            filters.sensor_id = selectedSensor;
-        }
-        
-        if (selectedMachine) {
-            filters.machine_id = selectedMachine;
-        }
-    }
-    
-    // Construir URL para el endpoint optimizado
-    const limit = filters.limit || 10;
-    
-    // Usar el endpoint dashboard-data para obtener datos de vibración
-    let url = `/api/dashboard-data?data_type=vibration&page=${page}&limit=${limit}`;
-    
-    // Añadir filtros
-    if (filters.sensor_id) {
-        url += `&sensor_id=${filters.sensor_id}`;
-    }
-    
-    // Para filtros adicionales que puedan ser necesarios
-    if (filters.severity !== undefined && filters.severity !== '') {
-        url += `&severity=${filters.severity}`;
-    }
-    
-    if (filters.date_start) {
-        url += `&date_start=${filters.date_start}`;
-    }
-    
-    if (filters.date_end) {
-        url += `&date_end=${filters.date_end}`;
-    }
-    
-    // Realizar petición a la API
-    return fetch(url)
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`Error al obtener datos de vibración: ${response.status} ${response.statusText}`);
-            }
-            return response.json();
-        })
-        .then(data => {
-            if (showLoader) {
-                hideLoadingIndicator();
-            }
-            
-            if (!data) {
-                console.warn('No se recibieron datos de vibración');
-                return null;
-            }
-            
-            // Estructurar los datos para compatibilidad con el formato anterior
-            const formattedData = {
-                items: data.items || [],
-                total: data.total || 0,
-                page: data.page || page,
-                limit: data.limit || limit,
-                pages: data.pages || Math.ceil((data.total || 0) / limit)
-            };
-            
-            // Actualizar la tabla con los datos recibidos
-            updateVibrationDataTable(formattedData.items);
-            
-            // Actualizar la información de paginación
-            updateVibrationPagination(formattedData.total, formattedData.page, formattedData.pages);
-            
-            return formattedData;
-        })
-        .catch(error => {
-            if (showLoader) {
-                hideLoadingIndicator();
-            }
-            console.error('Error al cargar datos de vibración:', error);
-            if (showLoader) {
-                showToast('Error al cargar datos de vibración: ' + error.message, 'error');
-            }
-            return null;
-        });
-}
-
-// Actualizar tabla de datos de vibración
-function updateVibrationDataTable(vibrationData) {
-    const tableBody = document.getElementById('vibrationDataTableBody');
-    if (!tableBody) return;
-    
-    tableBody.innerHTML = '';
-    
-    if (vibrationData.length === 0) {
-        tableBody.innerHTML = `
-            <tr>
-                <td colspan="8" class="text-center">No hay datos de vibración disponibles</td>
-            </tr>
-        `;
-        return;
-    }
-    
-    vibrationData.forEach(item => {
-        const row = document.createElement('tr');
-        
-        // Formatear fecha
-        const date = new Date(item.date || item.timestamp);
-        const formattedDate = date.toLocaleString('es-ES', {
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit'
-        });
-        
-        // Obtener clase de severidad
-        let severityClass = '';
-        switch (item.severity) {
-            case 0:
-                severityClass = 'status-normal';
-                break;
-            case 1:
-                severityClass = 'status-level1';
-                break;
-            case 2:
-                severityClass = 'status-level2';
-                break;
-            case 3:
-                severityClass = 'status-level3';
-                break;
-        }
-        
-        // Adaptar a los nombres de campo del nuevo endpoint
-        const dataId = item.id || item.data_id || item.vibration_data_id;
-        const sensorId = item.sensor_id;
-        const accelX = item.acceleration_x !== undefined ? item.acceleration_x : (item.accel_x || 0);
-        const accelY = item.acceleration_y !== undefined ? item.acceleration_y : (item.accel_y || 0);
-        const accelZ = item.acceleration_z !== undefined ? item.acceleration_z : (item.accel_z || 0);
-        
-        row.innerHTML = `
-            <td>${dataId}</td>
-            <td>${sensorId}</td>
-            <td>${formattedDate}</td>
-            <td>${parseFloat(accelX).toFixed(3)}</td>
-            <td>${parseFloat(accelY).toFixed(3)}</td>
-            <td>${parseFloat(accelZ).toFixed(3)}</td>
-            <td><span class="${severityClass}">${getSeverityText(item.severity)}</span></td>
-            <td class="column-actions">
-                <div class="table-actions">
-                    <button class="btn-icon btn-view" title="Ver detalles" data-id="${dataId}">
-                        <i class="fas fa-eye"></i>
-                    </button>
-                </div>
-            </td>
-        `;
-        
-        tableBody.appendChild(row);
-    });
-    
-    // Añadir evento para ver detalles
-    const viewButtons = document.querySelectorAll('.btn-view');
-    viewButtons.forEach(button => {
-        button.addEventListener('click', () => {
-            const dataId = button.getAttribute('data-id');
-            viewVibrationDetails(dataId);
-        });
-    });
-}
-
-// Actualizar información de paginación
-function updateVibrationPagination(total, currentPage, totalPages) {
-    const paginationInfo = document.getElementById('vibrationDataPageInfo');
-    const prevButton = document.getElementById('prevVibrationPageBtn');
-    const nextButton = document.getElementById('nextVibrationPageBtn');
-    
-    if (!paginationInfo || !prevButton || !nextButton) return;
-    
-    paginationInfo.textContent = `Página ${currentPage} de ${totalPages}`;
-    
-    // Habilitar/deshabilitar botones de paginación
-    prevButton.disabled = currentPage <= 1;
-    nextButton.disabled = currentPage >= totalPages;
-    
-    // Configurar eventos de paginación con los filtros actuales
-    const currentFilters = getVibrationFilters();
-    
-    prevButton.onclick = () => {
-        if (currentPage > 1) {
-            loadVibrationData(currentPage - 1, currentFilters);
-        }
-    };
-    
-    nextButton.onclick = () => {
-        if (currentPage < totalPages) {
-            loadVibrationData(currentPage + 1, currentFilters);
-        }
-    };
-}
-
-// Obtener filtros actuales para los datos de vibración
-function getVibrationFilters() {
-    return {
-        machine_id: getGlobalState('selectedMachine'),
-        sensor_id: getGlobalState('selectedSensor'),
-        timeRange: getGlobalState('timeRange')
-    };
-}
-
-// Ver detalles de datos de vibración
-function viewVibrationDetails(dataId) {
-    if (!dataId) {
-        showToast('Esta alerta no tiene datos de vibración asociados', 'warning');
-        return;
-    }
-    
-    showLoadingIndicator('Cargando detalles de la alerta...');
-    
-    getVibrationDataById(dataId)
-        .then(vibrationData => {
-            if (!vibrationData) {
-                hideLoadingIndicator();
-                showToast('No se pudieron cargar los datos de vibración', 'error');
-                return;
-            }
-            
-            // Crear contenido del modal con los datos de vibración
-            const modalContent = `
-                <div class="modal-vibration-details">
-                    <h3>Detalles de la Alerta #${dataId}</h3>
-                    <div class="vibration-data-grid">
-                        <div class="data-row">
-                            <div class="data-label">Aceleración X:</div>
-                            <div class="data-value">${vibrationData.acceleration_x.toFixed(3)} m/s²</div>
-                        </div>
-                        <div class="data-row">
-                            <div class="data-label">Aceleración Y:</div>
-                            <div class="data-value">${vibrationData.acceleration_y.toFixed(3)} m/s²</div>
-                        </div>
-                        <div class="data-row">
-                            <div class="data-label">Aceleración Z:</div>
-                            <div class="data-value">${vibrationData.acceleration_z.toFixed(3)} m/s²</div>
-                        </div>
-                        <div class="data-row">
-                            <div class="data-label">Fecha:</div>
-                            <div class="data-value">${new Date(vibrationData.date).toLocaleString()}</div>
-                        </div>
-                    </div>
-                </div>
-            `;
-            
-            showModal('Detalles de Vibración', modalContent);
-            hideLoadingIndicator();
-        });
-}
-
-// Obtener datos de vibración a partir de un data_id
-function getVibrationDataById(dataId) {
-    if (!dataId) return Promise.resolve(null);
-    
-    return fetch(`/api/vibration-data/${dataId}`)
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`Error al obtener datos de vibración: ${response.status}`);
-            }
-            return response.json();
-        })
-        .catch(error => {
-            console.error('Error al obtener datos de vibración por ID:', error);
-            return null;
-        });
-}
-
 // Actualizar contadores de alertas en el dashboard
 function updateDashboardAlertCounts() {
     // Obtener los filtros actuales
@@ -1910,6 +1629,15 @@ function updateDashboardAlertCounts() {
         });
 }
 
+// Obtener filtros actuales para los datos de vibración
+function getVibrationFilters() {
+    return {
+        machine_id: getGlobalState('selectedMachine'),
+        sensor_id: getGlobalState('selectedSensor'),
+        timeRange: getGlobalState('timeRange')
+    };
+}
+
 // Ocultar gráficos hasta que se apliquen filtros
 function hideCharts() {
     const chartContainers = document.querySelectorAll('.charts-container .chart-container');
@@ -1924,44 +1652,6 @@ function showCharts() {
     chartContainers.forEach(container => {
         container.style.display = 'block';
     });
-}
-
-// Inicializar sección de datos de vibración
-function initVibrationDataSection() {
-    // Configurar botón de refrescar datos de vibración
-    const refreshBtn = document.getElementById('refreshVibrationDataBtn');
-    if (refreshBtn) {
-        refreshBtn.addEventListener('click', () => {
-            // Mostrar indicador de carga
-            showLoadingIndicator('Actualizando datos de vibración...');
-            
-            // Cargar datos de vibración con los filtros actuales del dashboard
-            loadVibrationData(1, getVibrationFilters())
-                .then(() => {
-                    showToast('Datos de vibración actualizados', 'success');
-                })
-                .catch(error => {
-                    console.error('Error al actualizar datos de vibración:', error);
-                    showToast('Error al actualizar datos', 'error');
-                })
-                .finally(() => {
-                    hideLoadingIndicator();
-                });
-        });
-    }
-    
-    // Inicializar botones de paginación
-    const prevButton = document.getElementById('prevVibrationPageBtn');
-    const nextButton = document.getElementById('nextVibrationPageBtn');
-    
-    if (prevButton && nextButton) {
-        // Los eventos de clic se configuran en updateVibrationPagination
-        // para que usen los filtros actuales en cada momento
-        
-        // Deshabilitar inicialmente hasta que se carguen los datos
-        prevButton.disabled = true;
-        nextButton.disabled = true;
-    }
 }
 
 // Mostrar un modal con contenido dinámico
@@ -2036,12 +1726,9 @@ window.initApplyFiltersButton = initApplyFiltersButton;
 window.initExportButtons = initExportButtons;
 window.exportAxisToPDF = exportAxisToPDF;
 window.loadSimplifiedAlerts = loadSimplifiedAlerts;
-window.loadVibrationData = loadVibrationData;
 window.loadAlerts = loadAlerts;
 window.viewAlertDetails = viewAlertDetails;
 window.acknowledgeAlert = acknowledgeAlert;
-window.initVibrationDataSection = initVibrationDataSection;
 window.getVibrationFilters = getVibrationFilters;
-window.viewVibrationDetails = viewVibrationDetails;
 window.getSeverityText = getSeverityText;
 window.updateDashboardAlertCounts = updateDashboardAlertCounts; 
