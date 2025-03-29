@@ -873,61 +873,128 @@ function updateAlertCounters(alerts) {
 
 // Actualizar valores de parámetros estadísticos
 function updateStatisticalDisplayValues() {
-    // Obtener valores actuales del localStorage o usar valores predeterminados
-    const limits = JSON.parse(localStorage.getItem('limitConfig')) || {
-        x_2sigma_lower: -2.36,
-        x_2sigma_upper: 2.18,
-        x_3sigma_lower: -3.50,
-        x_3sigma_upper: 3.32,
-        y_2sigma_lower: 7.18,
-        y_2sigma_upper: 12.09,
-        y_3sigma_lower: 5.95,
-        y_3sigma_upper: 13.32,
-        z_2sigma_lower: -2.39,
-        z_2sigma_upper: 1.11,
-        z_3sigma_lower: -3.26,
-        z_3sigma_upper: 1.98
-    };
+    console.log('Actualizando valores estadísticos en la interfaz...');
     
-    // Actualizar elementos del DOM
-    // Eje X
-    document.getElementById('x2SigmaLowerDisplay').innerHTML = 
-        limits.x_2sigma_lower.toFixed(2) + '<span class="stat-unit">m/s²</span>';
-    document.getElementById('x2SigmaUpperDisplay').innerHTML = 
-        limits.x_2sigma_upper.toFixed(2) + '<span class="stat-unit">m/s²</span>';
-    document.getElementById('x3SigmaLowerDisplay').innerHTML = 
-        limits.x_3sigma_lower.toFixed(2) + '<span class="stat-unit">m/s²</span>';
-    document.getElementById('x3SigmaUpperDisplay').innerHTML = 
-        limits.x_3sigma_upper.toFixed(2) + '<span class="stat-unit">m/s²</span>';
-        
-    // Eje Y
-    document.getElementById('y2SigmaLowerDisplay').innerHTML = 
-        limits.y_2sigma_lower.toFixed(2) + '<span class="stat-unit">m/s²</span>';
-    document.getElementById('y2SigmaUpperDisplay').innerHTML = 
-        limits.y_2sigma_upper.toFixed(2) + '<span class="stat-unit">m/s²</span>';
-    document.getElementById('y3SigmaLowerDisplay').innerHTML = 
-        limits.y_3sigma_lower.toFixed(2) + '<span class="stat-unit">m/s²</span>';
-    document.getElementById('y3SigmaUpperDisplay').innerHTML = 
-        limits.y_3sigma_upper.toFixed(2) + '<span class="stat-unit">m/s²</span>';
-        
-    // Eje Z
-    document.getElementById('z2SigmaLowerDisplay').innerHTML = 
-        limits.z_2sigma_lower.toFixed(2) + '<span class="stat-unit">m/s²</span>';
-    document.getElementById('z2SigmaUpperDisplay').innerHTML = 
-        limits.z_2sigma_upper.toFixed(2) + '<span class="stat-unit">m/s²</span>';
-    document.getElementById('z3SigmaLowerDisplay').innerHTML = 
-        limits.z_3sigma_lower.toFixed(2) + '<span class="stat-unit">m/s²</span>';
-    document.getElementById('z3SigmaUpperDisplay').innerHTML = 
-        limits.z_3sigma_upper.toFixed(2) + '<span class="stat-unit">m/s²</span>';
+    // Obtener estadísticas del estado global
+    const globalStats = getGlobalState('stats');
     
-    // Añadir animación para destacar cambios
-    const statValues = document.querySelectorAll('.stat-value');
-    statValues.forEach(el => {
-        el.classList.add('value-updated');
-        setTimeout(() => {
-            el.classList.remove('value-updated');
-        }, 1000);
-    });
+    // Si no hay estadísticas en el estado global, intentar obtenerlas del localStorage
+    if (!globalStats) {
+        console.warn('No hay estadísticas en el estado global, usando valores de localStorage');
+        
+        // Obtener valores del localStorage o usar valores predeterminados
+        const localLimits = JSON.parse(localStorage.getItem('limitConfig')) || {
+            x_2sigma_lower: -2.36,
+            x_2sigma_upper: 2.18,
+            x_3sigma_lower: -3.50,
+            x_3sigma_upper: 3.32,
+            y_2sigma_lower: 7.18,
+            y_2sigma_upper: 12.09,
+            y_3sigma_lower: 5.95,
+            y_3sigma_upper: 13.32,
+            z_2sigma_lower: -2.39,
+            z_2sigma_upper: 1.11,
+            z_3sigma_lower: -3.26,
+            z_3sigma_upper: 1.98
+        };
+        
+        // Convertir al formato del estado global
+        const convertedStats = {
+            x: {
+                sigma2: { 
+                    lower: localLimits.x_2sigma_lower, 
+                    upper: localLimits.x_2sigma_upper 
+                },
+                sigma3: { 
+                    lower: localLimits.x_3sigma_lower, 
+                    upper: localLimits.x_3sigma_upper 
+                }
+            },
+            y: {
+                sigma2: { 
+                    lower: localLimits.y_2sigma_lower, 
+                    upper: localLimits.y_2sigma_upper 
+                },
+                sigma3: { 
+                    lower: localLimits.y_3sigma_lower, 
+                    upper: localLimits.y_3sigma_upper 
+                }
+            },
+            z: {
+                sigma2: { 
+                    lower: localLimits.z_2sigma_lower, 
+                    upper: localLimits.z_2sigma_upper 
+                },
+                sigma3: { 
+                    lower: localLimits.z_3sigma_lower, 
+                    upper: localLimits.z_3sigma_upper 
+                }
+            }
+        };
+        
+        // Guardar en el estado global para futuras referencias
+        setGlobalState('stats', convertedStats);
+        
+        updateStatisticsDisplay(convertedStats);
+    } else {
+        // Usar estadísticas del estado global
+        updateStatisticsDisplay(globalStats);
+    }
+    
+    // Función interna para actualizar los elementos visuales
+    function updateStatisticsDisplay(stats) {
+        try {
+            // Actualizar elementos del DOM
+            // Eje X
+            if (stats.x && stats.x.sigma2 && stats.x.sigma3) {
+                document.getElementById('x2SigmaLowerDisplay').innerHTML = 
+                    stats.x.sigma2.lower.toFixed(2) + '<span class="stat-unit">m/s²</span>';
+                document.getElementById('x2SigmaUpperDisplay').innerHTML = 
+                    stats.x.sigma2.upper.toFixed(2) + '<span class="stat-unit">m/s²</span>';
+                document.getElementById('x3SigmaLowerDisplay').innerHTML = 
+                    stats.x.sigma3.lower.toFixed(2) + '<span class="stat-unit">m/s²</span>';
+                document.getElementById('x3SigmaUpperDisplay').innerHTML = 
+                    stats.x.sigma3.upper.toFixed(2) + '<span class="stat-unit">m/s²</span>';
+            }
+                
+            // Eje Y
+            if (stats.y && stats.y.sigma2 && stats.y.sigma3) {
+                document.getElementById('y2SigmaLowerDisplay').innerHTML = 
+                    stats.y.sigma2.lower.toFixed(2) + '<span class="stat-unit">m/s²</span>';
+                document.getElementById('y2SigmaUpperDisplay').innerHTML = 
+                    stats.y.sigma2.upper.toFixed(2) + '<span class="stat-unit">m/s²</span>';
+                document.getElementById('y3SigmaLowerDisplay').innerHTML = 
+                    stats.y.sigma3.lower.toFixed(2) + '<span class="stat-unit">m/s²</span>';
+                document.getElementById('y3SigmaUpperDisplay').innerHTML = 
+                    stats.y.sigma3.upper.toFixed(2) + '<span class="stat-unit">m/s²</span>';
+            }
+                
+            // Eje Z
+            if (stats.z && stats.z.sigma2 && stats.z.sigma3) {
+                document.getElementById('z2SigmaLowerDisplay').innerHTML = 
+                    stats.z.sigma2.lower.toFixed(2) + '<span class="stat-unit">m/s²</span>';
+                document.getElementById('z2SigmaUpperDisplay').innerHTML = 
+                    stats.z.sigma2.upper.toFixed(2) + '<span class="stat-unit">m/s²</span>';
+                document.getElementById('z3SigmaLowerDisplay').innerHTML = 
+                    stats.z.sigma3.lower.toFixed(2) + '<span class="stat-unit">m/s²</span>';
+                document.getElementById('z3SigmaUpperDisplay').innerHTML = 
+                    stats.z.sigma3.upper.toFixed(2) + '<span class="stat-unit">m/s²</span>';
+            }
+            
+            // Añadir animación para destacar cambios
+            const statValues = document.querySelectorAll('.stat-value');
+            statValues.forEach(el => {
+                el.classList.add('value-updated');
+                setTimeout(() => {
+                    el.classList.remove('value-updated');
+                }, 1000);
+            });
+            
+            console.log('Valores estadísticos actualizados correctamente');
+        } catch (error) {
+            console.error('Error al actualizar valores estadísticos:', error);
+        }
+    }
 }
 
 // ==========================================================================
