@@ -48,61 +48,98 @@ function initConfigTabs() {
     
     // Manejar eventos de clic en las pestañas
     tabItems.forEach(tab => {
-        tab.addEventListener('click', () => {
-            const targetTab = tab.getAttribute('data-tab');
-            if (!targetTab) return;
-            
-            console.log('Cambiando a pestaña:', targetTab);
-            
-            // Actualizar elemento activo
-            document.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
-            tab.classList.add('active');
-            
-            // Mostrar el contenido correspondiente
-            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-            document.getElementById(`${targetTab}Content`).classList.add('active');
-            
-            // Actualizar URL sin recargar la página
-            const configPage = 'configuracion';
-            const pageUrl = targetTab ? `${configPage}:${targetTab}` : configPage;
-            window.history.pushState({}, '', `#${pageUrl}`);
-            
-            // Cambiar título de la página (pestaña del navegador)
-            const tabName = getTabName(targetTab);
-            document.title = `PdM Manager - ${tabName}`;
-            
-            return false;
-        });
+        // Evitar duplicar event listeners
+        tab.removeEventListener('click', handleTabClick);
+        tab.addEventListener('click', handleTabClick);
     });
     
+    // Función para manejar el clic en las pestañas
+    function handleTabClick() {
+        const targetTab = this.getAttribute('data-tab');
+        if (!targetTab) return;
+        
+        // Actualizar UI
+        activateTab(targetTab);
+        
+        // Actualizar URL sin recargar la página
+        updateTabUrl(targetTab);
+        
+        return false;
+    }
+    
+    // Activar una pestaña específica
+    function activateTab(tabName) {
+        // Actualizar elemento activo
+        document.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
+        const activeTab = document.querySelector(`.tab-item[data-tab="${tabName}"]`);
+        if (activeTab) {
+            activeTab.classList.add('active');
+        }
+        
+        // Mostrar el contenido correspondiente
+        document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+        const contentElement = document.getElementById(`${tabName}Content`);
+        if (contentElement) {
+            contentElement.classList.add('active');
+        }
+        
+        // Cambiar título de la página (pestaña del navegador)
+        const tabTitle = getTabName(tabName);
+        document.title = `PdM Manager - ${tabTitle}`;
+    }
+    
+    // Actualizar URL para la pestaña
+    function updateTabUrl(tabName) {
+        const configPage = 'configuracion';
+        const pageUrl = tabName ? `${configPage}:${tabName}` : configPage;
+        
+        // Usar history API para evitar recargas
+        try {
+            window.history.pushState({}, '', `#${pageUrl}`);
+        } catch (e) {
+            // Fallback si falla la API de history
+            window.location.hash = pageUrl;
+        }
+    }
+    
     // Verificar si hay un fragmento de URL específico para seleccionar pestaña
-    const checkUrlAndActivateTab = () => {
+    function checkUrlAndActivateTab() {
         const hash = window.location.hash;
         if (hash.startsWith('#configuracion:')) {
             const tabName = hash.split(':')[1];
-            const tabToActivate = document.querySelector(`.tab-item[data-tab="${tabName}"]`);
-            if (tabToActivate) {
-                tabToActivate.click();
+            const tabExists = !!document.querySelector(`.tab-item[data-tab="${tabName}"]`);
+            
+            if (tabExists) {
+                // Usar setTimeout para garantizar que el DOM está listo
+                setTimeout(() => {
+                    activateTab(tabName);
+                }, 50);
                 return true;
             }
         }
         return false;
-    };
+    }
     
     // Activar pestaña según URL o usar la primera pestaña por defecto
     if (!checkUrlAndActivateTab() && tabItems.length > 0) {
         // Si no hay hash específico o el hash no corresponde a una pestaña válida, seleccionar la primera
-        tabItems[0].click();
+        const firstTabName = tabItems[0].getAttribute('data-tab');
+        if (firstTabName) {
+            activateTab(firstTabName);
+        }
     }
     
-    // Escuchar cambios en el hash de la URL
-    window.addEventListener('hashchange', () => {
+    // Manejar cambios en el hash de la URL
+    window.removeEventListener('hashchange', handleHashChange);
+    window.addEventListener('hashchange', handleHashChange);
+    
+    function handleHashChange() {
         // Solo procesar el cambio si estamos en la sección de configuración
         const currentPage = getCurrentPage().split(':')[0];
         if (currentPage === 'configuracion') {
             checkUrlAndActivateTab();
         }
-    });
+    }
     
     console.log('Pestañas de configuración inicializadas');
 }
@@ -120,44 +157,11 @@ function getTabName(tabId) {
 
 // Configurar dependencias entre entidades
 function setupEntityDependencies() {
-    // Verificar si hay modelos antes de permitir crear sensores
-    const addSensorBtn = document.getElementById('addSensorBtn');
-    if (addSensorBtn) {
-        addSensorBtn.addEventListener('click', function(e) {
-            checkModelsExist()
-                .then(modelsExist => {
-                    if (!modelsExist) {
-                        e.preventDefault();
-                        showToast('Debe crear al menos un modelo antes de crear sensores', 'warning');
-                        
-                        // Cambiar a la pestaña de modelos
-                        const modelTab = document.querySelector('.tab-item[data-tab="modelos"]');
-                        if (modelTab) modelTab.click();
-                    } else {
-                        // Resetear formulario
-                        document.getElementById('sensorModalTitle').textContent = 'Nuevo Sensor';
-                        document.getElementById('sensorId').value = '';
-                        document.getElementById('sensorName').value = '';
-                        document.getElementById('sensorDescription').value = '';
-                        
-                        // Cargar modelos para el selector
-                        loadModelsForSelect();
-                        
-                        // Resetear selects a "Ninguno"
-                        const machineSelect = document.getElementById('sensorMachine');
-                        if (machineSelect) machineSelect.value = '';
-                        
-                        // Mostrar modal
-                        document.getElementById('sensorModal').classList.add('show');
-                    }
-                });
-        });
-    }
-    
-    // Verificar si hay sensores antes de permitir crear máquinas
-    const addMachineBtn = document.getElementById('addMachineBtn');
-    if (addMachineBtn) {
-        addMachineBtn.addEventListener('click', function(e) {
+    // Verificar si hay sensores para la máquina - ahora auto-verificamos con el formulario
+    const machineForm = document.getElementById('machineForm');
+    if (machineForm) {
+        machineForm.addEventListener('submit', function(e) {
+            // Verificar sensores antes de permitir guardar la máquina
             checkSensorsExist()
                 .then(sensorsExist => {
                     if (!sensorsExist) {
@@ -168,21 +172,28 @@ function setupEntityDependencies() {
                         const sensorTab = document.querySelector('.tab-item[data-tab="sensores"]');
                         if (sensorTab) sensorTab.click();
                     } else {
-                        // Resetear formulario
-                        document.getElementById('machineModalTitle').textContent = 'Nueva Máquina';
-                        document.getElementById('machineId').value = '';
-                        document.getElementById('machineName').value = '';
-                        document.getElementById('machineDescription').value = '';
+                        saveMachine();
+                    }
+                });
+        });
+    }
+
+    // El formulario de sensor verificará si existen modelos antes de guardar
+    const sensorForm = document.getElementById('sensorForm');
+    if (sensorForm) {
+        sensorForm.addEventListener('submit', function(e) {
+            // Verificar modelos antes de permitir guardar el sensor
+            checkModelsExist()
+                .then(modelsExist => {
+                    if (!modelsExist) {
+                        e.preventDefault();
+                        showToast('Debe crear al menos un modelo antes de crear sensores', 'warning');
                         
-                        // Establecer estado por defecto
-                        const statusSelect = document.getElementById('machineStatus');
-                        if (statusSelect) statusSelect.value = 'operativo';
-                        
-                        // Cargar sensores para el selector
-                        loadSensorsForSelect();
-                        
-                        // Mostrar modal
-                        document.getElementById('machineModal').classList.add('show');
+                        // Cambiar a la pestaña de modelos
+                        const modelTab = document.querySelector('.tab-item[data-tab="modelos"]');
+                        if (modelTab) modelTab.click();
+                    } else {
+                        saveSensor();
                     }
                 });
         });
@@ -259,7 +270,7 @@ function loadMachinesTable() {
     if (!machinesTableBody) return;
     
     // Mostrar indicador de carga
-    machinesTableBody.innerHTML = '<tr><td colspan="5" class="text-center">Cargando datos...</td></tr>';
+    machinesTableBody.innerHTML = '<tr><td colspan="4" class="text-center">Cargando datos...</td></tr>';
     
     // Obtener datos de la API
     fetch('/api/machines')
@@ -269,7 +280,7 @@ function loadMachinesTable() {
             machinesTableBody.innerHTML = '';
             
             if (machines.length === 0) {
-                machinesTableBody.innerHTML = '<tr><td colspan="5" class="text-center">No hay máquinas configuradas</td></tr>';
+                machinesTableBody.innerHTML = '<tr><td colspan="4" class="text-center">No hay máquinas configuradas</td></tr>';
                 return;
             }
             
@@ -294,34 +305,22 @@ function loadMachinesTable() {
                             <td>${machine.name}</td>
                             <td>${machine.description || '-'}</td>
                             <td>${sensorName}</td>
-                            <td class="actions-cell">
-                                <button class="btn-icon edit-machine" data-id="${machine.machine_id}" title="Editar máquina">
-                                    <i class="fas fa-edit"></i>
-                                </button>
-                                <button class="btn-icon delete-machine" data-id="${machine.machine_id}" title="Eliminar máquina">
-                                    <i class="fas fa-trash-alt"></i>
-                                </button>
-                            </td>
                         `;
                         
-                        // Añadir acciones a los botones
-                        const editBtn = row.querySelector('.edit-machine');
-                        const deleteBtn = row.querySelector('.delete-machine');
+                        // Añadir atributos de datos para interactividad
+                        row.setAttribute('data-id', machine.machine_id);
+                        row.classList.add('table-row-interactive');
                         
-                        if (editBtn) {
-                            editBtn.addEventListener('click', () => {
-                                editMachine(machine.machine_id);
-                            });
-                        }
-                        
-                        if (deleteBtn) {
-                            deleteBtn.addEventListener('click', () => {
-                                deleteMachine(machine.machine_id);
-                            });
-                        }
+                        // Manejar evento de clic en la fila
+                        row.addEventListener('click', () => {
+                            editMachine(machine.machine_id);
+                        });
                         
                         machinesTableBody.appendChild(row);
                     });
+                    
+                    // Disparar evento personalizado para indicar que la tabla se ha actualizado
+                    document.dispatchEvent(new CustomEvent('machinesTableUpdated'));
                 })
                 .catch(error => {
                     console.error('Error al cargar sensores:', error);
@@ -330,7 +329,7 @@ function loadMachinesTable() {
         })
         .catch(error => {
             console.error('Error al cargar máquinas:', error);
-            machinesTableBody.innerHTML = '<tr><td colspan="5" class="text-center">Error al cargar datos</td></tr>';
+            machinesTableBody.innerHTML = '<tr><td colspan="4" class="text-center">Error al cargar datos</td></tr>';
             showToast('Error al cargar máquinas', 'error');
         });
 }
@@ -522,29 +521,27 @@ function initSensorManagement() {
     // Cargar sensores existentes
     loadSensors();
     
-    // Configurar botón para añadir sensor
-    const addSensorBtn = document.getElementById('addSensorBtn');
-    if (addSensorBtn) {
-        addSensorBtn.addEventListener('click', () => {
-            // Resetear formulario
-            document.getElementById('sensorModalTitle').textContent = 'Nuevo Sensor';
-            document.getElementById('sensorId').value = '';
-            document.getElementById('sensorName').value = '';
-            document.getElementById('sensorDescription').value = '';
-            
-            // Resetear selects a "Ninguno"
-            const modelSelect = document.getElementById('sensorModel');
-            if (modelSelect) modelSelect.value = '';
-            
-            // Mostrar modal
-            document.getElementById('sensorModal').classList.add('show');
+    // Cargar modelos para el selector al inicio
+    loadModelsForSelect();
+    
+    // Configurar formulario de sensor
+    const sensorForm = document.getElementById('sensorForm');
+    if (sensorForm) {
+        sensorForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            // La verificación de modelos la maneja setupEntityDependencies
         });
     }
     
-    // Configurar botón para guardar sensor
-    const saveSensorBtn = document.getElementById('saveSensorBtn');
-    if (saveSensorBtn) {
-        saveSensorBtn.addEventListener('click', saveSensor);
+    // Configurar botón para cancelar sensor
+    const cancelSensorBtn = document.getElementById('cancelSensorBtn');
+    if (cancelSensorBtn) {
+        cancelSensorBtn.addEventListener('click', () => {
+            const sensorForm = document.getElementById('sensorForm');
+            if (sensorForm) {
+                sensorForm.reset();
+            }
+        });
     }
 }
 
@@ -600,18 +597,21 @@ function loadModelsForSelect() {
 
 // Cargar tabla de sensores
 function loadSensorsTable() {
+    const tableBody = document.querySelector('#sensorsTable tbody');
+    if (!tableBody) return;
+    
+    // Mostrar indicador de carga
+    tableBody.innerHTML = '<tr><td colspan="4" class="text-center">Cargando datos...</td></tr>';
+    
     fetch('/api/sensors')
         .then(response => response.json())
         .then(sensors => {
-            const tableBody = document.querySelector('#sensorsTable tbody');
-            if (!tableBody) return;
-            
             tableBody.innerHTML = '';
             
             if (sensors.length === 0) {
                 tableBody.innerHTML = `
                     <tr>
-                        <td colspan="5" class="text-center">No hay sensores registrados</td>
+                        <td colspan="4" class="text-center">No hay sensores registrados</td>
                     </tr>
                 `;
                 return;
@@ -641,44 +641,31 @@ function loadSensorsTable() {
                             <td><strong>${sensor.name}</strong></td>
                             <td>${sensor.description || '-'}</td>
                             <td class="${modelClass}">${modelName}</td>
-                            <td class="column-actions">
-                                <div class="table-actions">
-                                    <button class="btn-icon btn-edit" title="Editar sensor" data-id="${sensor.sensor_id}">
-                                        <i class="fas fa-edit"></i>
-                                    </button>
-                                    <button class="btn-icon btn-delete" title="Eliminar sensor" data-id="${sensor.sensor_id}">
-                                        <i class="fas fa-trash"></i>
-                                    </button>
-                                </div>
-                            </td>
                         `;
+                        
+                        // Añadir atributos de datos para interactividad
+                        row.setAttribute('data-id', sensor.sensor_id);
+                        row.classList.add('table-row-interactive');
+                        
+                        // Manejar evento de clic en la fila
+                        row.addEventListener('click', () => {
+                            editSensor(sensor.sensor_id);
+                        });
                         
                         tableBody.appendChild(row);
                     });
                     
-                    // Configurar eventos para editar y eliminar
-                    const editButtons = tableBody.querySelectorAll('.btn-edit');
-                    editButtons.forEach(button => {
-                        button.addEventListener('click', () => {
-                            const sensorId = button.getAttribute('data-id');
-                            editSensor(sensorId);
-                        });
-                    });
-                    
-                    const deleteButtons = tableBody.querySelectorAll('.btn-delete');
-                    deleteButtons.forEach(button => {
-                        button.addEventListener('click', () => {
-                            const sensorId = button.getAttribute('data-id');
-                            deleteSensor(sensorId);
-                        });
-                    });
+                    // Disparar evento personalizado para indicar que la tabla se ha actualizado
+                    document.dispatchEvent(new CustomEvent('sensorsTableUpdated'));
                 })
                 .catch(error => {
                     console.error('Error al cargar modelos:', error);
+                    tableBody.innerHTML = '<tr><td colspan="4" class="text-center">Error al cargar datos de modelos</td></tr>';
                 });
         })
         .catch(error => {
             console.error('Error al cargar sensores:', error);
+            tableBody.innerHTML = '<tr><td colspan="4" class="text-center">Error al cargar datos</td></tr>';
             showToast('Error al cargar la lista de sensores', 'error');
         });
 }
@@ -879,38 +866,26 @@ function initModelManagement() {
     // Cargar modelos existentes
     loadModels();
     
-    // Configurar botón para añadir modelo
-    const addModelBtn = document.getElementById('addModelBtn');
-    if (addModelBtn) {
-        addModelBtn.addEventListener('click', () => {
-            // Resetear formulario
-            document.getElementById('modelModalTitle').textContent = 'Añadir Modelo';
-            document.getElementById('modelId').value = '';
-            document.getElementById('modelName').value = '';
-            document.getElementById('modelDescription').value = '';
-            
-            // Resetear campos de archivo
-            if (document.getElementById('modelFileName')) {
-                document.getElementById('modelFileName').textContent = 'Ningún archivo seleccionado';
-                document.getElementById('modelFileName').parentElement.classList.remove('file-selected');
-            }
-            if (document.getElementById('scalerFileName')) {
-                document.getElementById('scalerFileName').textContent = 'Ningún archivo seleccionado';
-                document.getElementById('scalerFileName').parentElement.classList.remove('file-selected');
-            }
-            
-            // Configurar mensaje de requerimiento para archivo del modelo
-            toggleModelFileRequired(true);
-            
-            // Mostrar modal
-            document.getElementById('modelModal').classList.add('show');
+    // Configurar formulario de modelo
+    const modelForm = document.getElementById('modelForm');
+    if (modelForm) {
+        modelForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            saveModel();
         });
     }
     
-    // Configurar botón para guardar modelo
-    const saveModelBtn = document.getElementById('saveModelBtn');
-    if (saveModelBtn) {
-        saveModelBtn.addEventListener('click', saveModel);
+    // Configurar botón para cancelar modelo
+    const cancelModelBtn = document.getElementById('cancelModelBtn');
+    if (cancelModelBtn) {
+        cancelModelBtn.addEventListener('click', () => {
+            const modelForm = document.getElementById('modelForm');
+            if (modelForm) {
+                modelForm.reset();
+                document.getElementById('modelFileName').textContent = 'Ningún archivo seleccionado';
+                document.getElementById('scalerFileName').textContent = 'Ningún archivo seleccionado';
+            }
+        });
     }
     
     // Configurar botones para cerrar modales
@@ -977,18 +952,21 @@ function setupFileInputs() {
 
 // Cargar tabla de modelos
 function loadModelsTable() {
+    const tableBody = document.querySelector('#modelsTable tbody');
+    if (!tableBody) return;
+    
+    // Mostrar indicador de carga
+    tableBody.innerHTML = '<tr><td colspan="3" class="text-center">Cargando datos...</td></tr>';
+    
     fetch('/api/models')
         .then(response => response.json())
         .then(models => {
-            const tableBody = document.querySelector('#modelsTable tbody');
-            if (!tableBody) return;
-            
             tableBody.innerHTML = '';
             
             if (models.length === 0) {
                 tableBody.innerHTML = `
                     <tr>
-                        <td colspan="4" class="text-center">No hay modelos registrados</td>
+                        <td colspan="3" class="text-center">No hay modelos registrados</td>
                     </tr>
                 `;
                 return;
@@ -1001,40 +979,26 @@ function loadModelsTable() {
                     <td class="column-id">${model.model_id}</td>
                     <td><strong>${model.name}</strong></td>
                     <td>${model.description || '-'}</td>
-                    <td class="column-actions">
-                        <div class="table-actions">
-                            <button class="btn-icon btn-edit" title="Editar modelo" data-id="${model.model_id}">
-                                <i class="fas fa-edit"></i>
-                            </button>
-                            <button class="btn-icon btn-delete" title="Eliminar modelo" data-id="${model.model_id}">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </div>
-                    </td>
                 `;
+                
+                // Añadir atributos de datos para interactividad
+                row.setAttribute('data-id', model.model_id);
+                row.classList.add('table-row-interactive');
+                
+                // Manejar evento de clic en la fila
+                row.addEventListener('click', () => {
+                    editModel(model.model_id);
+                });
                 
                 tableBody.appendChild(row);
             });
             
-            // Configurar eventos para editar y eliminar
-            const editButtons = tableBody.querySelectorAll('.btn-edit');
-            editButtons.forEach(button => {
-                button.addEventListener('click', () => {
-                    const modelId = button.getAttribute('data-id');
-                    editModel(modelId);
-                });
-            });
-            
-            const deleteButtons = tableBody.querySelectorAll('.btn-delete');
-            deleteButtons.forEach(button => {
-                button.addEventListener('click', () => {
-                    const modelId = button.getAttribute('data-id');
-                    deleteModel(modelId);
-                });
-            });
+            // Disparar evento personalizado para indicar que la tabla se ha actualizado
+            document.dispatchEvent(new CustomEvent('modelsTableUpdated'));
         })
         .catch(error => {
             console.error('Error al cargar modelos:', error);
+            tableBody.innerHTML = '<tr><td colspan="3" class="text-center">Error al cargar datos</td></tr>';
             showToast('Error al cargar la lista de modelos', 'error');
         });
 }
@@ -1125,7 +1089,7 @@ function saveModel() {
     }
     
     if (modelFile) {
-        formData.append('model_file', modelFile);
+        formData.append('model_h5_file', modelFile);
     }
     
     if (scalerFile) {
@@ -1223,25 +1187,54 @@ function deleteModel(modelId) {
 
 // Inicializar gestión de límites
 function initLimitsManagement() {
+    console.log('Inicializando gestión de límites...');
+    
     // Cargar límites actuales
     loadCurrentLimits();
+    
+    // Configurar el formulario de límites
+    const limitsForm = document.getElementById('limitsForm');
+    if (limitsForm) {
+        limitsForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            saveLimits();
+        });
+    }
     
     // Configurar botón para guardar límites
     const saveLimitsBtn = document.getElementById('saveLimitsBtn');
     if (saveLimitsBtn) {
-        saveLimitsBtn.addEventListener('click', saveLimits);
+        saveLimitsBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            saveLimits();
+        });
     }
     
     // Configurar botón para restablecer límites
     const resetLimitsBtn = document.getElementById('resetLimitsBtn');
     if (resetLimitsBtn) {
-        resetLimitsBtn.addEventListener('click', resetLimits);
+        resetLimitsBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            resetLimits();
+        });
     }
     
-    // Configurar el nuevo botón para restaurar valores por defecto
+    // Configurar el botón para restaurar valores por defecto
     const resetDefaultLimitsBtn = document.getElementById('resetDefaultLimitsBtn');
     if (resetDefaultLimitsBtn) {
-        resetDefaultLimitsBtn.addEventListener('click', resetLimits);
+        resetDefaultLimitsBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            resetLimits();
+        });
+    }
+    
+    // Configurar botón para cancelar (limpiar formulario)
+    const cancelLimitsBtn = document.getElementById('cancelLimitsBtn');
+    if (cancelLimitsBtn) {
+        cancelLimitsBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            loadCurrentLimits(); // Recargar valores actuales
+        });
     }
 }
 
@@ -1275,54 +1268,88 @@ function loadCurrentLimits() {
 
 // Guardar nuevos límites
 function saveLimits() {
-    // Recopilar valores del formulario con los nuevos nombres de campos
-    const limitsData = {
-        x_2inf: parseFloat(document.getElementById('x_2inf').value),
-        x_2sup: parseFloat(document.getElementById('x_2sup').value),
-        x_3inf: parseFloat(document.getElementById('x_3inf').value),
-        x_3sup: parseFloat(document.getElementById('x_3sup').value),
+    try {
+        // Recopilar valores del formulario
+        const limitsData = {
+            x_2inf: parseFloat(document.getElementById('x_2inf').value),
+            x_2sup: parseFloat(document.getElementById('x_2sup').value),
+            x_3inf: parseFloat(document.getElementById('x_3inf').value),
+            x_3sup: parseFloat(document.getElementById('x_3sup').value),
+            
+            y_2inf: parseFloat(document.getElementById('y_2inf').value),
+            y_2sup: parseFloat(document.getElementById('y_2sup').value),
+            y_3inf: parseFloat(document.getElementById('y_3inf').value),
+            y_3sup: parseFloat(document.getElementById('y_3sup').value),
+            
+            z_2inf: parseFloat(document.getElementById('z_2inf').value),
+            z_2sup: parseFloat(document.getElementById('z_2sup').value),
+            z_3inf: parseFloat(document.getElementById('z_3inf').value),
+            z_3sup: parseFloat(document.getElementById('z_3sup').value),
+            
+            update_limits: new Date().toISOString()
+        };
         
-        y_2inf: parseFloat(document.getElementById('y_2inf').value),
-        y_2sup: parseFloat(document.getElementById('y_2sup').value),
-        y_3inf: parseFloat(document.getElementById('y_3inf').value),
-        y_3sup: parseFloat(document.getElementById('y_3sup').value),
+        // Validar todos los campos
+        const invalidFields = [];
+        for (const key in limitsData) {
+            if (key !== 'update_limits' && isNaN(limitsData[key])) {
+                invalidFields.push(key);
+            }
+        }
         
-        z_2inf: parseFloat(document.getElementById('z_2inf').value),
-        z_2sup: parseFloat(document.getElementById('z_2sup').value),
-        z_3inf: parseFloat(document.getElementById('z_3inf').value),
-        z_3sup: parseFloat(document.getElementById('z_3sup').value),
-        
-        // Solo añadimos la fecha de actualización, no otros datos innecesarios
-        update_limits: new Date().toISOString()
-    };
-    
-    // Validar que todos los valores sean números válidos
-    for (const key in limitsData) {
-        if (key !== 'update_limits' && isNaN(limitsData[key])) {
-            showToast(`Valor inválido en el campo ${key}`, 'warning');
+        if (invalidFields.length > 0) {
+            showToast(`Valores inválidos en: ${invalidFields.join(', ')}`, 'warning');
             return;
         }
-    }
-    
-    // Mostrar indicador de carga
-    showLoadingIndicator('Actualizando límites...');
-    
-    // Enviar solicitud para guardar límites
-    fetch('/api/limits', {
-        method: 'PUT',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(limitsData)
-    })
+        
+        // Validar que los límites superiores sean mayores que los inferiores
+        const axisLabels = {
+            x: 'X',
+            y: 'Y',
+            z: 'Z'
+        };
+        
+        // Comprobar validez lógica de los límites
+        for (const axis of ['x', 'y', 'z']) {
+            // 2-sigma inferior < 2-sigma superior
+            if (limitsData[`${axis}_2inf`] >= limitsData[`${axis}_2sup`]) {
+                showToast(`Error: El límite 2σ inferior debe ser menor que el superior para el eje ${axisLabels[axis]}`, 'warning');
+                return;
+            }
+            
+            // 3-sigma inferior < 3-sigma superior
+            if (limitsData[`${axis}_3inf`] >= limitsData[`${axis}_3sup`]) {
+                showToast(`Error: El límite 3σ inferior debe ser menor que el superior para el eje ${axisLabels[axis]}`, 'warning');
+                return;
+            }
+            
+            // 3-sigma debe contener a 2-sigma
+            if (limitsData[`${axis}_3inf`] > limitsData[`${axis}_2inf`] || 
+                limitsData[`${axis}_3sup`] < limitsData[`${axis}_2sup`]) {
+                showToast(`Error: Los límites 3σ deben contener a los límites 2σ para el eje ${axisLabels[axis]}`, 'warning');
+                return;
+            }
+        }
+        
+        // Mostrar indicador de carga
+        showLoadingIndicator('Guardando límites...');
+        
+        // Enviar solicitud para guardar límites
+        fetch('/api/limits', {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(limitsData)
+        })
         .then(response => {
             if (!response.ok) {
-                throw new Error('Error al guardar límites');
+                throw new Error(`Error HTTP: ${response.status}`);
             }
             return response.json();
         })
         .then(result => {
-            // Actualizar UI - tanto gráficas como parámetros estadísticos
+            // Actualizar UI global
             if (typeof updateChartsWithNewLimits === 'function') {
                 updateChartsWithNewLimits(result);
             }
@@ -1332,16 +1359,38 @@ function saveLimits() {
                 updateStatisticalDisplayValues();
             }
             
+            // Actualizar estado global
+            if (typeof updateGlobalStats === 'function') {
+                updateGlobalStats({
+                    x: {
+                        sigma2: { lower: result.x_2inf, upper: result.x_2sup },
+                        sigma3: { lower: result.x_3inf, upper: result.x_3sup }
+                    },
+                    y: {
+                        sigma2: { lower: result.y_2inf, upper: result.y_2sup },
+                        sigma3: { lower: result.y_3inf, upper: result.y_3sup }
+                    },
+                    z: {
+                        sigma2: { lower: result.z_2inf, upper: result.z_2sup },
+                        sigma3: { lower: result.z_3inf, upper: result.z_3sup }
+                    }
+                });
+            }
+            
             // Mostrar mensaje
             showToast('Límites actualizados correctamente', 'success');
         })
         .catch(error => {
             console.error('Error al guardar límites:', error);
-            showToast('Error al guardar límites', 'error');
+            showToast(`Error al guardar límites: ${error.message}`, 'error');
         })
         .finally(() => {
             hideLoadingIndicator();
         });
+    } catch (error) {
+        console.error('Error inesperado al procesar límites:', error);
+        showToast('Error inesperado al procesar el formulario', 'error');
+    }
 }
 
 // Restablecer límites a valores por defecto

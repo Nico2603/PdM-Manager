@@ -878,123 +878,72 @@ function updateStatisticalDisplayValues() {
     console.log('Actualizando valores estadísticos en la interfaz...');
     
     // Obtener estadísticas del estado global
-    const globalStats = getGlobalState('stats');
+    const stats = getGlobalState('stats');
     
-    // Si no hay estadísticas en el estado global, intentar obtenerlas del localStorage
-    if (!globalStats) {
-        console.warn('No hay estadísticas en el estado global, usando valores de localStorage');
-        
-        // Obtener valores del localStorage o usar valores predeterminados
-        const localLimits = JSON.parse(localStorage.getItem('limitConfig')) || {
-            x_2sigma_lower: -2.36,
-            x_2sigma_upper: 2.18,
-            x_3sigma_lower: -3.50,
-            x_3sigma_upper: 3.32,
-            y_2sigma_lower: 7.18,
-            y_2sigma_upper: 12.09,
-            y_3sigma_lower: 5.95,
-            y_3sigma_upper: 13.32,
-            z_2sigma_lower: -2.39,
-            z_2sigma_upper: 1.11,
-            z_3sigma_lower: -3.26,
-            z_3sigma_upper: 1.98
-        };
-        
-        // Convertir al formato del estado global
-        const convertedStats = {
-            x: {
-                sigma2: { 
-                    lower: localLimits.x_2sigma_lower, 
-                    upper: localLimits.x_2sigma_upper 
-                },
-                sigma3: { 
-                    lower: localLimits.x_3sigma_lower, 
-                    upper: localLimits.x_3sigma_upper 
-                }
-            },
-            y: {
-                sigma2: { 
-                    lower: localLimits.y_2sigma_lower, 
-                    upper: localLimits.y_2sigma_upper 
-                },
-                sigma3: { 
-                    lower: localLimits.y_3sigma_lower, 
-                    upper: localLimits.y_3sigma_upper 
-                }
-            },
-            z: {
-                sigma2: { 
-                    lower: localLimits.z_2sigma_lower, 
-                    upper: localLimits.z_2sigma_upper 
-                },
-                sigma3: { 
-                    lower: localLimits.z_3sigma_lower, 
-                    upper: localLimits.z_3sigma_upper 
-                }
-            }
-        };
-        
-        // Guardar en el estado global para futuras referencias
-        setGlobalState('stats', convertedStats);
-        
-        updateStatisticsDisplay(convertedStats);
-    } else {
-        // Usar estadísticas del estado global
-        updateStatisticsDisplay(globalStats);
+    if (!stats) {
+        console.warn('No hay estadísticas disponibles en el estado global');
+        return;
     }
     
-    // Función interna para actualizar los elementos visuales
-    function updateStatisticsDisplay(stats) {
-        try {
-            // Actualizar elementos del DOM
-            // Eje X
-            if (stats.x && stats.x.sigma2 && stats.x.sigma3) {
-                document.getElementById('x2SigmaLowerDisplay').innerHTML = 
-                    stats.x.sigma2.lower.toFixed(2) + '<span class="stat-unit">m/s²</span>';
-                document.getElementById('x2SigmaUpperDisplay').innerHTML = 
-                    stats.x.sigma2.upper.toFixed(2) + '<span class="stat-unit">m/s²</span>';
-                document.getElementById('x3SigmaLowerDisplay').innerHTML = 
-                    stats.x.sigma3.lower.toFixed(2) + '<span class="stat-unit">m/s²</span>';
-                document.getElementById('x3SigmaUpperDisplay').innerHTML = 
-                    stats.x.sigma3.upper.toFixed(2) + '<span class="stat-unit">m/s²</span>';
-            }
-                
-            // Eje Y
-            if (stats.y && stats.y.sigma2 && stats.y.sigma3) {
-                document.getElementById('y2SigmaLowerDisplay').innerHTML = 
-                    stats.y.sigma2.lower.toFixed(2) + '<span class="stat-unit">m/s²</span>';
-                document.getElementById('y2SigmaUpperDisplay').innerHTML = 
-                    stats.y.sigma2.upper.toFixed(2) + '<span class="stat-unit">m/s²</span>';
-                document.getElementById('y3SigmaLowerDisplay').innerHTML = 
-                    stats.y.sigma3.lower.toFixed(2) + '<span class="stat-unit">m/s²</span>';
-                document.getElementById('y3SigmaUpperDisplay').innerHTML = 
-                    stats.y.sigma3.upper.toFixed(2) + '<span class="stat-unit">m/s²</span>';
-            }
-                
-            // Eje Z
-            if (stats.z && stats.z.sigma2 && stats.z.sigma3) {
-                document.getElementById('z2SigmaLowerDisplay').innerHTML = 
-                    stats.z.sigma2.lower.toFixed(2) + '<span class="stat-unit">m/s²</span>';
-                document.getElementById('z2SigmaUpperDisplay').innerHTML = 
-                    stats.z.sigma2.upper.toFixed(2) + '<span class="stat-unit">m/s²</span>';
-                document.getElementById('z3SigmaLowerDisplay').innerHTML = 
-                    stats.z.sigma3.lower.toFixed(2) + '<span class="stat-unit">m/s²</span>';
-                document.getElementById('z3SigmaUpperDisplay').innerHTML = 
-                    stats.z.sigma3.upper.toFixed(2) + '<span class="stat-unit">m/s²</span>';
+    try {
+        // Formato para valores numéricos
+        const formatValue = (value) => value.toFixed(2);
+        
+        // Actualizar todos los ejes de forma consistente
+        ['x', 'y', 'z'].forEach(axis => {
+            if (!stats[axis]) {
+                console.warn(`No hay datos para el eje ${axis.toUpperCase()}`);
+                return;
             }
             
-            // Añadir animación para destacar cambios
-            const statValues = document.querySelectorAll('.stat-value');
-            statValues.forEach(el => {
-                el.classList.add('value-updated');
-                setTimeout(() => {
-                    el.classList.remove('value-updated');
-                }, 1000);
-            });
+            // Actualizar límites 2-sigma
+            if (stats[axis].sigma2) {
+                updateDisplayValue(
+                    `${axis}2SigmaLowerDisplay`, 
+                    formatValue(stats[axis].sigma2.lower)
+                );
+                
+                updateDisplayValue(
+                    `${axis}2SigmaUpperDisplay`, 
+                    formatValue(stats[axis].sigma2.upper)
+                );
+            }
             
-            console.log('Valores estadísticos actualizados correctamente');
-        } catch (error) {
-            console.error('Error al actualizar valores estadísticos:', error);
+            // Actualizar límites 3-sigma
+            if (stats[axis].sigma3) {
+                updateDisplayValue(
+                    `${axis}3SigmaLowerDisplay`, 
+                    formatValue(stats[axis].sigma3.lower)
+                );
+                
+                updateDisplayValue(
+                    `${axis}3SigmaUpperDisplay`, 
+                    formatValue(stats[axis].sigma3.upper)
+                );
+            }
+        });
+        
+        // Añadir animación para destacar cambios
+        const statValues = document.querySelectorAll('.stat-value');
+        statValues.forEach(el => {
+            el.classList.add('value-updated');
+            setTimeout(() => {
+                el.classList.remove('value-updated');
+            }, 1000);
+        });
+        
+        console.log('Valores estadísticos actualizados correctamente');
+    } catch (error) {
+        console.error('Error al actualizar valores estadísticos:', error);
+    }
+    
+    // Función auxiliar para actualizar un único elemento
+    function updateDisplayValue(elementId, value) {
+        const element = document.getElementById(elementId);
+        if (element) {
+            element.innerHTML = `${value}<span class="stat-unit">m/s²</span>`;
+        } else {
+            console.warn(`Elemento no encontrado: ${elementId}`);
         }
     }
 }
@@ -1116,153 +1065,22 @@ function initAdjustLimitsButton() {
     const adjustLimitsBtn = document.getElementById('adjustLimitsBtn');
     
     if (adjustLimitsBtn) {
-        adjustLimitsBtn.addEventListener('click', () => {
-            // Redirigir a la sección de configuración de límites
-            navigateTo('configuracion:limits');
+        adjustLimitsBtn.addEventListener('click', (event) => {
+            event.preventDefault();
+            console.log('Redirigiendo a configuración de límites');
+            
+            // Usar navigateTo para la redirección
+            if (typeof navigateTo === 'function') {
+                navigateTo('configuracion:limites');
+            } else {
+                // Fallback directo si navigateTo no está disponible
+                window.location.hash = 'configuracion:limites';
+            }
         });
     }
     
-    // El resto del código para la gestión modal ya no es necesario aquí
-    // pero lo mantenemos por si se necesita en otra parte
-    const saveLimitsBtn = document.getElementById('saveLimitsBtn');
-    const resetLimitsBtn = document.getElementById('resetLimitsBtn');
-    const closeModalBtn = document.querySelector('#adjustLimitsModal .modal-close');
-    
-    if (saveLimitsBtn) {
-        saveLimitsBtn.addEventListener('click', saveLimitsFromModal);
-    }
-    
-    if (resetLimitsBtn) {
-        resetLimitsBtn.addEventListener('click', resetLimitsFromModal);
-    }
-    
-    if (closeModalBtn) {
-        closeModalBtn.addEventListener('click', () => {
-            document.getElementById('adjustLimitsModal').classList.remove('show');
-        });
-    }
-}
-
-// Cargar los límites actuales en el modal
-function loadCurrentLimitsToModal() {
-    // Obtener límites actuales del estado global
-    const stats = getGlobalState('stats') || {};
-    
-    // Establecer valores en los campos del formulario
-    for (const axis of ['x', 'y', 'z']) {
-        if (stats[axis]?.sigma2) {
-            document.getElementById(`${axis}2SigmaLowerInput`).value = stats[axis].sigma2.lower;
-            document.getElementById(`${axis}2SigmaUpperInput`).value = stats[axis].sigma2.upper;
-        }
-        
-        if (stats[axis]?.sigma3) {
-            document.getElementById(`${axis}3SigmaLowerInput`).value = stats[axis].sigma3.lower;
-            document.getElementById(`${axis}3SigmaUpperInput`).value = stats[axis].sigma3.upper;
-        }
-    }
-}
-
-// Guardar límites desde el modal utilizando la función unificada
-function saveLimitsFromModal() {
-    // Recopilar valores del formulario en formato compatible con la API
-    const limitsData = {
-        x_2inf: parseFloat(document.getElementById('x2SigmaLowerInput').value),
-        x_2sup: parseFloat(document.getElementById('x2SigmaUpperInput').value),
-        x_3inf: parseFloat(document.getElementById('x3SigmaLowerInput').value),
-        x_3sup: parseFloat(document.getElementById('x3SigmaUpperInput').value),
-        
-        y_2inf: parseFloat(document.getElementById('y2SigmaLowerInput').value),
-        y_2sup: parseFloat(document.getElementById('y2SigmaUpperInput').value),
-        y_3inf: parseFloat(document.getElementById('y3SigmaLowerInput').value),
-        y_3sup: parseFloat(document.getElementById('y3SigmaUpperInput').value),
-        
-        z_2inf: parseFloat(document.getElementById('z2SigmaLowerInput').value),
-        z_2sup: parseFloat(document.getElementById('z2SigmaUpperInput').value),
-        z_3inf: parseFloat(document.getElementById('z3SigmaLowerInput').value),
-        z_3sup: parseFloat(document.getElementById('z3SigmaUpperInput').value),
-        
-        update_limits: new Date().toISOString()
-    };
-    
-    // Validar que todos los valores sean números válidos
-    for (const key in limitsData) {
-        if (key !== 'update_limits' && isNaN(limitsData[key])) {
-            showToast(`Valor inválido en el campo ${key}`, 'warning');
-            return;
-        }
-    }
-    
-    // Mostrar indicador de carga
-    showLoadingIndicator('Actualizando límites...');
-    
-    // Enviar solicitud para guardar límites - usar el mismo endpoint que config.js
-    fetch('/api/limits', {
-        method: 'PUT',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(limitsData)
-    })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('Error al guardar límites');
-            }
-            return response.json();
-        })
-        .then(result => {
-            // Cerrar modal
-            document.getElementById('adjustLimitsModal').classList.remove('show');
-            
-            // Actualizar gráficos con los nuevos límites
-            if (typeof updateChartsWithNewLimits === 'function') {
-                updateChartsWithNewLimits(result);
-            }
-            
-            // Mostrar mensaje
-            showToast('Límites actualizados correctamente', 'success');
-        })
-        .catch(error => {
-            console.error('Error al guardar límites:', error);
-            showToast('Error al guardar límites', 'error');
-        })
-        .finally(() => {
-            hideLoadingIndicator();
-        });
-}
-
-// Restablecer límites a valores por defecto - reutilizando la misma lógica que config.js
-function resetLimitsFromModal() {
-    // Mostrar indicador de carga
-    showLoadingIndicator('Restableciendo límites...');
-    
-    fetch('/api/limits/reset', {
-        method: 'POST'
-    })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('Error al restablecer límites');
-            }
-            return response.json();
-        })
-        .then(result => {
-            // Cerrar modal si está abierto
-            document.getElementById('adjustLimitsModal').classList.remove('show');
-            
-            // Actualizar gráficos con límites por defecto
-            if (typeof updateChartsWithNewLimits === 'function') {
-                updateChartsWithNewLimits(result.limits);
-            }
-            
-            // Mostrar mensaje
-            showToast('Límites restablecidos correctamente', 'success');
-        })
-        .catch(error => {
-            console.error('Error al restablecer límites:', error);
-            showToast('Error al restablecer límites', 'error');
-        })
-        .finally(() => {
-            hideLoadingIndicator();
-        });
+    // Eliminado código redundante de manejo modal
+    // El modal de límites ahora se maneja solo en la sección de configuración
 }
 
 // Inicializar botón de aplicar filtros

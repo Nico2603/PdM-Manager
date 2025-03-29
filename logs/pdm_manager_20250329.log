@@ -1,0 +1,356 @@
+[2025-03-29 15:04:11] [INFO] [logger:65] - Modelo cargado correctamente desde: C:\Users\LENOVO\Desktop\PdM-Manager\Modelo\modeloRNN_multiclase_v3_finetuned.h5
+[2025-03-29 15:04:11] [ERROR] [logger:50] - ERROR: invalid load key, '\x07'.
+CONTEXTO: Error al cargar el escalador: invalid load key, '\x07'.
+TRACEBACK: Traceback (most recent call last):
+  File "C:\Users\LENOVO\Desktop\PdM-Manager\app\main.py", line 111, in load_model_and_scaler
+    scaler = pickle.load(f)
+             ^^^^^^^^^^^^^^
+_pickle.UnpicklingError: invalid load key, '\x07'.
+
+[2025-03-29 15:04:11] [INFO] [logger:65] - Iniciando aplicación PdM-Manager API
+[2025-03-29 15:05:19] [INFO] [logger:65] - Modelo cargado correctamente desde: C:\Users\LENOVO\Desktop\PdM-Manager\Modelo\modeloRNN_multiclase_v3_finetuned.h5
+[2025-03-29 15:05:19] [ERROR] [logger:50] - ERROR: invalid load key, '\x07'.
+CONTEXTO: Error al cargar el escalador: invalid load key, '\x07'.
+TRACEBACK: Traceback (most recent call last):
+  File "C:\Users\LENOVO\Desktop\PdM-Manager\app\main.py", line 111, in load_model_and_scaler
+    scaler = pickle.load(f)
+             ^^^^^^^^^^^^^^
+_pickle.UnpicklingError: invalid load key, '\x07'.
+
+[2025-03-29 15:05:19] [INFO] [logger:65] - Iniciando aplicación PdM-Manager API
+[2025-03-29 15:05:27] [INFO] [logger:65] - Solicitud GET / desde 127.0.0.1
+[2025-03-29 15:05:27] [INFO] [logger:65] - Respuesta 200 para GET / procesada en 0.0930s
+[2025-03-29 15:05:27] [INFO] [logger:65] - Solicitud GET /static/css/style.css desde 127.0.0.1
+[2025-03-29 15:05:27] [INFO] [logger:65] - Solicitud GET /static/js/utils.js desde 127.0.0.1
+[2025-03-29 15:05:27] [INFO] [logger:65] - Respuesta 304 para GET /static/css/style.css procesada en 0.0050s
+[2025-03-29 15:05:27] [INFO] [logger:65] - Solicitud GET /static/js/navigation.js desde 127.0.0.1
+[2025-03-29 15:05:27] [INFO] [logger:65] - Solicitud GET /static/js/charts.js desde 127.0.0.1
+[2025-03-29 15:05:27] [INFO] [logger:65] - Solicitud GET /static/js/main.js desde 127.0.0.1
+[2025-03-29 15:05:27] [INFO] [logger:65] - Solicitud GET /static/js/realtime-updates.js desde 127.0.0.1
+[2025-03-29 15:05:27] [INFO] [logger:65] - Solicitud GET /static/js/config.js desde 127.0.0.1
+[2025-03-29 15:05:27] [INFO] [logger:65] - Respuesta 304 para GET /static/js/utils.js procesada en 0.0105s
+[2025-03-29 15:05:27] [INFO] [logger:65] - Respuesta 304 para GET /static/js/navigation.js procesada en 0.0105s
+[2025-03-29 15:05:27] [INFO] [logger:65] - Respuesta 304 para GET /static/js/charts.js procesada en 0.0085s
+[2025-03-29 15:05:27] [INFO] [logger:65] - Respuesta 404 para GET /static/js/main.js procesada en 0.0105s
+[2025-03-29 15:05:27] [INFO] [logger:65] - Respuesta 200 para GET /static/js/realtime-updates.js procesada en 0.0115s
+[2025-03-29 15:05:27] [INFO] [logger:65] - Solicitud GET /static/js/dashboard.js desde 127.0.0.1
+[2025-03-29 15:05:27] [INFO] [logger:65] - Respuesta 200 para GET /static/js/config.js procesada en 0.0092s
+[2025-03-29 15:05:27] [INFO] [logger:65] - Respuesta 200 para GET /static/js/dashboard.js procesada en 0.0040s
+[2025-03-29 15:09:59] [INFO] [logger:65] - Modelo cargado correctamente desde: C:\Users\LENOVO\Desktop\PdM-Manager\Modelo\modeloRNN_multiclase_v3_finetuned.h5
+[2025-03-29 15:09:59] [ERROR] [logger:50] - ERROR: invalid load key, '\x07'.
+CONTEXTO: Error al cargar el escalador: invalid load key, '\x07'.
+TRACEBACK: Traceback (most recent call last):
+  File "C:\Users\LENOVO\Desktop\PdM-Manager\app\main.py", line 111, in load_model_and_scaler
+    scaler = pickle.load(f)
+             ^^^^^^^^^^^^^^
+_pickle.UnpicklingError: invalid load key, '\x07'.
+
+[2025-03-29 15:09:59] [INFO] [logger:65] - Iniciando aplicación PdM-Manager API
+[2025-03-29 15:10:30] [INFO] [logger:65] - Modelo cargado correctamente desde: C:\Users\LENOVO\Desktop\PdM-Manager\Modelo\modeloRNN_multiclase_v3_finetuned.h5
+[2025-03-29 15:10:30] [ERROR] [logger:50] - ERROR: invalid load key, '\x07'.
+CONTEXTO: Error al cargar el escalador: invalid load key, '\x07'.
+TRACEBACK: Traceback (most recent call last):
+  File "C:\Users\LENOVO\Desktop\PdM-Manager\app\main.py", line 111, in load_model_and_scaler
+    scaler = pickle.load(f)
+             ^^^^^^^^^^^^^^
+_pickle.UnpicklingError: invalid load key, '\x07'.
+
+[2025-03-29 15:10:30] [INFO] [logger:65] - Iniciando aplicación PdM-Manager API
+[2025-03-29 15:11:07] [INFO] [logger:65] - Solicitud GET / desde 127.0.0.1
+[2025-03-29 15:11:07] [INFO] [logger:65] - Respuesta 200 para GET / procesada en 0.0729s
+[2025-03-29 15:11:07] [INFO] [logger:65] - Solicitud GET /static/js/config.js desde 127.0.0.1
+[2025-03-29 15:11:07] [INFO] [logger:65] - Solicitud GET /static/js/dashboard.js desde 127.0.0.1
+[2025-03-29 15:11:07] [INFO] [logger:65] - Solicitud GET /static/js/realtime-updates.js desde 127.0.0.1
+[2025-03-29 15:11:07] [INFO] [logger:65] - Solicitud GET /static/js/main.js desde 127.0.0.1
+[2025-03-29 15:11:07] [INFO] [logger:65] - Respuesta 200 para GET /static/js/config.js procesada en 0.0064s
+[2025-03-29 15:11:07] [INFO] [logger:65] - Respuesta 304 para GET /static/js/dashboard.js procesada en 0.0072s
+[2025-03-29 15:11:07] [INFO] [logger:65] - Respuesta 200 para GET /static/js/realtime-updates.js procesada en 0.0060s
+[2025-03-29 15:11:07] [INFO] [logger:65] - Respuesta 404 para GET /static/js/main.js procesada en 0.0060s
+[2025-03-29 15:24:42] [INFO] [logger:65] - Solicitud GET / desde 127.0.0.1
+[2025-03-29 15:24:42] [INFO] [logger:65] - Respuesta 200 para GET / procesada en 0.0011s
+[2025-03-29 15:24:42] [INFO] [logger:65] - Solicitud GET /static/js/config.js desde 127.0.0.1
+[2025-03-29 15:24:42] [INFO] [logger:65] - Respuesta 200 para GET /static/js/config.js procesada en 0.0011s
+[2025-03-29 15:24:42] [INFO] [logger:65] - Solicitud GET /static/js/dashboard.js desde 127.0.0.1
+[2025-03-29 15:24:42] [INFO] [logger:65] - Solicitud GET /static/js/realtime-updates.js desde 127.0.0.1
+[2025-03-29 15:24:42] [INFO] [logger:65] - Respuesta 200 para GET /static/js/dashboard.js procesada en 0.0051s
+[2025-03-29 15:24:42] [INFO] [logger:65] - Solicitud GET /static/js/app.js desde 127.0.0.1
+[2025-03-29 15:24:42] [INFO] [logger:65] - Respuesta 304 para GET /static/js/realtime-updates.js procesada en 0.0077s
+[2025-03-29 15:24:42] [INFO] [logger:65] - Respuesta 200 para GET /static/js/app.js procesada en 0.0040s
+[2025-03-29 15:24:42] [INFO] [logger:65] - Solicitud GET /api/vibration-data desde 127.0.0.1
+[2025-03-29 15:24:42] [INFO] [logger:65] - Respuesta 404 para GET /api/vibration-data procesada en 0.0014s
+[2025-03-29 15:24:43] [INFO] [logger:65] - Solicitud GET /api/vibration-data desde 127.0.0.1
+[2025-03-29 15:24:43] [INFO] [logger:65] - Respuesta 404 para GET /api/vibration-data procesada en 0.0010s
+[2025-03-29 15:24:44] [INFO] [logger:65] - Solicitud GET /api/models desde 127.0.0.1
+[2025-03-29 15:24:44] [INFO] [logger:65] - Respuesta 200 para GET /api/models procesada en 0.0127s
+[2025-03-29 15:24:46] [INFO] [logger:65] - Solicitud GET /api/vibration-data desde 127.0.0.1
+[2025-03-29 15:24:46] [INFO] [logger:65] - Respuesta 404 para GET /api/vibration-data procesada en 0.0010s
+[2025-03-29 15:24:47] [INFO] [logger:65] - Solicitud GET /api/models desde 127.0.0.1
+[2025-03-29 15:24:47] [INFO] [logger:65] - Respuesta 200 para GET /api/models procesada en 0.0033s
+[2025-03-29 15:24:51] [INFO] [logger:65] - Solicitud GET /api/vibration-data desde 127.0.0.1
+[2025-03-29 15:24:51] [INFO] [logger:65] - Respuesta 404 para GET /api/vibration-data procesada en 0.0010s
+[2025-03-29 15:28:11] [INFO] [logger:65] - Solicitud GET / desde 127.0.0.1
+[2025-03-29 15:28:11] [INFO] [logger:65] - Respuesta 200 para GET / procesada en 0.0028s
+[2025-03-29 15:28:11] [INFO] [logger:65] - Solicitud GET /static/js/config.js desde 127.0.0.1
+[2025-03-29 15:28:11] [INFO] [logger:65] - Solicitud GET /static/js/dashboard.js desde 127.0.0.1
+[2025-03-29 15:28:11] [INFO] [logger:65] - Solicitud GET /static/js/app.js desde 127.0.0.1
+[2025-03-29 15:28:11] [INFO] [logger:65] - Solicitud GET /static/js/realtime-updates.js desde 127.0.0.1
+[2025-03-29 15:28:11] [INFO] [logger:65] - Respuesta 304 para GET /static/js/config.js procesada en 0.0069s
+[2025-03-29 15:28:11] [INFO] [logger:65] - Respuesta 304 para GET /static/js/dashboard.js procesada en 0.0080s
+[2025-03-29 15:28:11] [INFO] [logger:65] - Respuesta 304 para GET /static/js/app.js procesada en 0.0061s
+[2025-03-29 15:28:11] [INFO] [logger:65] - Respuesta 304 para GET /static/js/realtime-updates.js procesada en 0.0074s
+[2025-03-29 15:28:11] [INFO] [logger:65] - Solicitud GET /api/vibration-data desde 127.0.0.1
+[2025-03-29 15:28:11] [INFO] [logger:65] - Respuesta 404 para GET /api/vibration-data procesada en 0.0010s
+[2025-03-29 15:28:12] [INFO] [logger:65] - Solicitud GET /api/vibration-data desde 127.0.0.1
+[2025-03-29 15:28:12] [INFO] [logger:65] - Respuesta 404 para GET /api/vibration-data procesada en 0.0020s
+[2025-03-29 15:28:32] [INFO] [logger:65] - Solicitud GET /api/models desde 127.0.0.1
+[2025-03-29 15:28:32] [INFO] [logger:65] - Respuesta 200 para GET /api/models procesada en 0.0043s
+[2025-03-29 15:28:33] [INFO] [logger:65] - Solicitud GET /api/vibration-data desde 127.0.0.1
+[2025-03-29 15:28:33] [INFO] [logger:65] - Respuesta 404 para GET /api/vibration-data procesada en 0.0000s
+[2025-03-29 15:28:35] [INFO] [logger:65] - Solicitud GET /api/models desde 127.0.0.1
+[2025-03-29 15:28:35] [INFO] [logger:65] - Respuesta 200 para GET /api/models procesada en 0.0037s
+[2025-03-29 15:28:35] [INFO] [logger:65] - Solicitud GET /api/models desde 127.0.0.1
+[2025-03-29 15:28:35] [INFO] [logger:65] - Respuesta 200 para GET /api/models procesada en 0.0041s
+[2025-03-29 15:28:47] [INFO] [logger:65] - Solicitud GET /api/models desde 127.0.0.1
+[2025-03-29 15:28:47] [INFO] [logger:65] - Respuesta 200 para GET /api/models procesada en 0.0030s
+[2025-03-29 15:29:22] [INFO] [logger:65] - Solicitud GET / desde 127.0.0.1
+[2025-03-29 15:29:22] [INFO] [logger:65] - Respuesta 200 para GET / procesada en 0.0020s
+[2025-03-29 15:29:22] [INFO] [logger:65] - Solicitud GET /static/css/style.css desde 127.0.0.1
+[2025-03-29 15:29:22] [INFO] [logger:65] - Solicitud GET /static/js/navigation.js desde 127.0.0.1
+[2025-03-29 15:29:22] [INFO] [logger:65] - Solicitud GET /static/js/app.js desde 127.0.0.1
+[2025-03-29 15:29:22] [INFO] [logger:65] - Solicitud GET /static/js/config.js desde 127.0.0.1
+[2025-03-29 15:29:22] [INFO] [logger:65] - Solicitud GET /static/js/dashboard.js desde 127.0.0.1
+[2025-03-29 15:29:22] [INFO] [logger:65] - Respuesta 200 para GET /static/css/style.css procesada en 0.0088s
+[2025-03-29 15:29:22] [INFO] [logger:65] - Respuesta 200 para GET /static/js/navigation.js procesada en 0.0113s
+[2025-03-29 15:29:22] [INFO] [logger:65] - Respuesta 304 para GET /static/js/config.js procesada en 0.0084s
+[2025-03-29 15:29:22] [INFO] [logger:65] - Respuesta 304 para GET /static/js/app.js procesada en 0.0096s
+[2025-03-29 15:29:22] [INFO] [logger:65] - Respuesta 304 para GET /static/js/dashboard.js procesada en 0.0084s
+[2025-03-29 15:29:22] [INFO] [logger:65] - Solicitud GET /ws desde 127.0.0.1
+[2025-03-29 15:29:22] [INFO] [logger:65] - Solicitud GET /api/models desde 127.0.0.1
+[2025-03-29 15:29:22] [INFO] [logger:65] - Respuesta 404 para GET /ws procesada en 0.0030s
+[2025-03-29 15:29:22] [INFO] [logger:65] - Respuesta 200 para GET /api/models procesada en 0.0062s
+[2025-03-29 15:29:25] [INFO] [logger:65] - Solicitud GET /ws desde 127.0.0.1
+[2025-03-29 15:29:25] [INFO] [logger:65] - Respuesta 404 para GET /ws procesada en 0.0010s
+[2025-03-29 15:29:28] [INFO] [logger:65] - Solicitud GET /ws desde 127.0.0.1
+[2025-03-29 15:29:28] [INFO] [logger:65] - Respuesta 404 para GET /ws procesada en 0.0000s
+[2025-03-29 15:29:31] [INFO] [logger:65] - Solicitud GET /ws desde 127.0.0.1
+[2025-03-29 15:29:31] [INFO] [logger:65] - Respuesta 404 para GET /ws procesada en 0.0012s
+[2025-03-29 15:29:34] [INFO] [logger:65] - Solicitud GET /ws desde 127.0.0.1
+[2025-03-29 15:29:34] [INFO] [logger:65] - Respuesta 404 para GET /ws procesada en 0.0000s
+[2025-03-29 15:29:37] [INFO] [logger:65] - Solicitud GET /ws desde 127.0.0.1
+[2025-03-29 15:29:37] [INFO] [logger:65] - Respuesta 404 para GET /ws procesada en 0.0015s
+[2025-03-29 15:30:02] [INFO] [logger:65] - Solicitud POST /api/models desde 127.0.0.1
+[2025-03-29 15:30:02] [ERROR] [logger:50] - ERROR: name 'Model' is not defined
+CONTEXTO: Error al crear modelo
+TRACEBACK: Traceback (most recent call last):
+  File "C:\Users\LENOVO\Desktop\PdM-Manager\app\main.py", line 1123, in create_model_endpoint
+    model = Model(
+            ^^^^^
+NameError: name 'Model' is not defined. Did you mean: 'models'?
+
+[2025-03-29 15:30:02] [ERROR] [logger:50] - ERROR: 
+CONTEXTO: {'endpoint': '/api/models', 'método': 'POST'}
+TRACEBACK: Traceback (most recent call last):
+  File "C:\Users\LENOVO\Desktop\PdM-Manager\app\main.py", line 1123, in create_model_endpoint
+    model = Model(
+            ^^^^^
+NameError: name 'Model' is not defined. Did you mean: 'models'?
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\LENOVO\Desktop\PdM-Manager\venv\Lib\site-packages\starlette\middleware\exceptions.py", line 68, in __call__
+  File "C:\Users\LENOVO\Desktop\PdM-Manager\venv\Lib\site-packages\fastapi\middleware\asyncexitstack.py", line 20, in __call__
+  File "C:\Users\LENOVO\Desktop\PdM-Manager\venv\Lib\site-packages\fastapi\middleware\asyncexitstack.py", line 17, in __call__
+  File "C:\Users\LENOVO\Desktop\PdM-Manager\venv\Lib\site-packages\starlette\routing.py", line 718, in __call__
+  File "C:\Users\LENOVO\Desktop\PdM-Manager\venv\Lib\site-packages\starlette\routing.py", line 276, in handle
+  File "C:\Users\LENOVO\Desktop\PdM-Manager\venv\Lib\site-packages\starlette\routing.py", line 66, in app
+  File "C:\Users\LENOVO\Desktop\PdM-Manager\venv\Lib\site-packages\fastapi\routing.py", line 274, in app
+  File "C:\Users\LENOVO\Desktop\PdM-Manager\venv\Lib\site-packages\fastapi\routing.py", line 191, in run_endpoint_function
+  File "C:\Users\LENOVO\Desktop\PdM-Manager\app\main.py", line 1143, in create_model_endpoint
+    raise HTTPException(status_code=500, detail=str(e))
+fastapi.exceptions.HTTPException
+
+[2025-03-29 15:30:02] [INFO] [logger:65] - Respuesta 500 para POST /api/models procesada en 0.0135s
+[2025-03-29 15:30:07] [INFO] [logger:65] - Solicitud GET /api/sensors desde 127.0.0.1
+[2025-03-29 15:30:07] [INFO] [logger:65] - Solicitud GET /api/machines desde 127.0.0.1
+[2025-03-29 15:30:07] [INFO] [logger:65] - Solicitud GET /api/models desde 127.0.0.1
+[2025-03-29 15:30:07] [INFO] [logger:65] - Respuesta 405 para GET /api/machines procesada en 0.0015s
+[2025-03-29 15:30:07] [INFO] [logger:65] - Obteniendo lista de sensores: skip=0, limit=100
+[2025-03-29 15:30:07] [INFO] [logger:65] - Respuesta 200 para GET /api/models procesada en 0.0049s
+[2025-03-29 15:30:07] [INFO] [logger:65] - Respuesta 200 para GET /api/sensors procesada en 0.0705s
+[2025-03-29 15:30:07] [INFO] [logger:65] - Solicitud GET /api/sensors desde 127.0.0.1
+[2025-03-29 15:30:07] [INFO] [logger:65] - Obteniendo lista de sensores: skip=0, limit=100
+[2025-03-29 15:30:07] [INFO] [logger:65] - Solicitud GET /api/models desde 127.0.0.1
+[2025-03-29 15:30:07] [INFO] [logger:65] - Respuesta 200 para GET /api/sensors procesada en 0.0061s
+[2025-03-29 15:30:07] [INFO] [logger:65] - Respuesta 200 para GET /api/models procesada en 0.0051s
+[2025-03-29 15:30:14] [INFO] [logger:65] - Solicitud POST /api/models desde 127.0.0.1
+[2025-03-29 15:30:14] [ERROR] [logger:50] - ERROR: name 'Model' is not defined
+CONTEXTO: Error al crear modelo
+TRACEBACK: Traceback (most recent call last):
+  File "C:\Users\LENOVO\Desktop\PdM-Manager\app\main.py", line 1123, in create_model_endpoint
+    model = Model(
+            ^^^^^
+NameError: name 'Model' is not defined. Did you mean: 'models'?
+
+[2025-03-29 15:30:14] [ERROR] [logger:50] - ERROR: 
+CONTEXTO: {'endpoint': '/api/models', 'método': 'POST'}
+TRACEBACK: Traceback (most recent call last):
+  File "C:\Users\LENOVO\Desktop\PdM-Manager\app\main.py", line 1123, in create_model_endpoint
+    model = Model(
+            ^^^^^
+NameError: name 'Model' is not defined. Did you mean: 'models'?
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\LENOVO\Desktop\PdM-Manager\venv\Lib\site-packages\starlette\middleware\exceptions.py", line 68, in __call__
+  File "C:\Users\LENOVO\Desktop\PdM-Manager\venv\Lib\site-packages\fastapi\middleware\asyncexitstack.py", line 20, in __call__
+  File "C:\Users\LENOVO\Desktop\PdM-Manager\venv\Lib\site-packages\fastapi\middleware\asyncexitstack.py", line 17, in __call__
+  File "C:\Users\LENOVO\Desktop\PdM-Manager\venv\Lib\site-packages\starlette\routing.py", line 718, in __call__
+  File "C:\Users\LENOVO\Desktop\PdM-Manager\venv\Lib\site-packages\starlette\routing.py", line 276, in handle
+  File "C:\Users\LENOVO\Desktop\PdM-Manager\venv\Lib\site-packages\starlette\routing.py", line 66, in app
+  File "C:\Users\LENOVO\Desktop\PdM-Manager\venv\Lib\site-packages\fastapi\routing.py", line 274, in app
+  File "C:\Users\LENOVO\Desktop\PdM-Manager\venv\Lib\site-packages\fastapi\routing.py", line 191, in run_endpoint_function
+  File "C:\Users\LENOVO\Desktop\PdM-Manager\app\main.py", line 1143, in create_model_endpoint
+    raise HTTPException(status_code=500, detail=str(e))
+fastapi.exceptions.HTTPException
+
+[2025-03-29 15:30:14] [INFO] [logger:65] - Respuesta 500 para POST /api/models procesada en 0.0110s
+[2025-03-29 15:30:15] [INFO] [logger:65] - Solicitud POST /api/models desde 127.0.0.1
+[2025-03-29 15:30:15] [ERROR] [logger:50] - ERROR: name 'Model' is not defined
+CONTEXTO: Error al crear modelo
+TRACEBACK: Traceback (most recent call last):
+  File "C:\Users\LENOVO\Desktop\PdM-Manager\app\main.py", line 1123, in create_model_endpoint
+    model = Model(
+            ^^^^^
+NameError: name 'Model' is not defined. Did you mean: 'models'?
+
+[2025-03-29 15:30:15] [ERROR] [logger:50] - ERROR: 
+CONTEXTO: {'endpoint': '/api/models', 'método': 'POST'}
+TRACEBACK: Traceback (most recent call last):
+  File "C:\Users\LENOVO\Desktop\PdM-Manager\app\main.py", line 1123, in create_model_endpoint
+    model = Model(
+            ^^^^^
+NameError: name 'Model' is not defined. Did you mean: 'models'?
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\LENOVO\Desktop\PdM-Manager\venv\Lib\site-packages\starlette\middleware\exceptions.py", line 68, in __call__
+  File "C:\Users\LENOVO\Desktop\PdM-Manager\venv\Lib\site-packages\fastapi\middleware\asyncexitstack.py", line 20, in __call__
+  File "C:\Users\LENOVO\Desktop\PdM-Manager\venv\Lib\site-packages\fastapi\middleware\asyncexitstack.py", line 17, in __call__
+  File "C:\Users\LENOVO\Desktop\PdM-Manager\venv\Lib\site-packages\starlette\routing.py", line 718, in __call__
+  File "C:\Users\LENOVO\Desktop\PdM-Manager\venv\Lib\site-packages\starlette\routing.py", line 276, in handle
+  File "C:\Users\LENOVO\Desktop\PdM-Manager\venv\Lib\site-packages\starlette\routing.py", line 66, in app
+  File "C:\Users\LENOVO\Desktop\PdM-Manager\venv\Lib\site-packages\fastapi\routing.py", line 274, in app
+  File "C:\Users\LENOVO\Desktop\PdM-Manager\venv\Lib\site-packages\fastapi\routing.py", line 191, in run_endpoint_function
+  File "C:\Users\LENOVO\Desktop\PdM-Manager\app\main.py", line 1143, in create_model_endpoint
+    raise HTTPException(status_code=500, detail=str(e))
+fastapi.exceptions.HTTPException
+
+[2025-03-29 15:30:15] [INFO] [logger:65] - Respuesta 500 para POST /api/models procesada en 0.0088s
+[2025-03-29 15:30:16] [INFO] [logger:65] - Solicitud POST /api/models desde 127.0.0.1
+[2025-03-29 15:30:16] [ERROR] [logger:50] - ERROR: name 'Model' is not defined
+CONTEXTO: Error al crear modelo
+TRACEBACK: Traceback (most recent call last):
+  File "C:\Users\LENOVO\Desktop\PdM-Manager\app\main.py", line 1123, in create_model_endpoint
+    model = Model(
+            ^^^^^
+NameError: name 'Model' is not defined. Did you mean: 'models'?
+
+[2025-03-29 15:30:16] [ERROR] [logger:50] - ERROR: 
+CONTEXTO: {'endpoint': '/api/models', 'método': 'POST'}
+TRACEBACK: Traceback (most recent call last):
+  File "C:\Users\LENOVO\Desktop\PdM-Manager\app\main.py", line 1123, in create_model_endpoint
+    model = Model(
+            ^^^^^
+NameError: name 'Model' is not defined. Did you mean: 'models'?
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\LENOVO\Desktop\PdM-Manager\venv\Lib\site-packages\starlette\middleware\exceptions.py", line 68, in __call__
+  File "C:\Users\LENOVO\Desktop\PdM-Manager\venv\Lib\site-packages\fastapi\middleware\asyncexitstack.py", line 20, in __call__
+  File "C:\Users\LENOVO\Desktop\PdM-Manager\venv\Lib\site-packages\fastapi\middleware\asyncexitstack.py", line 17, in __call__
+  File "C:\Users\LENOVO\Desktop\PdM-Manager\venv\Lib\site-packages\starlette\routing.py", line 718, in __call__
+  File "C:\Users\LENOVO\Desktop\PdM-Manager\venv\Lib\site-packages\starlette\routing.py", line 276, in handle
+  File "C:\Users\LENOVO\Desktop\PdM-Manager\venv\Lib\site-packages\starlette\routing.py", line 66, in app
+  File "C:\Users\LENOVO\Desktop\PdM-Manager\venv\Lib\site-packages\fastapi\routing.py", line 274, in app
+  File "C:\Users\LENOVO\Desktop\PdM-Manager\venv\Lib\site-packages\fastapi\routing.py", line 191, in run_endpoint_function
+  File "C:\Users\LENOVO\Desktop\PdM-Manager\app\main.py", line 1143, in create_model_endpoint
+    raise HTTPException(status_code=500, detail=str(e))
+fastapi.exceptions.HTTPException
+
+[2025-03-29 15:30:16] [INFO] [logger:65] - Respuesta 500 para POST /api/models procesada en 0.0120s
+[2025-03-29 15:30:37] [INFO] [logger:65] - Solicitud GET /api/machines desde 127.0.0.1
+[2025-03-29 15:30:37] [INFO] [logger:65] - Solicitud GET /api/sensors desde 127.0.0.1
+[2025-03-29 15:30:37] [INFO] [logger:65] - Respuesta 405 para GET /api/machines procesada en 0.0032s
+[2025-03-29 15:30:37] [INFO] [logger:65] - Solicitud GET /api/models desde 127.0.0.1
+[2025-03-29 15:30:37] [INFO] [logger:65] - Obteniendo lista de sensores: skip=0, limit=100
+[2025-03-29 15:30:37] [INFO] [logger:65] - Respuesta 200 para GET /api/models procesada en 0.0068s
+[2025-03-29 15:30:37] [INFO] [logger:65] - Respuesta 200 para GET /api/sensors procesada en 0.0113s
+[2025-03-29 15:30:37] [INFO] [logger:65] - Solicitud GET /api/sensors desde 127.0.0.1
+[2025-03-29 15:30:37] [INFO] [logger:65] - Solicitud GET /api/models desde 127.0.0.1
+[2025-03-29 15:30:37] [INFO] [logger:65] - Obteniendo lista de sensores: skip=0, limit=100
+[2025-03-29 15:30:37] [INFO] [logger:65] - Respuesta 200 para GET /api/models procesada en 0.0033s
+[2025-03-29 15:30:37] [INFO] [logger:65] - Respuesta 200 para GET /api/sensors procesada en 0.0072s
+[2025-03-29 15:30:43] [INFO] [logger:65] - Solicitud GET /api/machines desde 127.0.0.1
+[2025-03-29 15:30:43] [INFO] [logger:65] - Solicitud GET /api/sensors desde 127.0.0.1
+[2025-03-29 15:30:43] [INFO] [logger:65] - Solicitud GET /api/models desde 127.0.0.1
+[2025-03-29 15:30:43] [INFO] [logger:65] - Respuesta 405 para GET /api/machines procesada en 0.0030s
+[2025-03-29 15:30:43] [INFO] [logger:65] - Obteniendo lista de sensores: skip=0, limit=100
+[2025-03-29 15:30:43] [INFO] [logger:65] - Respuesta 200 para GET /api/models procesada en 0.0046s
+[2025-03-29 15:30:43] [INFO] [logger:65] - Respuesta 200 para GET /api/sensors procesada en 0.0072s
+[2025-03-29 15:30:43] [INFO] [logger:65] - Solicitud GET /api/sensors desde 127.0.0.1
+[2025-03-29 15:30:43] [INFO] [logger:65] - Solicitud GET /api/models desde 127.0.0.1
+[2025-03-29 15:30:43] [INFO] [logger:65] - Obteniendo lista de sensores: skip=0, limit=100
+[2025-03-29 15:30:43] [INFO] [logger:65] - Respuesta 200 para GET /api/models procesada en 0.0045s
+[2025-03-29 15:30:43] [INFO] [logger:65] - Respuesta 200 para GET /api/sensors procesada en 0.0086s
+[2025-03-29 15:30:43] [INFO] [logger:65] - Solicitud GET /api/machines desde 127.0.0.1
+[2025-03-29 15:30:43] [INFO] [logger:65] - Solicitud GET /api/models desde 127.0.0.1
+[2025-03-29 15:30:43] [INFO] [logger:65] - Solicitud GET /api/sensors desde 127.0.0.1
+[2025-03-29 15:30:43] [INFO] [logger:65] - Respuesta 405 para GET /api/machines procesada en 0.0030s
+[2025-03-29 15:30:43] [INFO] [logger:65] - Obteniendo lista de sensores: skip=0, limit=100
+[2025-03-29 15:30:43] [INFO] [logger:65] - Respuesta 200 para GET /api/models procesada en 0.0058s
+[2025-03-29 15:30:43] [INFO] [logger:65] - Respuesta 200 para GET /api/sensors procesada en 0.0080s
+[2025-03-29 15:30:43] [INFO] [logger:65] - Solicitud GET /api/sensors desde 127.0.0.1
+[2025-03-29 15:30:43] [INFO] [logger:65] - Solicitud GET /api/models desde 127.0.0.1
+[2025-03-29 15:30:43] [INFO] [logger:65] - Obteniendo lista de sensores: skip=0, limit=100
+[2025-03-29 15:30:43] [INFO] [logger:65] - Respuesta 200 para GET /api/models procesada en 0.0036s
+[2025-03-29 15:30:43] [INFO] [logger:65] - Respuesta 200 para GET /api/sensors procesada en 0.0071s
+[2025-03-29 15:30:43] [INFO] [logger:65] - Solicitud GET /api/machines desde 127.0.0.1
+[2025-03-29 15:30:43] [INFO] [logger:65] - Solicitud GET /api/models desde 127.0.0.1
+[2025-03-29 15:30:43] [INFO] [logger:65] - Solicitud GET /api/sensors desde 127.0.0.1
+[2025-03-29 15:30:43] [INFO] [logger:65] - Respuesta 405 para GET /api/machines procesada en 0.0022s
+[2025-03-29 15:30:43] [INFO] [logger:65] - Obteniendo lista de sensores: skip=0, limit=100
+[2025-03-29 15:30:44] [INFO] [logger:65] - Respuesta 200 para GET /api/models procesada en 0.0042s
+[2025-03-29 15:30:44] [INFO] [logger:65] - Respuesta 200 para GET /api/sensors procesada en 0.0040s
+[2025-03-29 15:30:44] [INFO] [logger:65] - Solicitud GET /api/sensors desde 127.0.0.1
+[2025-03-29 15:30:44] [INFO] [logger:65] - Obteniendo lista de sensores: skip=0, limit=100
+[2025-03-29 15:30:44] [INFO] [logger:65] - Solicitud GET /api/models desde 127.0.0.1
+[2025-03-29 15:30:44] [INFO] [logger:65] - Respuesta 200 para GET /api/sensors procesada en 0.0040s
+[2025-03-29 15:30:44] [INFO] [logger:65] - Respuesta 200 para GET /api/models procesada en 0.0047s
+[2025-03-29 15:30:46] [INFO] [logger:65] - Solicitud GET /api/vibration-data desde 127.0.0.1
+[2025-03-29 15:30:46] [INFO] [logger:65] - Respuesta 404 para GET /api/vibration-data procesada en 0.0012s
+[2025-03-29 15:30:49] [INFO] [logger:65] - Solicitud GET /api/models desde 127.0.0.1
+[2025-03-29 15:30:49] [INFO] [logger:65] - Respuesta 200 para GET /api/models procesada en 0.0042s
+[2025-03-29 15:30:49] [INFO] [logger:65] - Solicitud GET /api/vibration-data desde 127.0.0.1
+[2025-03-29 15:30:49] [INFO] [logger:65] - Respuesta 404 para GET /api/vibration-data procesada en 0.0010s
+[2025-03-29 15:30:50] [INFO] [logger:65] - Solicitud GET /api/models desde 127.0.0.1
+[2025-03-29 15:30:50] [INFO] [logger:65] - Respuesta 200 para GET /api/models procesada en 0.0030s
+[2025-03-29 15:30:50] [INFO] [logger:65] - Solicitud GET /api/vibration-data desde 127.0.0.1
+[2025-03-29 15:30:50] [INFO] [logger:65] - Respuesta 404 para GET /api/vibration-data procesada en 0.0010s
+[2025-03-29 15:30:54] [INFO] [logger:65] - Solicitud GET /api/models desde 127.0.0.1
+[2025-03-29 15:30:54] [INFO] [logger:65] - Respuesta 200 para GET /api/models procesada en 0.0025s
+[2025-03-29 15:31:07] [INFO] [logger:65] - Solicitud GET /api/machines desde 127.0.0.1
+[2025-03-29 15:31:07] [INFO] [logger:65] - Respuesta 405 para GET /api/machines procesada en 0.0021s
+[2025-03-29 15:31:07] [INFO] [logger:65] - Solicitud GET /api/sensors desde 127.0.0.1
+[2025-03-29 15:31:07] [INFO] [logger:65] - Solicitud GET /api/models desde 127.0.0.1
+[2025-03-29 15:31:07] [INFO] [logger:65] - Obteniendo lista de sensores: skip=0, limit=100
+[2025-03-29 15:31:07] [INFO] [logger:65] - Respuesta 200 para GET /api/models procesada en 0.0071s
+[2025-03-29 15:31:07] [INFO] [logger:65] - Respuesta 200 para GET /api/sensors procesada en 0.0093s
+[2025-03-29 15:31:07] [INFO] [logger:65] - Solicitud GET /api/sensors desde 127.0.0.1
+[2025-03-29 15:31:07] [INFO] [logger:65] - Solicitud GET /api/models desde 127.0.0.1
+[2025-03-29 15:31:07] [INFO] [logger:65] - Obteniendo lista de sensores: skip=0, limit=100
+[2025-03-29 15:31:07] [INFO] [logger:65] - Respuesta 200 para GET /api/models procesada en 0.0050s
+[2025-03-29 15:31:07] [INFO] [logger:65] - Respuesta 200 para GET /api/sensors procesada en 0.0074s

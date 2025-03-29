@@ -65,105 +65,248 @@ function getGlobalState(key) {
     if (key) {
         return globalState[key];
     }
-    return globalState;
+    return { ...globalState }; // Devolver copia para evitar modificaciones directas
 }
 
 function setGlobalState(key, value) {
-    if (key && value !== undefined) {
-        globalState[key] = value;
-        // Disparar evento para notificar cambios a otros módulos
-        dispatchGlobalStateChange(key, value);
-        return true;
+    if (!key) {
+        console.error('Error: Se intentó establecer estado global sin especificar una clave');
+        return false;
     }
-    return false;
+    
+    if (value === undefined) {
+        console.warn(`Advertencia: Se intentó establecer un valor undefined para la clave ${key}`);
+        return false;
+    }
+    
+    // Comprobar si realmente cambia el valor para evitar actualizaciones innecesarias
+    if (JSON.stringify(globalState[key]) === JSON.stringify(value)) {
+        return true; // No ha cambiado, pero no es un error
+    }
+    
+    // Actualizar valor
+    globalState[key] = value;
+    
+    // Notificar cambio a otros componentes
+    dispatchGlobalStateChange(key, value);
+    
+    return true;
 }
 
+// Actualizar límites en el estado global
 function updateGlobalStats(limits) {
-    if (!limits) return;
+    if (!limits) {
+        console.error('Error: Se intentó actualizar estadísticas sin proporcionar datos');
+        return null;
+    }
     
-    // Obtener stats actuales o inicializar si no existen
-    const currentStats = getGlobalState('stats') || {};
+    try {
+        // Obtener estadísticas actuales
+        const currentStats = getGlobalState('stats') || {};
+        
+        // Validar estructura de los límites
+        if (!validateLimitsStructure(limits)) {
+            console.error('Error: Estructura de límites inválida', limits);
+            return null;
+        }
+        
+        // Preparar estructura de actualización
+        const updatedStats = {
+            ...currentStats
+        };
+        
+        // Actualizar cada eje
+        ['x', 'y', 'z'].forEach(axis => {
+            if (!limits[axis]) return;
+            
+            updatedStats[axis] = {
+                ...(updatedStats[axis] || {}),
+                sigma2: limits[axis].sigma2 || updatedStats[axis]?.sigma2,
+                sigma3: limits[axis].sigma3 || updatedStats[axis]?.sigma3
+            };
+        });
+        
+        // Actualizar estado global
+        setGlobalState('stats', updatedStats);
+        
+        return updatedStats;
+    } catch (error) {
+        console.error('Error al actualizar estadísticas globales:', error);
+        return null;
+    }
     
-    // Actualizar límites para cada eje
-    const updatedStats = {
-        ...currentStats,
-        x: {
-            ...(currentStats.x || {}),
-            sigma2: {
-                lower: limits.x.sigma2.lower,
-                upper: limits.x.sigma2.upper
-            },
-            sigma3: {
-                lower: limits.x.sigma3.lower,
-                upper: limits.x.sigma3.upper
-            }
-        },
-        y: {
-            ...(currentStats.y || {}),
-            sigma2: {
-                lower: limits.y.sigma2.lower,
-                upper: limits.y.sigma2.upper
-            },
-            sigma3: {
-                lower: limits.y.sigma3.lower,
-                upper: limits.y.sigma3.upper
-            }
-        },
-        z: {
-            ...(currentStats.z || {}),
-            sigma2: {
-                lower: limits.z.sigma2.lower,
-                upper: limits.z.sigma2.upper
-            },
-            sigma3: {
-                lower: limits.z.sigma3.lower,
-                upper: limits.z.sigma3.upper
+    // Validar estructura de límites
+    function validateLimitsStructure(limits) {
+        // Debe tener al menos un eje
+        if (!limits.x && !limits.y && !limits.z) {
+            return false;
+        }
+        
+        // Validar cada eje presente
+        for (const axis of ['x', 'y', 'z']) {
+            if (limits[axis]) {
+                // Debe tener al menos sigma2 o sigma3
+                if (!limits[axis].sigma2 && !limits[axis].sigma3) {
+                    return false;
+                }
+                
+                // Validar estructura de sigma2 si existe
+                if (limits[axis].sigma2 && 
+                    (typeof limits[axis].sigma2.lower !== 'number' || 
+                     typeof limits[axis].sigma2.upper !== 'number')) {
+                    return false;
+                }
+                
+                // Validar estructura de sigma3 si existe
+                if (limits[axis].sigma3 && 
+                    (typeof limits[axis].sigma3.lower !== 'number' || 
+                     typeof limits[axis].sigma3.upper !== 'number')) {
+                    return false;
+                }
             }
         }
-    };
-    
-    // Actualizar el estado global
-    setGlobalState('stats', updatedStats);
-    
-    return updatedStats;
+        
+        return true;
+    }
 }
 
 // Evento personalizado para notificar cambios en estado global
 function dispatchGlobalStateChange(key, value) {
-    const event = new CustomEvent('globalStateChange', {
-        detail: { key, value, timestamp: new Date() }
-    });
-    document.dispatchEvent(event);
+    try {
+        const event = new CustomEvent('globalStateChange', {
+            detail: { 
+                key, 
+                value, 
+                timestamp: new Date().toISOString() 
+            }
+        });
+        document.dispatchEvent(event);
+    } catch (error) {
+        console.error('Error al despachar evento de cambio de estado:', error);
+    }
 }
 
-// Función para inicializar los eventos de cambios de estado global
+// Inicializar eventos de cambios de estado global
 function initGlobalStateEvents() {
-    // Escuchar eventos de cambios de estado global
-    document.addEventListener('globalStateChange', (e) => {
-        const { key, value } = e.detail;
-        console.log(`Estado global actualizado: ${key}`, value);
+    // Usar variable para controlar si ya se inicializaron
+    if (window._globalStateEventsInitialized) {
+        console.warn('Los eventos de estado global ya fueron inicializados');
+        return;
+    }
+    
+    // Escuchar cambios de estado global
+    document.addEventListener('globalStateChange', handleGlobalStateEvent);
+    
+    // Marcar como inicializados
+    window._globalStateEventsInitialized = true;
+    
+    console.log('Eventos de estado global inicializados');
+}
+
+// Manejar eventos de cambio de estado global
+function handleGlobalStateEvent(e) {
+    try {
+        const { key, value, timestamp } = e.detail;
+        console.log(`Estado global actualizado (${timestamp}): ${key}`);
         
-        // Funciones específicas para reaccionar ante cambios
+        // Actualizar componentes específicos según la clave
         switch (key) {
             case 'stats':
-                // Actualizar valores estadísticos visuales si existe la función
+                // Actualizar valores estadísticos visuales
                 if (typeof updateStatisticalDisplayValues === 'function') {
                     updateStatisticalDisplayValues();
                 }
+                
+                // Actualizar gráficos con nuevos límites 
+                if (typeof updateChartsWithNewLimits === 'function') {
+                    const stats = value;
+                    const limits = statsToLimitsFormat(stats);
+                    updateChartsWithNewLimits(limits);
+                }
                 break;
+                
             case 'chartOptions':
                 // Actualizar visibilidad de elementos en gráficos
                 if (typeof updateChartsVisibility === 'function') {
-                    updateChartsVisibility();
+                    updateChartsVisibility(value);
                 }
                 break;
+                
             case 'selectedMachine':
             case 'selectedSensor':
             case 'timeRange':
-                // Estas actualizaciones se manejan en cada módulo específico
+                // Actualizar filtros visuales
+                updateFilterVisualization(key, value);
+                break;
+                
+            default:
+                // No se requiere acción específica para otras claves
                 break;
         }
-    });
+    } catch (error) {
+        console.error('Error al procesar evento de cambio de estado:', error);
+    }
+    
+    // Actualizar elementos visuales de filtros
+    function updateFilterVisualization(key, value) {
+        const elementMap = {
+            'selectedMachine': 'selectedMachineText',
+            'selectedSensor': 'selectedSensorText',
+            'timeRange': 'selectedTimeRangeText'
+        };
+        
+        const elementId = elementMap[key];
+        if (elementId) {
+            const element = document.getElementById(elementId);
+            if (element && element.hasAttribute('data-value')) {
+                element.setAttribute('data-value', value || '');
+            }
+        }
+    }
+    
+    // Convertir formato de stats a formato de límites para API
+    function statsToLimitsFormat(stats) {
+        if (!stats) return null;
+        
+        const limits = {};
+        
+        try {
+            if (stats.x && stats.x.sigma2) {
+                limits.x_2inf = stats.x.sigma2.lower;
+                limits.x_2sup = stats.x.sigma2.upper;
+            }
+            
+            if (stats.x && stats.x.sigma3) {
+                limits.x_3inf = stats.x.sigma3.lower;
+                limits.x_3sup = stats.x.sigma3.upper;
+            }
+            
+            if (stats.y && stats.y.sigma2) {
+                limits.y_2inf = stats.y.sigma2.lower;
+                limits.y_2sup = stats.y.sigma2.upper;
+            }
+            
+            if (stats.y && stats.y.sigma3) {
+                limits.y_3inf = stats.y.sigma3.lower;
+                limits.y_3sup = stats.y.sigma3.upper;
+            }
+            
+            if (stats.z && stats.z.sigma2) {
+                limits.z_2inf = stats.z.sigma2.lower;
+                limits.z_2sup = stats.z.sigma2.upper;
+            }
+            
+            if (stats.z && stats.z.sigma3) {
+                limits.z_3inf = stats.z.sigma3.lower;
+                limits.z_3sup = stats.z.sigma3.upper;
+            }
+        } catch (error) {
+            console.error('Error al convertir estadísticas a formato de límites:', error);
+            return null;
+        }
+        
+        return limits;
+    }
 }
 
 // Exponer funciones globales para acceso desde otros módulos

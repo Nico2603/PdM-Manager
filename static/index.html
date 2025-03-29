@@ -493,11 +493,8 @@
                   <h3>Agregar Máquina</h3>
                   <p class="card-description">Configure una nueva máquina para monitorear</p>
                   
-                  <button id="addMachineBtn" class="btn btn-primary mb-4">
-                    <i class="fas fa-plus-circle mr-2"></i>Nueva Máquina
-                  </button>
-                  
                   <form id="machineForm" class="config-form">
+                    <input type="hidden" id="machineId" value="">
                     <div class="form-group">
                       <label for="machineName" class="form-label">Nombre de la Máquina</label>
                       <input type="text" id="machineName" class="form-control" placeholder="Ej. Bomba Centrífuga 1" required>
@@ -536,7 +533,6 @@
                             <th>Nombre</th>
                             <th>Descripción</th>
                             <th>Sensor</th>
-                            <th class="column-actions">Acciones</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -556,11 +552,8 @@
                   <h3>Configurar Sensor</h3>
                   <p class="card-description">Configure un nuevo sensor para monitoreo</p>
                   
-                  <button id="addSensorBtn" class="btn btn-primary mb-4">
-                    <i class="fas fa-plus-circle mr-2"></i>Nuevo Sensor
-                  </button>
-                  
                   <form id="sensorForm" class="config-form">
+                    <input type="hidden" id="sensorId" value="">
                     <div class="form-group">
                       <label for="sensorName" class="form-label">Nombre del Sensor</label>
                       <input type="text" id="sensorName" class="form-control" placeholder="Ej. Acelerómetro Principal" required>
@@ -599,7 +592,6 @@
                             <th>Nombre</th>
                             <th>Descripción</th>
                             <th>Modelo</th>
-                            <th class="column-actions">Acciones</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -619,11 +611,8 @@
                   <h3>Agregar Modelo</h3>
                   <p class="card-description">Cargue un nuevo modelo de IA para la predicción de fallos</p>
                   
-                  <button id="addModelBtn" class="btn btn-primary mb-4">
-                    <i class="fas fa-plus-circle mr-2"></i>Nuevo Modelo
-                  </button>
-                  
                   <form id="modelForm" class="config-form">
+                    <input type="hidden" id="modelId" value="">
                     <div class="form-group">
                       <label for="modelName" class="form-label">Nombre del Modelo</label>
                       <input type="text" id="modelName" class="form-control" placeholder="Ej. Modelo de Vibración" required>
@@ -675,7 +664,6 @@
                             <th class="column-id">ID</th>
                             <th>Nombre</th>
                             <th>Descripción</th>
-                            <th class="column-actions">Acciones</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -893,11 +881,17 @@
   </div>
   
   <!-- Scripts -->
+  <!-- Funciones base y estado global primero -->
   <script src="/static/js/utils.js"></script>
+  
+  <!-- Sistema de navegación y UI -->
   <script src="/static/js/navigation.js"></script>
+  
+  <!-- Componentes específicos -->
   <script src="/static/js/charts.js"></script>
   <script src="/static/js/config.js"></script>
   <script src="/static/js/dashboard.js"></script>
+  <script src="/static/js/realtime-updates.js"></script>
   <script src="/static/js/app.js"></script>
 </body>
 </html>

@@ -68,6 +68,7 @@ function initNavigation() {
     window.addEventListener('hashchange', () => {
         const hash = window.location.hash.substring(1);
         if (hash) {
+            console.log('Hash cambiado a:', hash);
             navigateTo(hash);
         } else {
             // Si no hay hash, ir a la página por defecto (dashboard)
@@ -90,6 +91,12 @@ function initNavigation() {
 function navigateTo(page) {
     console.log('Navegando a:', page);
     
+    // Validar que page sea una cadena no vacía
+    if (!page || typeof page !== 'string') {
+        console.error('Error: se intentó navegar a una página inválida', page);
+        page = 'dashboard'; // Valor predeterminado si hay error
+    }
+    
     // Si la página contiene ":", es una subpágina (por ejemplo, "configuracion:maquinas")
     let mainPage = page;
     let subPage = null;
@@ -98,21 +105,24 @@ function navigateTo(page) {
         [mainPage, subPage] = page.split(':');
     }
     
-    // Actualizar hash en la URL si no coincide ya con la página actual
-    if (window.location.hash !== '#' + page) {
-        // Usamos history.pushState para evitar recargar la página
-        history.pushState(null, null, '#' + page);
+    // Actualizar hash en la URL
+    const newHash = '#' + page;
+    if (window.location.hash !== newHash) {
+        // Usar history.pushState para mejor compatibilidad entre navegadores
+        try {
+            history.pushState(null, null, newHash);
+        } catch (e) {
+            console.warn('Error al actualizar history API:', e);
+            // Fallback si history API falla
+            window.location.hash = page;
+        }
     }
     
-    // Actualizar estado de navegación
+    // Actualizar estado de navegación en el menú
     const navLinks = document.querySelectorAll('.nav-link');
     navLinks.forEach(link => {
         const linkPage = link.getAttribute('data-page');
-        if (linkPage === mainPage) {
-            link.classList.add('active');
-        } else {
-            link.classList.remove('active');
-        }
+        link.classList.toggle('active', linkPage === mainPage);
     });
     
     // Mostrar la sección correspondiente
@@ -120,10 +130,15 @@ function navigateTo(page) {
     
     // Si hay una subpágina, activar esa pestaña específica
     if (subPage && mainPage === 'configuracion') {
-        const tabItem = document.querySelector(`.tab-item[data-tab="${subPage}"]`);
-        if (tabItem) {
-            tabItem.click();
-        }
+        // Usar setTimeout para asegurarse de que el DOM esté actualizado
+        setTimeout(() => {
+            const tabItem = document.querySelector(`.tab-item[data-tab="${subPage}"]`);
+            if (tabItem) {
+                tabItem.click();
+            } else {
+                console.warn(`Tab "${subPage}" no encontrado. Verifique que existe en HTML.`);
+            }
+        }, 150); // Tiempo suficiente para que se complete la transición de sección
     }
     
     // Inicializar componentes específicos de la página

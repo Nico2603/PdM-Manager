@@ -1,14 +1,3 @@
-/**
- * PdM-Manager - Estilos CSS Unificados v1.3.0
- * Tema oscuro minimalista con alta legibilidad y contrastes optimizados
- * Última actualización: 2023-09-15
- * 
- * Optimizado el 2024-03-29:
- * - Unificado el estilo de los botones custom-file-button para coincidir con el tema principal
- * - Eliminadas media queries innecesarias
- * - Limpiado de selectores no utilizados
- */
-
 /* ------------------------------
    VARIABLES Y CONFIGURACIONES
    ------------------------------ */
@@ -1391,4 +1380,31 @@ p {
 .data-value {
     font-weight: 600;
     color: var(--color-text);
+}
+
+/* ------------------------------
+   ESTILOS ADICIONALES PARA TABLAS INTERACTIVAS
+   ------------------------------ */
+/* Estilos para filas interactivas en tablas */
+.table-row-interactive {
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.table-row-interactive:hover {
+    background-color: rgba(0, 123, 255, 0.1);
+}
+
+.table-row-interactive:active {
+    background-color: rgba(0, 123, 255, 0.2);
+}
+
+/* Estilos para animación de actualización en tiempo real */
+@keyframes highlightUpdate {
+    0% { background-color: rgba(255, 193, 7, 0.3); }
+    100% { background-color: transparent; }
+}
+
+.row-updated {
+    animation: highlightUpdate 2s ease-out;
 }
