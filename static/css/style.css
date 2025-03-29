@@ -815,37 +815,6 @@ p {
     color: var(--color-text-muted);
 }
 
-.content-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: var(--spacing-lg);
-}
-
-.breadcrumb {
-    display: flex;
-    align-items: center;
-}
-
-.breadcrumb-item {
-    color: var(--color-text-secondary);
-}
-
-.breadcrumb-item:not(:last-child)::after {
-    content: "/";
-    margin: 0 var(--spacing-sm);
-    color: var(--color-text-muted);
-}
-
-.breadcrumb-item.active {
-    color: var(--color-text);
-}
-
-.header-actions {
-    display: flex;
-    gap: var(--spacing-sm);
-}
-
 .card {
     background-color: var(--color-background-light);
     border-radius: var(--border-radius);

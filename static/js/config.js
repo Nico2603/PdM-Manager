@@ -54,27 +54,24 @@ function initConfigTabs() {
             
             console.log('Cambiando a pestaña:', targetTab);
             
-            // Activar pestaña seleccionada
-            tabItems.forEach(item => item.classList.remove('active'));
+            // Actualizar elemento activo
+            document.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
             tab.classList.add('active');
             
-            // Mostrar contenido correspondiente
-            tabContents.forEach(content => content.classList.remove('active'));
-            const tabContent = document.getElementById(`${targetTab}-tab`);
-            if (tabContent) {
-                tabContent.classList.add('active');
-                tabContent.classList.add('animate-fade-in');
-                setTimeout(() => tabContent.classList.remove('animate-fade-in'), 500);
-            } else {
-                console.error(`Error: No se encontró el contenido para la pestaña "${targetTab}"`);
-            }
+            // Mostrar el contenido correspondiente
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            document.getElementById(`${targetTab}Content`).classList.add('active');
             
-            // Actualizar URL con el fragmento correspondiente
-            window.location.hash = `configuracion:${targetTab}`;
+            // Actualizar URL sin recargar la página
+            const configPage = 'configuracion';
+            const pageUrl = targetTab ? `${configPage}:${targetTab}` : configPage;
+            window.history.pushState({}, '', `#${pageUrl}`);
             
-            // Actualizar breadcrumb
+            // Cambiar título de la página (pestaña del navegador)
             const tabName = getTabName(targetTab);
-            updateBreadcrumb(`Configuración - ${tabName}`);
+            document.title = `PdM Manager - ${tabName}`;
+            
+            return false;
         });
     });
     
@@ -118,14 +115,6 @@ function getTabName(tabId) {
         case 'maquinas': return 'Máquinas';
         case 'limites': return 'Límites de Aceleración';
         default: return 'Configuración';
-    }
-}
-
-// Actualizar el breadcrumb
-function updateBreadcrumb(text) {
-    const currentSection = document.getElementById('currentSection');
-    if (currentSection) {
-        currentSection.textContent = text;
     }
 }
 

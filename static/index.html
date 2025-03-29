@@ -93,22 +93,6 @@
     
     <!-- Contenido Principal -->
     <div class="main-content">
-      <!-- Header -->
-      <div class="content-header">
-        <div class="d-flex align-items-center">
-          <nav aria-label="breadcrumb">
-            <ol class="breadcrumb">
-              <li class="breadcrumb-item"><a href="#dashboard">Dashboard</a></li>
-              <li class="breadcrumb-item active" id="currentSection">Dashboard</li>
-            </ol>
-          </nav>
-        </div>
-        
-        <div class="header-actions">
-          <!-- Acciones de cabecera si son necesarias -->
-        </div>
-      </div>
-      
       <!-- Contenido -->
       <div class="content">
         <!-- Dashboard Section -->
@@ -482,19 +466,19 @@
           
           <!-- Tabs de Configuración -->
           <div class="config-tabs">
-            <div class="tab-item active" data-tab="machines">
+            <div class="tab-item active" data-tab="maquinas">
               <i class="fas fa-industry"></i>
               <span>Máquinas</span>
             </div>
-            <div class="tab-item" data-tab="sensors">
+            <div class="tab-item" data-tab="sensores">
               <i class="fas fa-microchip"></i>
               <span>Sensores</span>
             </div>
-            <div class="tab-item" data-tab="models">
+            <div class="tab-item" data-tab="modelos">
               <i class="fas fa-brain"></i>
               <span>Modelos</span>
             </div>
-            <div class="tab-item" data-tab="limits">
+            <div class="tab-item" data-tab="limites">
               <i class="fas fa-sliders-h"></i>
               <span>Límites</span>
             </div>
@@ -503,11 +487,15 @@
           <!-- Contenido de las Tabs -->
           <div class="config-content">
             <!-- Tab Máquinas -->
-            <div id="machines-tab" class="tab-content active">
+            <div id="maquinasContent" class="tab-content active">
               <div class="config-form-grid">
                 <div class="config-card">
                   <h3>Agregar Máquina</h3>
                   <p class="card-description">Configure una nueva máquina para monitorear</p>
+                  
+                  <button id="addMachineBtn" class="btn btn-primary mb-4">
+                    <i class="fas fa-plus-circle mr-2"></i>Nueva Máquina
+                  </button>
                   
                   <form id="machineForm" class="config-form">
                     <div class="form-group">
@@ -562,11 +550,15 @@
             </div>
             
             <!-- Tab Sensores -->
-            <div id="sensors-tab" class="tab-content">
+            <div id="sensoresContent" class="tab-content">
               <div class="config-form-grid">
                 <div class="config-card">
                   <h3>Configurar Sensor</h3>
                   <p class="card-description">Configure un nuevo sensor para monitoreo</p>
+                  
+                  <button id="addSensorBtn" class="btn btn-primary mb-4">
+                    <i class="fas fa-plus-circle mr-2"></i>Nuevo Sensor
+                  </button>
                   
                   <form id="sensorForm" class="config-form">
                     <div class="form-group">
@@ -621,11 +613,15 @@
             </div>
             
             <!-- Tab Modelos -->
-            <div id="models-tab" class="tab-content">
+            <div id="modelosContent" class="tab-content">
               <div class="config-form-grid">
                 <div class="config-card">
                   <h3>Agregar Modelo</h3>
                   <p class="card-description">Cargue un nuevo modelo de IA para la predicción de fallos</p>
+                  
+                  <button id="addModelBtn" class="btn btn-primary mb-4">
+                    <i class="fas fa-plus-circle mr-2"></i>Nuevo Modelo
+                  </button>
                   
                   <form id="modelForm" class="config-form">
                     <div class="form-group">
@@ -693,7 +689,7 @@
             </div>
             
             <!-- Tab Límites -->
-            <div id="limits-tab" class="tab-content">
+            <div id="limitesContent" class="tab-content">
               <div class="config-form-grid">
                 <div class="config-card">
                   <h3>Configurar Límites</h3>
@@ -770,6 +766,127 @@
               </div>
             </div>
           </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Modales -->
+  
+  <!-- Modal de Máquina -->
+  <div class="modal" id="machineModal">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h4 class="modal-title" id="machineModalTitle">Nueva Máquina</h4>
+          <button type="button" class="close-modal">&times;</button>
+        </div>
+        <div class="modal-body">
+          <form id="machineModalForm" class="config-form">
+            <input type="hidden" id="machineId" value="">
+            <div class="form-group">
+              <label for="machineName" class="form-label">Nombre de la Máquina</label>
+              <input type="text" id="machineName" class="form-control" placeholder="Ej. Bomba Centrífuga 1" required>
+            </div>
+            <div class="form-group">
+              <label for="machineDescription" class="form-label">Descripción</label>
+              <textarea id="machineDescription" class="form-control" rows="3" placeholder="Detalles adicionales sobre la máquina..."></textarea>
+            </div>
+            <div class="form-group">
+              <label for="machineSensor" class="form-label">Sensor</label>
+              <select id="machineSensor" class="form-select">
+                <option value="" selected>Sin asignación (opcional)</option>
+              </select>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="cancelMachineModalBtn">Cancelar</button>
+          <button type="button" class="btn btn-primary" id="saveMachineBtn">Guardar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Modal de Sensor -->
+  <div class="modal" id="sensorModal">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h4 class="modal-title" id="sensorModalTitle">Nuevo Sensor</h4>
+          <button type="button" class="close-modal">&times;</button>
+        </div>
+        <div class="modal-body">
+          <form id="sensorModalForm" class="config-form">
+            <input type="hidden" id="sensorId" value="">
+            <div class="form-group">
+              <label for="sensorName" class="form-label">Nombre del Sensor</label>
+              <input type="text" id="sensorName" class="form-control" placeholder="Ej. Acelerómetro Principal" required>
+            </div>
+            <div class="form-group">
+              <label for="sensorDescription" class="form-label">Descripción</label>
+              <textarea id="sensorDescription" class="form-control" rows="3" placeholder="Detalles adicionales sobre el sensor..."></textarea>
+            </div>
+            <div class="form-group">
+              <label for="sensorModel" class="form-label">Modelo Predictivo</label>
+              <select id="sensorModel" class="form-select" required>
+                <option value="" disabled selected>Seleccione un modelo</option>
+              </select>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="cancelSensorModalBtn">Cancelar</button>
+          <button type="button" class="btn btn-primary" id="saveSensorBtn">Guardar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Modal de Modelo -->
+  <div class="modal" id="modelModal">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h4 class="modal-title" id="modelModalTitle">Nuevo Modelo</h4>
+          <button type="button" class="close-modal">&times;</button>
+        </div>
+        <div class="modal-body">
+          <form id="modelModalForm" class="config-form">
+            <input type="hidden" id="modelId" value="">
+            <div class="form-group">
+              <label for="modelName" class="form-label">Nombre del Modelo</label>
+              <input type="text" id="modelName" class="form-control" placeholder="Ej. Modelo de Vibración" required>
+            </div>
+            <div class="form-group">
+              <label for="modelDescription" class="form-label">Descripción</label>
+              <textarea id="modelDescription" class="form-control" rows="3" placeholder="Detalles adicionales sobre el modelo..."></textarea>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Archivo del Modelo (.h5) <span id="modelFileRequired" class="required">*</span><span id="modelFileOptional" class="optional">Opcional</span></label>
+              <div class="custom-file">
+                <input type="file" class="custom-file-input" id="modelFile" accept=".h5,.hdf5">
+                <button type="button" class="custom-file-button">
+                  <i class="fas fa-upload mr-2"></i> Seleccionar Archivo
+                </button>
+                <span class="custom-file-label" id="modelFileName">Ningún archivo seleccionado</span>
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Archivo del Escalador (.pkl) <span id="scalerFileRequired" class="required">*</span><span id="scalerFileOptional" class="optional">Opcional</span></label>
+              <div class="custom-file">
+                <input type="file" class="custom-file-input" id="scalerFile" accept=".pkl">
+                <button type="button" class="custom-file-button">
+                  <i class="fas fa-upload mr-2"></i> Seleccionar Archivo
+                </button>
+                <span class="custom-file-label" id="scalerFileName">Ningún archivo seleccionado</span>
+              </div>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="cancelModelModalBtn">Cancelar</button>
+          <button type="button" class="btn btn-primary" id="saveModelBtn">Guardar</button>
         </div>
       </div>
     </div>

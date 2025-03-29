@@ -126,9 +126,6 @@ function navigateTo(page) {
         }
     }
     
-    // Actualizar breadcrumb
-    updateBreadcrumb(mainPage);
-    
     // Inicializar componentes específicos de la página
     initPageContent(mainPage);
     
@@ -159,36 +156,12 @@ function showSection(sectionId) {
         
         // Actualizar URL y navegación 
         window.location.hash = 'dashboard';
-        updateBreadcrumb('dashboard');
         
         const navLinks = document.querySelectorAll('.nav-link');
         navLinks.forEach(link => {
             const linkPage = link.getAttribute('data-page');
             link.classList.toggle('active', linkPage === 'dashboard');
         });
-    }
-}
-
-// Actualizar breadcrumb
-function updateBreadcrumb(page) {
-    const currentSectionEl = document.getElementById('currentSection');
-    
-    if (currentSectionEl) {
-        let sectionName = 'Dashboard';
-        
-        switch (page) {
-            case 'dashboard':
-                sectionName = 'Dashboard';
-                break;
-            case 'configuracion':
-                sectionName = 'Configuración';
-                break;
-            default:
-                sectionName = page.charAt(0).toUpperCase() + page.slice(1);
-                break;
-        }
-        
-        currentSectionEl.textContent = sectionName;
     }
 }
 
