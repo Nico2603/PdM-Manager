@@ -184,73 +184,75 @@
             <div class="filter-card animate-slide-up" style="animation-delay: 0.5s">
               <div class="card-header">
                 <h5><i class="fas fa-filter"></i> Filtros de Visualización</h5>
-                <button class="btn-icon" id="expandFiltersBtn">
-                  <i class="fas fa-chevron-down"></i>
+                <button class="btn-icon" id="expandFiltersBtn" title="Minimizar filtros">
+                  <i class="fas fa-chevron-up"></i>
                 </button>
               </div>
               <div class="card-body filter-panel show">
-                <div class="filter-section">
-                  <label class="filter-label">Máquina:</label>
-                  <div class="filter-dropdown" id="machineDropdown">
-                    <div class="filter-dropdown-toggle">
-                      <span id="selectedMachineText">Todas las máquinas</span>
-                      <i class="fas fa-chevron-down"></i>
-                    </div>
-                    <div class="filter-dropdown-menu" id="machineDropdownMenu">
-                      <div class="filter-dropdown-item selected" data-value="">Todas las máquinas</div>
-                      <!-- Las opciones se cargarán dinámicamente -->
-                    </div>
-                  </div>
-                </div>
-                
-                <div class="filter-section">
-                  <label class="filter-label">Sensor:</label>
-                  <div class="filter-dropdown" id="sensorDropdown">
-                    <div class="filter-dropdown-toggle">
-                      <span id="selectedSensorText">Todos los sensores</span>
-                      <i class="fas fa-chevron-down"></i>
-                    </div>
-                    <div class="filter-dropdown-menu" id="sensorDropdownMenu">
-                      <div class="filter-dropdown-item selected" data-value="">Todos los sensores</div>
-                      <!-- Las opciones se cargarán dinámicamente -->
+                <div class="filter-content">
+                  <div class="filter-section">
+                    <label class="filter-label">Máquina:</label>
+                    <div class="filter-dropdown" id="machineDropdown">
+                      <div class="filter-dropdown-toggle">
+                        <span id="selectedMachineText">Todas las máquinas</span>
+                        <i class="fas fa-chevron-down"></i>
+                      </div>
+                      <div class="filter-dropdown-menu" id="machineDropdownMenu">
+                        <div class="filter-dropdown-item selected" data-value="">Todas las máquinas</div>
+                        <!-- Las opciones se cargarán dinámicamente -->
+                      </div>
                     </div>
                   </div>
-                </div>
-                
-                <div class="filter-section">
-                  <label class="filter-label">Rango de tiempo:</label>
-                  <div class="filter-dropdown" id="timeRangeDropdown">
-                    <div class="filter-dropdown-toggle">
-                      <span id="selectedTimeRangeText">Últimas 24 horas</span>
-                      <i class="fas fa-chevron-down"></i>
-                    </div>
-                    <div class="filter-dropdown-menu" id="timeRangeDropdownMenu">
-                      <div class="filter-dropdown-item" data-value="1h">Última hora</div>
-                      <div class="filter-dropdown-item" data-value="6h">Últimas 6 horas</div>
-                      <div class="filter-dropdown-item selected" data-value="24h">Últimas 24 horas</div>
-                      <div class="filter-dropdown-item" data-value="7d">Últimos 7 días</div>
+                  
+                  <div class="filter-section">
+                    <label class="filter-label">Sensor:</label>
+                    <div class="filter-dropdown" id="sensorDropdown">
+                      <div class="filter-dropdown-toggle">
+                        <span id="selectedSensorText">Todos los sensores</span>
+                        <i class="fas fa-chevron-down"></i>
+                      </div>
+                      <div class="filter-dropdown-menu" id="sensorDropdownMenu">
+                        <div class="filter-dropdown-item selected" data-value="">Todos los sensores</div>
+                        <!-- Las opciones se cargarán dinámicamente -->
+                      </div>
                     </div>
                   </div>
-                </div>
-                
-                <div class="filter-section">
-                  <h6 class="filter-subtitle"><i class="fas fa-chart-line"></i> Visualización</h6>
-                  <div class="switch-group">
-                    <div class="custom-switch">
-                      <input type="checkbox" class="custom-control-input" id="show2Sigma" checked>
-                      <label class="custom-control-label" for="show2Sigma">2σ</label>
-                    </div>
-                    <div class="custom-switch">
-                      <input type="checkbox" class="custom-control-input" id="show3Sigma" checked>
-                      <label class="custom-control-label" for="show3Sigma">3σ</label>
+                  
+                  <div class="filter-section">
+                    <label class="filter-label">Rango de tiempo:</label>
+                    <div class="filter-dropdown" id="timeRangeDropdown">
+                      <div class="filter-dropdown-toggle">
+                        <span id="selectedTimeRangeText">Últimas 24 horas</span>
+                        <i class="fas fa-chevron-down"></i>
+                      </div>
+                      <div class="filter-dropdown-menu" id="timeRangeDropdownMenu">
+                        <div class="filter-dropdown-item" data-value="1h">Última hora</div>
+                        <div class="filter-dropdown-item" data-value="6h">Últimas 6 horas</div>
+                        <div class="filter-dropdown-item selected" data-value="24h">Últimas 24 horas</div>
+                        <div class="filter-dropdown-item" data-value="7d">Últimos 7 días</div>
+                      </div>
                     </div>
                   </div>
-                </div>
-                
-                <div class="filter-actions">
-                  <button class="btn btn-block" id="applyFiltersBtn">
-                    <i class="fas fa-check mr-2"></i> Aplicar Filtros
-                  </button>
+                  
+                  <div class="filter-section">
+                    <h6 class="filter-subtitle"><i class="fas fa-chart-line"></i> Visualización</h6>
+                    <div class="switch-group">
+                      <div class="custom-switch">
+                        <input type="checkbox" class="custom-control-input" id="show2Sigma" checked>
+                        <label class="custom-control-label" for="show2Sigma">2σ</label>
+                      </div>
+                      <div class="custom-switch">
+                        <input type="checkbox" class="custom-control-input" id="show3Sigma" checked>
+                        <label class="custom-control-label" for="show3Sigma">3σ</label>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div class="filter-actions">
+                    <button class="btn btn-block" id="applyFiltersBtn">
+                      <i class="fas fa-check mr-2"></i> Aplicar Filtros
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>

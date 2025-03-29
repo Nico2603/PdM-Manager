@@ -166,6 +166,7 @@ function handleDropdownChange(dropdownId, value) {
 function initCollapseFilters() {
     const expandBtn = document.getElementById('expandFiltersBtn');
     const filterPanel = document.querySelector('.filter-panel');
+    const filterCard = document.querySelector('.filter-card');
     
     if (expandBtn && filterPanel) {
         expandBtn.addEventListener('click', () => {
@@ -176,8 +177,10 @@ function initCollapseFilters() {
             if (icon) {
                 if (filterPanel.classList.contains('show')) {
                     icon.className = 'fas fa-chevron-up';
+                    expandBtn.setAttribute('title', 'Minimizar filtros');
                 } else {
                     icon.className = 'fas fa-chevron-down';
+                    expandBtn.setAttribute('title', 'Expandir filtros');
                 }
             }
         });

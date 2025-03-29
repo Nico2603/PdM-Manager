@@ -930,11 +930,26 @@ p {
 .filter-panel {
     max-height: 0;
     overflow: hidden;
-    transition: max-height var(--transition-base);
+    opacity: 0;
+    visibility: hidden;
+    transition: max-height var(--transition-base), 
+                opacity var(--transition-base),
+                visibility 0s linear var(--transition-base);
+    padding: 0;
 }
 
 .filter-panel.show {
     max-height: 1000px;
+    opacity: 1;
+    visibility: visible;
+    transition: max-height var(--transition-base),
+                opacity var(--transition-base),
+                visibility 0s linear 0s;
+    padding: var(--spacing-md);
+}
+
+.filter-content {
+    width: 100%;
 }
 
 .filter-section {
