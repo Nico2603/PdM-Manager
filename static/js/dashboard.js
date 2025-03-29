@@ -646,64 +646,12 @@ function processVibrationData(vibrationData) {
     chartData.z = vibrationData.map(item => item.acceleration_z !== undefined ? parseFloat(item.acceleration_z) : null);
     chartData.status = vibrationData.map(item => item.severity !== undefined ? parseInt(item.severity) : 0);
     
-    // Actualizar indicadores de severidad en los gráficos
-    updateSeverityIndicators(vibrationData);
-    
     console.log('Datos procesados para gráficas', {
         timestamps: chartData.timestamps.length,
         x: chartData.x.length,
         y: chartData.y.length,
         z: chartData.z.length
     });
-}
-
-// Actualizar indicadores de severidad
-function updateSeverityIndicators(vibrationData) {
-    // Si no hay datos, no hacer nada
-    if (!vibrationData || vibrationData.length === 0) return;
-    
-    // Obtener el último elemento de datos para mostrar la severidad actual
-    const lastData = vibrationData[vibrationData.length - 1];
-    
-    // Obtener elementos DOM para actualizar
-    const xAxisSeverity = document.getElementById('xAxisSeverity');
-    const yAxisSeverity = document.getElementById('yAxisSeverity');
-    const zAxisSeverity = document.getElementById('zAxisSeverity');
-    
-    if (xAxisSeverity && yAxisSeverity && zAxisSeverity) {
-        // Resetear clases
-        xAxisSeverity.className = 'severity-value';
-        yAxisSeverity.className = 'severity-value';
-        zAxisSeverity.className = 'severity-value';
-        
-        // Aplicar clase según severidad
-        const severityClass = getSeverityClass(lastData.severity);
-        const severityText = getSeverityText(lastData.severity);
-        
-        xAxisSeverity.classList.add(severityClass);
-        yAxisSeverity.classList.add(severityClass);
-        zAxisSeverity.classList.add(severityClass);
-        
-        xAxisSeverity.textContent = severityText;
-        yAxisSeverity.textContent = severityText;
-        zAxisSeverity.textContent = severityText;
-    }
-}
-
-// Obtener clase CSS según la severidad
-function getSeverityClass(severity) {
-    switch (parseInt(severity)) {
-        case 0:
-            return 'normal';
-        case 1:
-            return 'warning-level-1';
-        case 2:
-            return 'warning-level-2';
-        case 3:
-            return 'critical';
-        default:
-            return 'normal';
-    }
 }
 
 // Obtener texto según la severidad
