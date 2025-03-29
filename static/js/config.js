@@ -1248,6 +1248,12 @@ function initLimitsManagement() {
     if (resetLimitsBtn) {
         resetLimitsBtn.addEventListener('click', resetLimits);
     }
+    
+    // Configurar el nuevo botón para restaurar valores por defecto
+    const resetDefaultLimitsBtn = document.getElementById('resetDefaultLimitsBtn');
+    if (resetDefaultLimitsBtn) {
+        resetDefaultLimitsBtn.addEventListener('click', resetLimits);
+    }
 }
 
 // Cargar límites actuales
@@ -1297,6 +1303,7 @@ function saveLimits() {
         z_3inf: parseFloat(document.getElementById('z_3inf').value),
         z_3sup: parseFloat(document.getElementById('z_3sup').value),
         
+        // Solo añadimos la fecha de actualización, no otros datos innecesarios
         update_limits: new Date().toISOString()
     };
     
@@ -1326,9 +1333,14 @@ function saveLimits() {
             return response.json();
         })
         .then(result => {
-            // Actualizar UI
+            // Actualizar UI - tanto gráficas como parámetros estadísticos
             if (typeof updateChartsWithNewLimits === 'function') {
                 updateChartsWithNewLimits(result);
+            }
+            
+            // Actualizar valores estadísticos visuales
+            if (typeof updateStatisticalDisplayValues === 'function') {
+                updateStatisticalDisplayValues();
             }
             
             // Mostrar mensaje
@@ -1377,6 +1389,11 @@ function resetLimits() {
             // Actualizar gráficos con límites por defecto
             if (typeof updateChartsWithNewLimits === 'function') {
                 updateChartsWithNewLimits(result.limits);
+            }
+            
+            // Actualizar valores estadísticos visuales
+            if (typeof updateStatisticalDisplayValues === 'function') {
+                updateStatisticalDisplayValues();
             }
             
             // Mostrar mensaje

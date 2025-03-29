@@ -1117,19 +1117,13 @@ function initAdjustLimitsButton() {
     
     if (adjustLimitsBtn) {
         adjustLimitsBtn.addEventListener('click', () => {
-            // Abrir el modal
-            const modal = document.getElementById('adjustLimitsModal');
-            if (modal) {
-                // Cargar los valores actuales en el formulario
-                loadCurrentLimitsToModal();
-                
-                // Mostrar el modal
-                modal.classList.add('show');
-            }
+            // Redirigir a la sección de configuración de límites
+            navigateTo('configuracion:limits');
         });
     }
     
-    // Inicializar botones del modal
+    // El resto del código para la gestión modal ya no es necesario aquí
+    // pero lo mantenemos por si se necesita en otra parte
     const saveLimitsBtn = document.getElementById('saveLimitsBtn');
     const resetLimitsBtn = document.getElementById('resetLimitsBtn');
     const closeModalBtn = document.querySelector('#adjustLimitsModal .modal-close');
