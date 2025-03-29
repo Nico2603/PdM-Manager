@@ -1,8 +1,8 @@
 /**
- * PdM-Manager - JavaScript Navegación v1.0.0
+ * PdM-Manager - JavaScript Navegación v2.0.0
  * Funciones para la navegación, menú lateral y breadcrumbs
  * 
- * Última actualización: 2023-09-15
+ * Última actualización: 2024-03-29
  */
 
 // ==========================================================================
@@ -201,8 +201,9 @@ function updateSectionData(page) {
             }
             break;
         case 'configuracion':
-            // No se requiere actualización dinámica automática para configuración
+            // No se requiere actualización dinámica para configuración
             break;
+        // Se eliminaron otras secciones que ya no existen
     }
 }
 
@@ -234,6 +235,26 @@ function getCurrentPage() {
     
     // Valor por defecto
     return 'dashboard';
+}
+
+// Obtener nombre formateado de la pestaña
+function getTabName(tabId) {
+    switch(tabId) {
+        case 'models':
+        case 'modelos':
+            return 'Modelos';
+        case 'sensors':
+        case 'sensores':
+            return 'Sensores';
+        case 'machines':
+        case 'maquinas':
+            return 'Máquinas';
+        case 'limits':
+        case 'limites':
+            return 'Límites de Aceleración';
+        default:
+            return 'Configuración';
+    }
 }
 
 // Exportar funciones para uso global

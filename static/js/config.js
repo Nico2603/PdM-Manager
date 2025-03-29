@@ -284,42 +284,60 @@ function loadMachinesTable() {
                 return;
             }
             
-            // Poblar tabla con datos
-            machines.forEach(machine => {
-                const row = document.createElement('tr');
-                row.innerHTML = `
-                    <td>${machine.id}</td>
-                    <td>${machine.name}</td>
-                    <td>${machine.type || 'No especificado'}</td>
-                    <td>${machine.location || 'No especificado'}</td>
-                    <td class="actions-cell">
-                        <button class="btn-icon edit-machine" data-id="${machine.id}" title="Editar máquina">
-                            <i class="fas fa-edit"></i>
-                        </button>
-                        <button class="btn-icon delete-machine" data-id="${machine.id}" title="Eliminar máquina">
-                            <i class="fas fa-trash-alt"></i>
-                        </button>
-                    </td>
-                `;
-                
-                // Añadir acciones a los botones
-                const editBtn = row.querySelector('.edit-machine');
-                const deleteBtn = row.querySelector('.delete-machine');
-                
-                if (editBtn) {
-                    editBtn.addEventListener('click', () => {
-                        editMachine(machine.id);
+            // Cargar sensores para mostrar información relacionada
+            fetch('/api/sensors')
+                .then(response => response.json())
+                .then(sensors => {
+                    const sensorMap = {};
+                    sensors.forEach(sensor => {
+                        sensorMap[sensor.sensor_id] = sensor.name;
                     });
-                }
-                
-                if (deleteBtn) {
-                    deleteBtn.addEventListener('click', () => {
-                        deleteMachine(machine.id);
+                    
+                    // Poblar tabla con datos
+                    machines.forEach(machine => {
+                        const row = document.createElement('tr');
+                        const sensorName = machine.sensor_id && sensorMap[machine.sensor_id] 
+                            ? sensorMap[machine.sensor_id] 
+                            : 'No asignado';
+                            
+                        row.innerHTML = `
+                            <td>${machine.machine_id}</td>
+                            <td>${machine.name}</td>
+                            <td>${machine.description || '-'}</td>
+                            <td>${sensorName}</td>
+                            <td class="actions-cell">
+                                <button class="btn-icon edit-machine" data-id="${machine.machine_id}" title="Editar máquina">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button class="btn-icon delete-machine" data-id="${machine.machine_id}" title="Eliminar máquina">
+                                    <i class="fas fa-trash-alt"></i>
+                                </button>
+                            </td>
+                        `;
+                        
+                        // Añadir acciones a los botones
+                        const editBtn = row.querySelector('.edit-machine');
+                        const deleteBtn = row.querySelector('.delete-machine');
+                        
+                        if (editBtn) {
+                            editBtn.addEventListener('click', () => {
+                                editMachine(machine.machine_id);
+                            });
+                        }
+                        
+                        if (deleteBtn) {
+                            deleteBtn.addEventListener('click', () => {
+                                deleteMachine(machine.machine_id);
+                            });
+                        }
+                        
+                        machinesTableBody.appendChild(row);
                     });
-                }
-                
-                machinesTableBody.appendChild(row);
-            });
+                })
+                .catch(error => {
+                    console.error('Error al cargar sensores:', error);
+                    showToast('Error al cargar datos de sensores', 'error');
+                });
         })
         .catch(error => {
             console.error('Error al cargar máquinas:', error);
@@ -337,19 +355,13 @@ function editMachine(machineId) {
             document.getElementById('machineId').value = machine.machine_id;
             document.getElementById('machineName').value = machine.name;
             document.getElementById('machineDescription').value = machine.description || '';
-            document.getElementById('machineLocation').value = machine.location || '';
-            document.getElementById('machineRoute').value = machine.route || '';
-            
-            // Seleccionar estado si está definido
-            const statusSelect = document.getElementById('machineStatus');
-            if (statusSelect) {
-                statusSelect.value = machine.status || 'operativo';
-            }
             
             // Seleccionar sensor si está asignado
             const sensorSelect = document.getElementById('machineSensor');
             if (sensorSelect && machine.sensor_id) {
                 sensorSelect.value = machine.sensor_id;
+            } else if (sensorSelect) {
+                sensorSelect.value = '';
             }
             
             // Actualizar título del modal
@@ -371,7 +383,6 @@ function saveMachine() {
     const machineId = document.getElementById('machineId').value;
     const machineName = document.getElementById('machineName').value;
     const machineDescription = document.getElementById('machineDescription').value;
-    const machineStatus = document.getElementById('machineStatus').value;
     const sensorId = document.getElementById('machineSensor').value;
     
     // Verificar campos obligatorios
@@ -380,18 +391,16 @@ function saveMachine() {
         return;
     }
     
-    if (!sensorId) {
-        showToast('Debe seleccionar un sensor para la máquina', 'warning');
-        return;
-    }
-    
     // Preparar datos para envío
     const machineData = {
         name: machineName,
-        description: machineDescription || '',
-        status: machineStatus || 'operativo',
-        sensor_id: parseInt(sensorId)
+        description: machineDescription || ''
     };
+    
+    // Agregar sensor_id solo si está seleccionado (es opcional)
+    if (sensorId && sensorId !== '') {
+        machineData.sensor_id = parseInt(sensorId);
+    }
     
     // Determinar si es creación o actualización
     const isUpdate = machineId && machineId !== '';
@@ -409,39 +418,37 @@ function saveMachine() {
         },
         body: JSON.stringify(machineData)
     })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`Error al ${isUpdate ? 'actualizar' : 'crear'} máquina`);
-            }
-            return response.json();
-        })
-        .then(data => {
-            // Cerrar modal
-            const modal = document.getElementById('machineModal');
-            if (modal) modal.classList.remove('show');
-            
-            // Mostrar mensaje de éxito
-            showToast(
-                `Máquina ${isUpdate ? 'actualizada' : 'creada'} correctamente`,
-                'success'
-            );
-            
-            // Refrescar tabla de máquinas
-            loadMachinesTable();
-            
-            // Actualizar el sensor con esta máquina
-            updateSensorMachineAssociation(sensorId, data.machine_id);
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            showToast(
-                `Error al ${isUpdate ? 'actualizar' : 'crear'} la máquina: ${error.message}`,
-                'error'
-            );
-        })
-        .finally(() => {
-            hideLoadingIndicator();
-        });
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Error al guardar máquina');
+        }
+        return response.json();
+    })
+    .then(data => {
+        // Ocultar indicador de carga
+        hideLoadingIndicator();
+        
+        // Mostrar mensaje de éxito
+        showToast(isUpdate ? 'Máquina actualizada con éxito' : 'Máquina creada con éxito', 'success');
+        
+        // Limpiar formulario
+        document.getElementById('machineForm').reset();
+        document.getElementById('machineId').value = '';
+        
+        // Cerrar modal si existe
+        const modal = document.getElementById('machineModal');
+        if (modal) modal.classList.remove('show');
+        
+        // Recargar tabla de máquinas
+        loadMachinesTable();
+    })
+    .catch(error => {
+        // Ocultar indicador de carga
+        hideLoadingIndicator();
+        
+        console.error('Error al guardar máquina:', error);
+        showToast('Error al guardar máquina', 'error');
+    });
 }
 
 // Actualizar la asociación entre sensor y máquina
@@ -535,14 +542,9 @@ function initSensorManagement() {
             document.getElementById('sensorId').value = '';
             document.getElementById('sensorName').value = '';
             document.getElementById('sensorDescription').value = '';
-            document.getElementById('sensorLocation').value = '';
-            document.getElementById('sensorType').value = '';
             
             // Resetear selects a "Ninguno"
-            const machineSelect = document.getElementById('sensorMachine');
             const modelSelect = document.getElementById('sensorModel');
-            
-            if (machineSelect) machineSelect.value = '';
             if (modelSelect) modelSelect.value = '';
             
             // Mostrar modal
@@ -612,7 +614,7 @@ function loadSensorsTable() {
     fetch('/api/sensors')
         .then(response => response.json())
         .then(sensors => {
-            const tableBody = document.getElementById('sensorsTableBody');
+            const tableBody = document.querySelector('#sensorsTable tbody');
             if (!tableBody) return;
             
             tableBody.innerHTML = '';
@@ -620,7 +622,7 @@ function loadSensorsTable() {
             if (sensors.length === 0) {
                 tableBody.innerHTML = `
                     <tr>
-                        <td colspan="6" class="text-center">No hay sensores registrados</td>
+                        <td colspan="5" class="text-center">No hay sensores registrados</td>
                     </tr>
                 `;
                 return;
@@ -635,67 +637,52 @@ function loadSensorsTable() {
                         modelMap[model.model_id] = model.name;
                     });
                     
-                    // Cargar nombres de máquinas para referencia
-                    fetch('/api/machines')
-                        .then(response => response.json())
-                        .then(machines => {
-                            const machineMap = {};
-                            machines.forEach(machine => {
-                                machineMap[machine.machine_id] = machine.name;
-                            });
-                            
-                            // Renderizar tabla de sensores con información relacionada
-                            sensors.forEach(sensor => {
-                                const row = document.createElement('tr');
-                                
-                                // Obtener nombre de modelo y máquina si existen
-                                const modelName = sensor.model_id && modelMap[sensor.model_id] ? modelMap[sensor.model_id] : 'No asignado';
-                                const machineName = sensor.machine_id && machineMap[sensor.machine_id] ? machineMap[sensor.machine_id] : 'No asignada';
-                                
-                                // Determinar clase para campos obligatorios
-                                const modelClass = sensor.model_id ? '' : 'text-danger';
-                                
-                                row.innerHTML = `
-                                    <td class="column-id">${sensor.sensor_id}</td>
-                                    <td><strong>${sensor.name}</strong></td>
-                                    <td>${sensor.description || '-'}</td>
-                                    <td class="${modelClass}">${modelName}</td>
-                                    <td>${machineName}</td>
-                                    <td class="column-actions">
-                                        <div class="table-actions">
-                                            <button class="btn-icon btn-edit" title="Editar sensor" data-id="${sensor.sensor_id}">
-                                                <i class="fas fa-edit"></i>
-                                            </button>
-                                            <button class="btn-icon btn-delete" title="Eliminar sensor" data-id="${sensor.sensor_id}">
-                                                <i class="fas fa-trash"></i>
-                                            </button>
-                                        </div>
-                                    </td>
-                                `;
-                                
-                                tableBody.appendChild(row);
-                            });
-                            
-                            // Configurar eventos para editar y eliminar
-                            const editButtons = tableBody.querySelectorAll('.btn-edit');
-                            editButtons.forEach(button => {
-                                button.addEventListener('click', () => {
-                                    const sensorId = button.getAttribute('data-id');
-                                    editSensor(sensorId);
-                                });
-                            });
-                            
-                            const deleteButtons = tableBody.querySelectorAll('.btn-delete');
-                            deleteButtons.forEach(button => {
-                                button.addEventListener('click', () => {
-                                    const sensorId = button.getAttribute('data-id');
-                                    deleteSensor(sensorId);
-                                });
-                            });
-                        })
-                        .catch(error => {
-                            console.error('Error al cargar máquinas:', error);
+                    // Renderizar tabla de sensores con información relacionada
+                    sensors.forEach(sensor => {
+                        const row = document.createElement('tr');
+                        
+                        // Obtener nombre de modelo si existe
+                        const modelName = sensor.model_id && modelMap[sensor.model_id] ? modelMap[sensor.model_id] : 'No asignado';
+                        
+                        // Determinar clase para campos obligatorios
+                        const modelClass = sensor.model_id ? '' : 'text-danger';
+                        
+                        row.innerHTML = `
+                            <td class="column-id">${sensor.sensor_id}</td>
+                            <td><strong>${sensor.name}</strong></td>
+                            <td>${sensor.description || '-'}</td>
+                            <td class="${modelClass}">${modelName}</td>
+                            <td class="column-actions">
+                                <div class="table-actions">
+                                    <button class="btn-icon btn-edit" title="Editar sensor" data-id="${sensor.sensor_id}">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                    <button class="btn-icon btn-delete" title="Eliminar sensor" data-id="${sensor.sensor_id}">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        `;
+                        
+                        tableBody.appendChild(row);
+                    });
+                    
+                    // Configurar eventos para editar y eliminar
+                    const editButtons = tableBody.querySelectorAll('.btn-edit');
+                    editButtons.forEach(button => {
+                        button.addEventListener('click', () => {
+                            const sensorId = button.getAttribute('data-id');
+                            editSensor(sensorId);
                         });
+                    });
+                    
+                    const deleteButtons = tableBody.querySelectorAll('.btn-delete');
+                    deleteButtons.forEach(button => {
+                        button.addEventListener('click', () => {
+                            const sensorId = button.getAttribute('data-id');
+                            deleteSensor(sensorId);
+                        });
+                    });
                 })
                 .catch(error => {
                     console.error('Error al cargar modelos:', error);
@@ -725,25 +712,11 @@ function editSensor(sensorId) {
             document.getElementById('sensorId').value = sensor.sensor_id;
             document.getElementById('sensorName').value = sensor.name || '';
             document.getElementById('sensorDescription').value = sensor.description || '';
-            document.getElementById('sensorLocation').value = sensor.location || '';
-            document.getElementById('sensorType').value = sensor.type || '';
-            
-            // Seleccionar máquina si está asociada
-            if (document.getElementById('sensorMachine')) {
-                document.getElementById('sensorMachine').value = sensor.machine_id || '';
-            }
             
             // Seleccionar modelo si está asignado
             if (document.getElementById('sensorModel')) {
                 document.getElementById('sensorModel').value = sensor.model_id || '';
             }
-            
-            // Almacenar id de máquina actual para comparación posterior
-            const hiddenField = document.getElementById('currentMachineId') || document.createElement('input');
-            hiddenField.type = 'hidden';
-            hiddenField.id = 'currentMachineId';
-            hiddenField.value = sensor.machine_id || '';
-            document.getElementById('sensorForm').appendChild(hiddenField);
             
             // Mostrar modal
             const modal = document.getElementById('sensorModal');
@@ -762,7 +735,6 @@ function saveSensor() {
     const sensorName = document.getElementById('sensorName').value;
     const sensorDescription = document.getElementById('sensorDescription').value;
     const modelId = document.getElementById('sensorModel').value;
-    const machineId = document.getElementById('sensorMachine').value;
     
     // Verificar campos obligatorios
     if (!sensorName) {
@@ -776,14 +748,11 @@ function saveSensor() {
     }
     
     // Preparar datos para envío
-    const formData = new FormData();
-    formData.append('name', sensorName);
-    formData.append('description', sensorDescription || '');
-    formData.append('model_id', modelId);
-    
-    if (machineId) {
-        formData.append('machine_id', machineId);
-    }
+    const sensorData = {
+        name: sensorName,
+        description: sensorDescription || '',
+        model_id: parseInt(modelId)
+    };
     
     // Determinar si es creación o actualización
     const isUpdate = sensorId && sensorId !== '';
@@ -796,46 +765,42 @@ function saveSensor() {
     // Enviar solicitud al servidor
     fetch(url, {
         method: method,
-        body: formData
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(sensorData)
     })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`Error al ${isUpdate ? 'actualizar' : 'crear'} sensor`);
-            }
-            return response.json();
-        })
-        .then(data => {
-            // Cerrar modal
-            const modal = document.getElementById('sensorModal');
-            if (modal) modal.classList.remove('show');
-            
-            // Mostrar mensaje de éxito
-            showToast(
-                `Sensor ${isUpdate ? 'actualizado' : 'creado'} correctamente`,
-                'success'
-            );
-            
-            // Refrescar tabla de sensores
-            loadSensorsTable();
-            
-            // Si se asignó una máquina a este sensor, actualizar esa máquina
-            if (machineId) {
-                ensureMachineSensorReference(data.sensor_id, machineId);
-            }
-            
-            // Recargar selectores de sensores para máquinas
-            loadSensorsForSelect();
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            showToast(
-                `Error al ${isUpdate ? 'actualizar' : 'crear'} el sensor: ${error.message}`,
-                'error'
-            );
-        })
-        .finally(() => {
-            hideLoadingIndicator();
-        });
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Error al guardar sensor');
+        }
+        return response.json();
+    })
+    .then(data => {
+        // Ocultar indicador de carga
+        hideLoadingIndicator();
+        
+        // Mostrar mensaje de éxito
+        showToast(isUpdate ? 'Sensor actualizado con éxito' : 'Sensor creado con éxito', 'success');
+        
+        // Limpiar formulario
+        document.getElementById('sensorForm').reset();
+        document.getElementById('sensorId').value = '';
+        
+        // Cerrar modal si existe
+        const modal = document.getElementById('sensorModal');
+        if (modal) modal.classList.remove('show');
+        
+        // Recargar tabla de sensores
+        loadSensorsTable();
+    })
+    .catch(error => {
+        // Ocultar indicador de carga
+        hideLoadingIndicator();
+        
+        console.error('Error al guardar sensor:', error);
+        showToast('Error al guardar sensor', 'error');
+    });
 }
 
 // Asegurar que la máquina tenga correcta referencia al sensor
@@ -934,8 +899,6 @@ function initModelManagement() {
             document.getElementById('modelId').value = '';
             document.getElementById('modelName').value = '';
             document.getElementById('modelDescription').value = '';
-            document.getElementById('modelAccuracy').value = '';
-            document.getElementById('modelConfigParams').value = '';
             
             // Resetear campos de archivo
             if (document.getElementById('modelFileName')) {
@@ -1028,7 +991,7 @@ function loadModelsTable() {
     fetch('/api/models')
         .then(response => response.json())
         .then(models => {
-            const tableBody = document.getElementById('modelsTableBody');
+            const tableBody = document.querySelector('#modelsTable tbody');
             if (!tableBody) return;
             
             tableBody.innerHTML = '';
@@ -1036,7 +999,7 @@ function loadModelsTable() {
             if (models.length === 0) {
                 tableBody.innerHTML = `
                     <tr>
-                        <td colspan="6" class="text-center">No hay modelos registrados</td>
+                        <td colspan="4" class="text-center">No hay modelos registrados</td>
                     </tr>
                 `;
                 return;
@@ -1045,16 +1008,10 @@ function loadModelsTable() {
             models.forEach(model => {
                 const row = document.createElement('tr');
                 
-                // Formatear rutas para mayor legibilidad
-                const routeH5 = model.route_h5 ? formatFilePath(model.route_h5) : '-';
-                const routePkl = model.route_pkl ? formatFilePath(model.route_pkl) : '-';
-                
                 row.innerHTML = `
                     <td class="column-id">${model.model_id}</td>
                     <td><strong>${model.name}</strong></td>
                     <td>${model.description || '-'}</td>
-                    <td>${routeH5}</td>
-                    <td>${routePkl}</td>
                     <td class="column-actions">
                         <div class="table-actions">
                             <button class="btn-icon btn-edit" title="Editar modelo" data-id="${model.model_id}">
@@ -1113,8 +1070,6 @@ function editModel(modelId) {
             document.getElementById('modelId').value = model.model_id;
             document.getElementById('modelName').value = model.name;
             document.getElementById('modelDescription').value = model.description || '';
-            document.getElementById('modelAccuracy').value = model.accuracy || '';
-            document.getElementById('modelConfigParams').value = model.config_params || '';
             
             // Actualizar UI para edición
             document.getElementById('modelFileRequired').style.display = 'none';
@@ -1157,8 +1112,6 @@ function saveModel() {
     const modelId = document.getElementById('modelId').value;
     const name = document.getElementById('modelName').value;
     const description = document.getElementById('modelDescription').value;
-    const accuracy = document.getElementById('modelAccuracy').value;
-    const configParams = document.getElementById('modelConfigParams').value;
     const modelFile = document.getElementById('modelFile').files[0];
     const scalerFile = document.getElementById('scalerFile').files[0];
     
@@ -1180,14 +1133,6 @@ function saveModel() {
     
     if (description) {
         formData.append('description', description);
-    }
-    
-    if (accuracy) {
-        formData.append('accuracy', accuracy);
-    }
-    
-    if (configParams) {
-        formData.append('config_params', configParams);
     }
     
     if (modelFile) {

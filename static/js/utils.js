@@ -1,8 +1,8 @@
 /**
- * PdM-Manager - JavaScript Utilidades v1.0.0
+ * PdM-Manager - JavaScript Utilidades v2.0.0
  * Funciones de utilidad y componentes UI comunes
  * 
- * Última actualización: 2023-09-15
+ * Última actualización: 2024-03-29
  */
 
 // Colores para severidades
@@ -173,7 +173,7 @@ window.updateGlobalStats = updateGlobalStats;
 window.initGlobalStateEvents = initGlobalStateEvents;
 
 // ==========================================================================
-// NOTIFICACIONES Y TOASTS
+// TOASTS Y ALERTAS
 // ==========================================================================
 
 // Mostrar toast de notificación

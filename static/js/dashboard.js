@@ -503,106 +503,96 @@ function updateSensorDropdown(sensors) {
 
 // Actualizar datos del dashboard
 function updateDashboardData() {
-    // Obtener parámetros de filtrado actuales
+    showLoadingIndicator('Actualizando dashboard...');
+    
+    // Obtener filtros actuales
     const selectedMachine = getGlobalState('selectedMachine');
     const selectedSensor = getGlobalState('selectedSensor');
     const timeRange = getGlobalState('timeRange');
     
-    // Construir URL para el endpoint optimizado
-    let url = `/api/dashboard-data?`;
+    // Construir objeto de filtros
+    const filters = {
+        sensor_id: selectedSensor || '',
+        machine_id: selectedMachine || '',
+        time_range: timeRange || '24h'
+    };
     
-    // Añadir filtros
-    if (selectedSensor) {
-        url += `&sensor_id=${selectedSensor}`;
+    // Generar clave para el caché
+    const cacheKey = `dashboard_${filters.sensor_id}_${filters.machine_id}_${filters.time_range}`;
+    const dashboardCache = getGlobalState('dashboardCache') || {};
+    
+    // Verificar si hay datos en caché y si son recientes (menos de 30 segundos)
+    const cachedData = dashboardCache[cacheKey];
+    const now = Date.now();
+    if (cachedData && (now - cachedData.timestamp < 30000)) {
+        console.log('Usando datos en caché para el dashboard');
+        processVibrationData(cachedData.data);
+        updateAlertCounters(cachedData.alerts);
+        hideLoadingIndicator();
+        return Promise.resolve(cachedData);
     }
     
-    if (selectedMachine) {
-        url += `&machine_id=${selectedMachine}`;
-    }
-    
-    if (timeRange) {
-        url += `&time_range=${timeRange}`;
-    }
-    
-    // Mostrar indicador de carga
-    showLoadingIndicator('Actualizando datos del panel...');
-    
-    return fetch(url)
+    // Si no hay datos en caché o son antiguos, obtener nuevos datos
+    return fetch(`/api/vibration-data?${new URLSearchParams(filters)}`)
         .then(response => {
             if (!response.ok) {
-                throw new Error(`Error al cargar datos del dashboard: ${response.status}`);
+                throw new Error(`Error al obtener datos de vibración: ${response.status}`);
             }
             return response.json();
         })
-        .then(data => {
-            console.log('Datos del dashboard recibidos:', data);
-            
-            // Procesar datos
-            if (data.vibration_data) {
-                processVibrationData(data.vibration_data);
+        .then(vibrationData => {
+            // Si no hay datos, mostrar mensaje apropiado
+            if (!vibrationData || vibrationData.length === 0) {
+                hideCharts();
+                showNoConfigurationMessage();
+                hideLoadingIndicator();
+                return Promise.reject('No hay datos disponibles');
             }
             
-            if (data.alerts) {
-                updateAlertCounters({
-                    level1: data.alerts.filter(a => a.error_type === 1).length,
-                    level2: data.alerts.filter(a => a.error_type === 2).length,
-                    level3: data.alerts.filter(a => a.error_type === 3).length
-                });
-            }
-            
-            if (data.limits) {
-                // Actualizar límites
-                setGlobalState('limits', data.limits);
-                
-                // Guardar en localStorage para persistencia
-                localStorage.setItem('limitConfig', JSON.stringify({
-                    x_2inf: data.limits.x_2inf,
-                    x_2sup: data.limits.x_2sup,
-                    x_3inf: data.limits.x_3inf,
-                    x_3sup: data.limits.x_3sup,
-                    y_2inf: data.limits.y_2inf,
-                    y_2sup: data.limits.y_2sup,
-                    y_3inf: data.limits.y_3inf,
-                    y_3sup: data.limits.y_3sup,
-                    z_2inf: data.limits.z_2inf,
-                    z_2sup: data.limits.z_2sup,
-                    z_3inf: data.limits.z_3inf,
-                    z_3sup: data.limits.z_3sup
-                }));
-                
-                updateStatisticalDisplayValues();
-            }
-            
-            // Actualizar últimos valores de severidad
-            if (data.vibration_data && data.vibration_data.length > 0) {
-                const lastData = data.vibration_data[data.vibration_data.length - 1];
-                
-                // Si hay una alerta de tipo 3 (severidad 3), mostrar alerta
-                if (lastData.severity === 3) {
-                    showCriticalAlert();
-                }
-            }
-            
-            // Actualizar gráficos
-            updateAllCharts();
-            
-            // Mostrar gráficos si están ocultos
+            // Mostrar gráficos si estaban ocultos
             showCharts();
+            hideNoConfigurationMessage();
             
-            // Ocultar indicador de carga
-            hideLoadingIndicator();
+            // Procesar datos de vibración
+            processVibrationData(vibrationData);
             
-            // Actualizar timestamp de última actualización
-            document.getElementById('lastUpdateTime').textContent = 
-                new Date().toLocaleTimeString();
-                
-            return data;
+            // Cargar alertas correspondientes a estos mismos filtros
+            return fetch(`/api/alerts?${new URLSearchParams(filters)}`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`Error al obtener alertas: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(alertData => {
+                    // Actualizar contadores de alertas
+                    updateAlertCounters(alertData);
+                    
+                    // Guardar en caché
+                    const newCacheData = {
+                        data: vibrationData,
+                        alerts: alertData,
+                        timestamp: now
+                    };
+                    
+                    // Actualizar caché global
+                    dashboardCache[cacheKey] = newCacheData;
+                    setGlobalState('dashboardCache', dashboardCache);
+                    
+                    hideLoadingIndicator();
+                    return {
+                        vibrationData,
+                        alertData
+                    };
+                });
         })
         .catch(error => {
-            console.error('Error al actualizar datos del dashboard:', error);
+            console.error('Error al actualizar dashboard:', error);
+            if (error !== 'No hay datos disponibles') {
+                showToast('Error al cargar datos del dashboard', 'error');
+            }
             hideLoadingIndicator();
-            showToast('Error al cargar datos del panel', 'error');
-            return null;
+            return Promise.reject(error);
         });
 }
 
@@ -1161,64 +1151,46 @@ function loadCurrentLimitsToModal() {
     }
 }
 
-// Guardar límites desde el modal
+// Guardar límites desde el modal utilizando la función unificada
 function saveLimitsFromModal() {
-    // Recopilar valores del formulario
-    const limits = {
-        x: {
-            sigma2: {
-                lower: parseFloat(document.getElementById('x2SigmaLowerInput').value),
-                upper: parseFloat(document.getElementById('x2SigmaUpperInput').value)
-            },
-            sigma3: {
-                lower: parseFloat(document.getElementById('x3SigmaLowerInput').value),
-                upper: parseFloat(document.getElementById('x3SigmaUpperInput').value)
-            }
-        },
-        y: {
-            sigma2: {
-                lower: parseFloat(document.getElementById('y2SigmaLowerInput').value),
-                upper: parseFloat(document.getElementById('y2SigmaUpperInput').value)
-            },
-            sigma3: {
-                lower: parseFloat(document.getElementById('y3SigmaLowerInput').value),
-                upper: parseFloat(document.getElementById('y3SigmaUpperInput').value)
-            }
-        },
-        z: {
-            sigma2: {
-                lower: parseFloat(document.getElementById('z2SigmaLowerInput').value),
-                upper: parseFloat(document.getElementById('z2SigmaUpperInput').value)
-            },
-            sigma3: {
-                lower: parseFloat(document.getElementById('z3SigmaLowerInput').value),
-                upper: parseFloat(document.getElementById('z3SigmaUpperInput').value)
-            }
-        }
+    // Recopilar valores del formulario en formato compatible con la API
+    const limitsData = {
+        x_2inf: parseFloat(document.getElementById('x2SigmaLowerInput').value),
+        x_2sup: parseFloat(document.getElementById('x2SigmaUpperInput').value),
+        x_3inf: parseFloat(document.getElementById('x3SigmaLowerInput').value),
+        x_3sup: parseFloat(document.getElementById('x3SigmaUpperInput').value),
+        
+        y_2inf: parseFloat(document.getElementById('y2SigmaLowerInput').value),
+        y_2sup: parseFloat(document.getElementById('y2SigmaUpperInput').value),
+        y_3inf: parseFloat(document.getElementById('y3SigmaLowerInput').value),
+        y_3sup: parseFloat(document.getElementById('y3SigmaUpperInput').value),
+        
+        z_2inf: parseFloat(document.getElementById('z2SigmaLowerInput').value),
+        z_2sup: parseFloat(document.getElementById('z2SigmaUpperInput').value),
+        z_3inf: parseFloat(document.getElementById('z3SigmaLowerInput').value),
+        z_3sup: parseFloat(document.getElementById('z3SigmaUpperInput').value),
+        
+        update_limits: new Date().toISOString()
     };
     
-    // Validar que los valores sean números válidos
-    for (const axis of ['x', 'y', 'z']) {
-        for (const sigma of ['sigma2', 'sigma3']) {
-            for (const bound of ['lower', 'upper']) {
-                if (isNaN(limits[axis][sigma][bound])) {
-                    showToast(`Valor inválido en límite ${bound} de ${sigma} para eje ${axis.toUpperCase()}`, 'warning');
-                    return;
-                }
-            }
+    // Validar que todos los valores sean números válidos
+    for (const key in limitsData) {
+        if (key !== 'update_limits' && isNaN(limitsData[key])) {
+            showToast(`Valor inválido en el campo ${key}`, 'warning');
+            return;
         }
     }
     
     // Mostrar indicador de carga
     showLoadingIndicator('Actualizando límites...');
     
-    // Enviar solicitud para guardar límites
-    fetch('/api/limits/save', {
-        method: 'POST',
+    // Enviar solicitud para guardar límites - usar el mismo endpoint que config.js
+    fetch('/api/limits', {
+        method: 'PUT',
         headers: {
             'Content-Type': 'application/json'
         },
-        body: JSON.stringify(limits)
+        body: JSON.stringify(limitsData)
     })
         .then(response => {
             if (!response.ok) {
@@ -1226,16 +1198,13 @@ function saveLimitsFromModal() {
             }
             return response.json();
         })
-        .then(updatedLimits => {
+        .then(result => {
             // Cerrar modal
             document.getElementById('adjustLimitsModal').classList.remove('show');
             
-            // Actualizar valores mostrados en pantalla
-            updateStatisticalDisplayValues();
-            
-            // Actualizar gráficos con nuevos límites
+            // Actualizar gráficos con los nuevos límites
             if (typeof updateChartsWithNewLimits === 'function') {
-                updateChartsWithNewLimits(updatedLimits);
+                updateChartsWithNewLimits(result);
             }
             
             // Mostrar mensaje
@@ -1250,7 +1219,7 @@ function saveLimitsFromModal() {
         });
 }
 
-// Restablecer límites a valores por defecto
+// Restablecer límites a valores por defecto - reutilizando la misma lógica que config.js
 function resetLimitsFromModal() {
     // Mostrar indicador de carga
     showLoadingIndicator('Restableciendo límites...');
@@ -1265,22 +1234,12 @@ function resetLimitsFromModal() {
             return response.json();
         })
         .then(result => {
-            // Actualizar campos del formulario con los límites por defecto
-            const limits = result.limits || {};
+            // Cerrar modal si está abierto
+            document.getElementById('adjustLimitsModal').classList.remove('show');
             
-            for (const axis of ['x', 'y', 'z']) {
-                document.getElementById(`${axis}2SigmaLowerInput`).value = limits[axis]?.sigma2?.lower || '';
-                document.getElementById(`${axis}2SigmaUpperInput`).value = limits[axis]?.sigma2?.upper || '';
-                document.getElementById(`${axis}3SigmaLowerInput`).value = limits[axis]?.sigma3?.lower || '';
-                document.getElementById(`${axis}3SigmaUpperInput`).value = limits[axis]?.sigma3?.upper || '';
-            }
-            
-            // Actualizar valores mostrados en pantalla
-            updateStatisticalDisplayValues();
-            
-            // Actualizar gráficos con nuevos límites
+            // Actualizar gráficos con límites por defecto
             if (typeof updateChartsWithNewLimits === 'function') {
-                updateChartsWithNewLimits(limits);
+                updateChartsWithNewLimits(result.limits);
             }
             
             // Mostrar mensaje
@@ -1470,57 +1429,69 @@ function stopSimulationUpdates() {
 
 // Cargar alertas simplificadas
 function loadSimplifiedAlerts() {
-    // Mostrar indicador de carga
-    showLoadingIndicator('Cargando historial de alertas...');
+    showLoadingIndicator('Cargando alertas...');
     
-    // Primero intentamos usar el endpoint con datos completos
-    fetch('/api/alerts/with-data')
+    // Aplicar filtros globales si están disponibles
+    const selectedMachine = getGlobalState('selectedMachine');
+    const selectedSensor = getGlobalState('selectedSensor');
+    const timeRange = getGlobalState('timeRange');
+    
+    // Construir URL con filtros
+    let url = '/api/alerts?';
+    
+    if (selectedSensor) {
+        url += `sensor_id=${selectedSensor}&`;
+    } else if (selectedMachine) {
+        url += `machine_id=${selectedMachine}&`;
+    }
+    
+    // Añadir filtro de tiempo si está seleccionado
+    if (timeRange) {
+        const currentTime = new Date();
+        let startTime = new Date(currentTime);
+        
+        switch(timeRange) {
+            case '1h':
+                startTime.setHours(currentTime.getHours() - 1);
+                break;
+            case '6h':
+                startTime.setHours(currentTime.getHours() - 6);
+                break;
+            case '24h':
+                startTime.setDate(currentTime.getDate() - 1);
+                break;
+            case '7d':
+                startTime.setDate(currentTime.getDate() - 7);
+                break;
+        }
+        
+        url += `start_date=${startTime.toISOString()}&end_date=${currentTime.toISOString()}&`;
+    }
+    
+    // Eliminar el último '&' si existe
+    if (url.endsWith('&')) {
+        url = url.slice(0, -1);
+    }
+    
+    fetch(url)
         .then(response => {
             if (!response.ok) {
-                // Si el endpoint no existe, usamos el endpoint simplificado
-                throw new Error('Endpoint no disponible, usando alternativa');
+                throw new Error(`Error en la respuesta: ${response.status}`);
             }
             return response.json();
         })
         .then(data => {
+            // Actualizar contadores de alertas
+            updateAlertCounters(data);
+            
+            // Actualizar tabla de alertas con los datos obtenidos
             updateAlertsTable(data);
             hideLoadingIndicator();
         })
-        .catch(error => {
-            console.warn('Usando endpoint simplificado para alertas:', error);
-            
-            // Endpoint alternativo con datos simplificados
-            fetch('/api/alerts/simplified')
-                .then(response => response.json())
-                .then(alertData => {
-                    // Enriquecer alertas con datos de vibración simulados
-                    const enrichedAlerts = alertData.map(alert => {
-                        // Determinar el nivel de alerta según el error_type
-                        const errorType = parseInt(alert.error_type);
-                        
-                        // Agregar datos de vibración simulados basados en la severidad
-                        const randomBase = Math.random() * 2; // Base aleatoria para valores
-                        const vibrationData = {
-                            acceleration_x: (randomBase + (errorType * 0.5)).toFixed(3),
-                            acceleration_y: (randomBase + (errorType * 0.3)).toFixed(3),
-                            acceleration_z: (randomBase + (errorType * 0.7)).toFixed(3)
-                        };
-                        
-                        // Añadir datos de vibración al objeto de alerta
-                        return {
-                            ...alert,
-                            vibration_data: vibrationData
-                        };
-                    });
-                    
-                    updateAlertsTable(enrichedAlerts);
-                    hideLoadingIndicator();
-                })
-                .catch(err => {
-                    console.error('Error al cargar alertas:', err);
-                    hideLoadingIndicator();
-                    showToast('Error al cargar historial de alertas', 'error');
-                });
+        .catch(err => {
+            console.error('Error al cargar alertas:', err);
+            hideLoadingIndicator();
+            showToast('Error al cargar historial de alertas', 'error');
         });
 }
 
@@ -1536,7 +1507,7 @@ function updateAlertsTable(alerts) {
     if (!alerts || alerts.length === 0) {
         const row = tableBody.insertRow();
         const cell = row.insertCell();
-        cell.colSpan = 7; // Actualizado a 7 columnas
+        cell.colSpan = 5; // Actualizado a 5 columnas
         cell.textContent = 'No hay alertas registradas';
         cell.className = 'text-center';
         return;
@@ -1577,38 +1548,31 @@ function updateAlertsTable(alerts) {
         timestampCell.textContent = date.toLocaleString();
         timestampCell.className = 'column-datetime';
         
-        // Obtener datos de vibración si están disponibles
-        let accelX = 'N/A';
-        let accelY = 'N/A';
-        let accelZ = 'N/A';
-        
-        // Si la alerta tiene asociado un vibration_data y ese dato está disponible
-        if (alert.vibration_data) {
-            accelX = alert.vibration_data.acceleration_x !== undefined ? 
-                parseFloat(alert.vibration_data.acceleration_x).toFixed(3) : 'N/A';
-            accelY = alert.vibration_data.acceleration_y !== undefined ? 
-                parseFloat(alert.vibration_data.acceleration_y).toFixed(3) : 'N/A';
-            accelZ = alert.vibration_data.acceleration_z !== undefined ? 
-                parseFloat(alert.vibration_data.acceleration_z).toFixed(3) : 'N/A';
+        // Data ID
+        const dataIdCell = row.insertCell();
+        if (alert.data_id) {
+            // Si hay data_id, mostrar como un enlace para ver detalles
+            dataIdCell.innerHTML = `<a href="#" class="view-vibration-data" data-alert-id="${alert.log_id}" data-id="${alert.data_id}">${alert.data_id}</a>`;
+        } else {
+            dataIdCell.textContent = 'N/A';
         }
         
-        // Aceleración X
-        const accelXCell = row.insertCell();
-        accelXCell.textContent = accelX;
-        
-        // Aceleración Y
-        const accelYCell = row.insertCell();
-        accelYCell.textContent = accelY;
-        
-        // Aceleración Z
-        const accelZCell = row.insertCell();
-        accelZCell.textContent = accelZ;
-        
-        // Severidad
-        const severityCell = row.insertCell();
+        // Tipo de Error
+        const errorTypeCell = row.insertCell();
         const severityText = getSeverityText(errorType);
-        severityCell.innerHTML = `<span class="status-level${errorType}">${severityText}</span>`;
+        errorTypeCell.innerHTML = `<span class="status-level${errorType}">${severityText}</span>`;
     }
+    
+    // Añadir manejadores de eventos para ver datos de vibración
+    const vibrationLinks = document.querySelectorAll('.view-vibration-data');
+    vibrationLinks.forEach(link => {
+        link.addEventListener('click', (e) => {
+            e.preventDefault();
+            const alertId = link.getAttribute('data-alert-id');
+            const dataId = link.getAttribute('data-id');
+            viewAlertDetails(alertId, dataId);
+        });
+    });
     
     // Inicializar el botón de actualizar
     const refreshBtn = document.getElementById('refreshAlertsTable');
@@ -1836,132 +1800,65 @@ function getVibrationFilters() {
 
 // Ver detalles de datos de vibración
 function viewVibrationDetails(dataId) {
-    // Construir URL para el endpoint de detalles
-    const url = `/api/dashboard-data?data_type=vibration&id=${dataId}`;
+    if (!dataId) {
+        showToast('Esta alerta no tiene datos de vibración asociados', 'warning');
+        return;
+    }
     
-    showLoadingIndicator('Cargando detalles de vibración...');
+    showLoadingIndicator('Cargando detalles de la alerta...');
     
-    fetch(url)
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`Error al obtener detalles: ${response.status} ${response.statusText}`);
-            }
-            return response.json();
-        })
-        .then(data => {
-            hideLoadingIndicator();
-            
-            // Si tenemos un arreglo de items, tomar el primero (el que coincide con el ID)
-            const item = data.items && data.items.length > 0 ? data.items[0] : data;
-            
-            // Verificar que tenemos datos válidos
-            if (!item || !item.id) {
-                showToast('No se encontraron detalles para este registro', 'warning');
+    getVibrationDataById(dataId)
+        .then(vibrationData => {
+            if (!vibrationData) {
+                hideLoadingIndicator();
+                showToast('No se pudieron cargar los datos de vibración', 'error');
                 return;
             }
             
-            // Adaptar a los nombres de campo del nuevo endpoint
-            const detailData = {
-                data_id: item.id || item.data_id,
-                sensor_id: item.sensor_id,
-                date: item.date || item.timestamp,
-                acceleration_x: item.acceleration_x !== undefined ? item.acceleration_x : (item.accel_x || 0),
-                acceleration_y: item.acceleration_y !== undefined ? item.acceleration_y : (item.accel_y || 0),
-                acceleration_z: item.acceleration_z !== undefined ? item.acceleration_z : (item.accel_z || 0),
-                severity: item.severity
-            };
-            
-            // Crear un modal dinámico para mostrar los detalles
-            const modalHtml = `
-                <div class="modal" id="vibrationDetailModal">
-                    <div class="modal-dialog">
-                        <div class="modal-content">
-                            <div class="modal-header">
-                                <h5 class="modal-title">Detalles de Datos de Vibración</h5>
-                                <button type="button" class="modal-close" id="closeVibrationDetailBtn">
-                                    <i class="fas fa-times"></i>
-                                </button>
-                            </div>
-                            <div class="modal-body">
-                                <div class="details-grid">
-                                    <div class="detail-item">
-                                        <div class="detail-label">ID:</div>
-                                        <div class="detail-value">${detailData.data_id}</div>
-                                    </div>
-                                    <div class="detail-item">
-                                        <div class="detail-label">Sensor ID:</div>
-                                        <div class="detail-value">${detailData.sensor_id}</div>
-                                    </div>
-                                    <div class="detail-item">
-                                        <div class="detail-label">Fecha y Hora:</div>
-                                        <div class="detail-value">${new Date(detailData.date).toLocaleString()}</div>
-                                    </div>
-                                    <div class="detail-item">
-                                        <div class="detail-label">Aceleración X:</div>
-                                        <div class="detail-value">${detailData.acceleration_x !== null ? parseFloat(detailData.acceleration_x).toFixed(6) : 'N/A'}</div>
-                                    </div>
-                                    <div class="detail-item">
-                                        <div class="detail-label">Aceleración Y:</div>
-                                        <div class="detail-value">${detailData.acceleration_y !== null ? parseFloat(detailData.acceleration_y).toFixed(6) : 'N/A'}</div>
-                                    </div>
-                                    <div class="detail-item">
-                                        <div class="detail-label">Aceleración Z:</div>
-                                        <div class="detail-value">${detailData.acceleration_z !== null ? parseFloat(detailData.acceleration_z).toFixed(6) : 'N/A'}</div>
-                                    </div>
-                                    <div class="detail-item">
-                                        <div class="detail-label">Severidad:</div>
-                                        <div class="detail-value">${getSeverityText(detailData.severity)}</div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="modal-footer">
-                                <button type="button" class="btn" id="closeVibrationDetailModalBtn">
-                                    Cerrar
-                                </button>
-                            </div>
+            // Crear contenido del modal con los datos de vibración
+            const modalContent = `
+                <div class="modal-vibration-details">
+                    <h3>Detalles de la Alerta #${dataId}</h3>
+                    <div class="vibration-data-grid">
+                        <div class="data-row">
+                            <div class="data-label">Aceleración X:</div>
+                            <div class="data-value">${vibrationData.acceleration_x.toFixed(3)} m/s²</div>
+                        </div>
+                        <div class="data-row">
+                            <div class="data-label">Aceleración Y:</div>
+                            <div class="data-value">${vibrationData.acceleration_y.toFixed(3)} m/s²</div>
+                        </div>
+                        <div class="data-row">
+                            <div class="data-label">Aceleración Z:</div>
+                            <div class="data-value">${vibrationData.acceleration_z.toFixed(3)} m/s²</div>
+                        </div>
+                        <div class="data-row">
+                            <div class="data-label">Fecha:</div>
+                            <div class="data-value">${new Date(vibrationData.date).toLocaleString()}</div>
                         </div>
                     </div>
                 </div>
             `;
             
-            // Eliminar modal anterior si existe
-            const oldModal = document.getElementById('vibrationDetailModal');
-            if (oldModal) {
-                oldModal.remove();
+            showModal('Detalles de Vibración', modalContent);
+            hideLoadingIndicator();
+        });
+}
+
+// Obtener datos de vibración a partir de un data_id
+function getVibrationDataById(dataId) {
+    if (!dataId) return Promise.resolve(null);
+    
+    return fetch(`/api/vibration-data/${dataId}`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`Error al obtener datos de vibración: ${response.status}`);
             }
-            
-            // Añadir el nuevo modal al DOM
-            document.body.insertAdjacentHTML('beforeend', modalHtml);
-            
-            // Configurar eventos de cierre
-            const modal = document.getElementById('vibrationDetailModal');
-            const closeBtn = document.getElementById('closeVibrationDetailBtn');
-            const closeModalBtn = document.getElementById('closeVibrationDetailModalBtn');
-            
-            const closeModal = () => {
-                modal.classList.remove('show');
-                setTimeout(() => {
-                    modal.remove();
-                }, 300);
-            };
-            
-            if (closeBtn) {
-                closeBtn.addEventListener('click', closeModal);
-            }
-            
-            if (closeModalBtn) {
-                closeModalBtn.addEventListener('click', closeModal);
-            }
-            
-            // Mostrar el modal
-            setTimeout(() => {
-                modal.classList.add('show');
-            }, 10);
+            return response.json();
         })
         .catch(error => {
-            hideLoadingIndicator();
-            console.error('Error al cargar detalles de datos de vibración:', error);
-            showToast('Error al cargar detalles: ' + error.message, 'error');
+            console.error('Error al obtener datos de vibración por ID:', error);
+            return null;
         });
 }
 
@@ -2047,6 +1944,67 @@ function initVibrationDataSection() {
         prevButton.disabled = true;
         nextButton.disabled = true;
     }
+}
+
+// Mostrar un modal con contenido dinámico
+function showModal(title, content) {
+    // Crear el HTML del modal
+    const modalHtml = `
+        <div class="modal" id="dynamicModal">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">${title}</h5>
+                        <button type="button" class="modal-close" id="closeModalBtn">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        ${content}
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn" id="closeModalActionBtn">
+                            Cerrar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Eliminar modal anterior si existe
+    const oldModal = document.getElementById('dynamicModal');
+    if (oldModal) {
+        oldModal.remove();
+    }
+    
+    // Añadir el nuevo modal al DOM
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    
+    // Configurar eventos de cierre
+    const modal = document.getElementById('dynamicModal');
+    const closeBtn = document.getElementById('closeModalBtn');
+    const closeActionBtn = document.getElementById('closeModalActionBtn');
+    
+    const closeModal = () => {
+        modal.classList.remove('show');
+        setTimeout(() => {
+            modal.remove();
+        }, 300);
+    };
+    
+    if (closeBtn) {
+        closeBtn.addEventListener('click', closeModal);
+    }
+    
+    if (closeActionBtn) {
+        closeActionBtn.addEventListener('click', closeModal);
+    }
+    
+    // Mostrar el modal
+    setTimeout(() => {
+        modal.classList.add('show');
+    }, 10);
 }
 
 // Exportar funciones para uso global

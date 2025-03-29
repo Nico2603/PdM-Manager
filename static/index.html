@@ -64,15 +64,29 @@
             <span id="lastUpdateTime">00:00:00</span>
           </div>
         </div>
+        
         <div id="monitoringStatus" class="monitoring-status">
           <span class="status-indicator"></span>
           <span class="status-text">Monitoreo detenido</span>
         </div>
-        <div class="mt-3">
-          <button id="refreshDataBtn" class="btn btn-block">
-            <i class="fas fa-sync-alt mr-2"></i>
-            <span>Actualizar Datos</span>
-          </button>
+        
+        <div class="sidebar-actions">
+          <div class="sidebar-action-item">
+            <button id="startMonitoringBtn" class="btn btn-primary btn-block">
+              <i class="fas fa-play-circle mr-2"></i> Iniciar Monitoreo
+            </button>
+            <div id="configurationWarning" class="configuration-warning d-none">
+              <i class="fas fa-exclamation-triangle mr-2"></i>
+              <span>Se requiere configurar al menos una máquina con sensor y modelo</span>
+            </div>
+          </div>
+          
+          <div class="sidebar-action-item">
+            <button id="refreshDataBtn" class="btn btn-block">
+              <i class="fas fa-sync-alt mr-2"></i>
+              <span>Actualizar Datos</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -82,10 +96,9 @@
       <!-- Header -->
       <div class="content-header">
         <div class="d-flex align-items-center">
-          
           <nav aria-label="breadcrumb">
             <ol class="breadcrumb">
-              <li class="breadcrumb-item"><a href="#dashboard">Inicio</a></li>
+              <li class="breadcrumb-item"><a href="#dashboard">Dashboard</a></li>
               <li class="breadcrumb-item active" id="currentSection">Dashboard</li>
             </ol>
           </nav>
@@ -160,18 +173,10 @@
                 </div>
               </div>
             </div>
-
-            <!-- Botón Iniciar Monitoreo -->
-            <div class="monitoring-controls animate-slide-up" style="animation-delay: 0.45s">
-              <button id="startMonitoringBtn" class="btn btn-primary">
-                <i class="fas fa-play-circle mr-2"></i> Iniciar Monitoreo
-              </button>
-              <div id="configurationWarning" class="configuration-warning d-none">
-                <i class="fas fa-exclamation-triangle mr-2"></i>
-                <span>Se requiere configurar al menos una máquina con sensor y modelo</span>
-              </div>
-            </div>
           </div>
+
+          <!-- Espaciador para separar las alertas de los filtros -->
+          <div class="spacer mt-4"></div>
 
           <!-- Filtros y Gráficos -->
           <div class="dashboard-grid">
@@ -476,10 +481,8 @@
                         <th>ID</th>
                         <th>Sensor ID</th>
                         <th>Fecha y Hora</th>
-                        <th>Aceleración X</th>
-                        <th>Aceleración Y</th>
-                        <th>Aceleración Z</th>
-                        <th>Severidad</th>
+                        <th>Data ID</th>
+                        <th>Tipo de Error</th>
                       </tr>
                     </thead>
                     <tbody id="alertsTableBody">
@@ -562,10 +565,6 @@
               <i class="fas fa-sliders-h"></i>
               <span>Límites</span>
             </div>
-            <div class="tab-item" data-tab="notifications">
-              <i class="fas fa-bell"></i>
-              <span>Notificaciones</span>
-            </div>
           </div>
           
           <!-- Contenido de las Tabs -->
@@ -584,26 +583,16 @@
                     </div>
                     
                     <div class="form-group">
-                      <label for="machineType" class="form-label">Tipo de Máquina</label>
-                      <select id="machineType" class="form-select" required>
-                        <option value="" disabled selected>Seleccione un tipo</option>
-                        <option value="pump">Bomba</option>
-                        <option value="motor">Motor</option>
-                        <option value="generator">Generador</option>
-                        <option value="compressor">Compresor</option>
-                        <option value="fan">Ventilador</option>
-                        <option value="other">Otro</option>
-                      </select>
-                    </div>
-                    
-                    <div class="form-group">
-                      <label for="machineLocation" class="form-label">Ubicación</label>
-                      <input type="text" id="machineLocation" class="form-control" placeholder="Ej. Planta 1, Sector A" required>
-                    </div>
-                    
-                    <div class="form-group">
                       <label for="machineDescription" class="form-label">Descripción</label>
                       <textarea id="machineDescription" class="form-control" rows="3" placeholder="Detalles adicionales sobre la máquina..."></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                      <label for="machineSensor" class="form-label">Sensor</label>
+                      <select id="machineSensor" class="form-select">
+                        <option value="" selected>Sin asignación (opcional)</option>
+                        <!-- Opciones cargadas dinámicamente -->
+                      </select>
                     </div>
                     
                     <div class="form-actions">
@@ -624,8 +613,8 @@
                           <tr>
                             <th class="column-id">ID</th>
                             <th>Nombre</th>
-                            <th>Tipo</th>
-                            <th>Ubicación</th>
+                            <th>Descripción</th>
+                            <th>Sensor</th>
                             <th class="column-actions">Acciones</th>
                           </tr>
                         </thead>
@@ -644,47 +633,25 @@
               <div class="config-form-grid">
                 <div class="config-card">
                   <h3>Configurar Sensor</h3>
-                  <p class="card-description">Asigne un sensor a una máquina para iniciar el monitoreo</p>
+                  <p class="card-description">Configure un nuevo sensor para monitoreo</p>
                   
                   <form id="sensorForm" class="config-form">
-                    <div class="form-group">
-                      <label for="sensorMachine" class="form-label">Máquina</label>
-                      <select id="sensorMachine" class="form-select" required>
-                        <option value="" disabled selected>Seleccione una máquina</option>
-                        <!-- Se cargará dinámicamente -->
-                      </select>
-                    </div>
-                    
                     <div class="form-group">
                       <label for="sensorName" class="form-label">Nombre del Sensor</label>
                       <input type="text" id="sensorName" class="form-control" placeholder="Ej. Acelerómetro Principal" required>
                     </div>
                     
-                    <div class="form-row">
-                      <div class="form-group">
-                        <label for="sensorType" class="form-label">Tipo de Sensor</label>
-                        <select id="sensorType" class="form-select" required>
-                          <option value="" disabled selected>Seleccione un tipo</option>
-                          <option value="accelerometer">Acelerómetro</option>
-                          <option value="temperature">Temperatura</option>
-                          <option value="vibration">Vibración</option>
-                          <option value="pressure">Presión</option>
-                          <option value="other">Otro</option>
-                        </select>
-                      </div>
-                      
-                      <div class="form-group">
-                        <label for="sensorModel" class="form-label">Modelo Predictivo</label>
-                        <select id="sensorModel" class="form-select" required>
-                          <option value="" disabled selected>Seleccione un modelo</option>
-                          <!-- Se cargará dinámicamente -->
-                        </select>
-                      </div>
+                    <div class="form-group">
+                      <label for="sensorDescription" class="form-label">Descripción</label>
+                      <textarea id="sensorDescription" class="form-control" rows="3" placeholder="Detalles adicionales sobre el sensor..."></textarea>
                     </div>
                     
                     <div class="form-group">
-                      <label for="sensorPosition" class="form-label">Posición</label>
-                      <input type="text" id="sensorPosition" class="form-control" placeholder="Ej. Cojinete delantero" required>
+                      <label for="sensorModel" class="form-label">Modelo Predictivo</label>
+                      <select id="sensorModel" class="form-select" required>
+                        <option value="" disabled selected>Seleccione un modelo</option>
+                        <!-- Se cargará dinámicamente -->
+                      </select>
                     </div>
                     
                     <div class="form-actions">
@@ -705,9 +672,8 @@
                           <tr>
                             <th class="column-id">ID</th>
                             <th>Nombre</th>
-                            <th>Máquina</th>
-                            <th>Tipo</th>
-                            <th>Estado</th>
+                            <th>Descripción</th>
+                            <th>Modelo</th>
                             <th class="column-actions">Acciones</th>
                           </tr>
                         </thead>
@@ -864,43 +830,6 @@
                     <div class="form-actions">
                       <button type="button" class="btn btn-secondary" id="cancelLimitsBtn">Cancelar</button>
                       <button type="submit" class="btn btn-primary">Guardar Límites</button>
-                    </div>
-                  </form>
-                </div>
-              </div>
-            </div>
-            
-            <!-- Tab Notificaciones -->
-            <div id="notifications-tab" class="tab-content">
-              <div class="config-form-grid">
-                <div class="config-card">
-                  <h3>Configurar Notificaciones</h3>
-                  <p class="card-description">Configure las notificaciones para la detección de anomalías</p>
-                  
-                  <form id="notificationsForm" class="config-form">
-                    <div class="form-group">
-                      <label for="notificationEmail" class="form-label">Correo Electrónico</label>
-                      <input type="email" id="notificationEmail" class="form-control" placeholder="Ej. ejemplo@correo.com">
-                    </div>
-                    
-                    <div class="form-group">
-                      <label for="notificationThreshold" class="form-label">Umbral de Alerta</label>
-                      <input type="number" id="notificationThreshold" class="form-control" step="0.01" placeholder="Ej. 2.00">
-                    </div>
-                    
-                    <div class="form-group">
-                      <label for="notificationFrequency" class="form-label">Frecuencia de Notificación</label>
-                      <select id="notificationFrequency" class="form-select">
-                        <option value="" disabled selected>Seleccione una frecuencia</option>
-                        <option value="daily">Diario</option>
-                        <option value="weekly">Semanal</option>
-                        <option value="monthly">Mensual</option>
-                      </select>
-                    </div>
-                    
-                    <div class="form-actions">
-                      <button type="button" class="btn btn-secondary" id="cancelNotificationsBtn">Cancelar</button>
-                      <button type="submit" class="btn btn-primary">Guardar Configuración</button>
                     </div>
                   </form>
                 </div>

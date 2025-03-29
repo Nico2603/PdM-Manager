@@ -1,8 +1,8 @@
 /**
- * PdM-Manager - JavaScript Gráficos v1.0.0
+ * PdM-Manager - JavaScript Gráficos v2.0.0
  * Funciones para la inicialización y actualización de gráficos
  * 
- * Última actualización: 2023-09-15
+ * Última actualización: 2024-03-29
  */
 
 // ==========================================================================
@@ -129,7 +129,6 @@ function initAxisChart(canvasId, title, axis) {
             datasets: datasets
         },
         options: {
-            responsive: true,
             maintainAspectRatio: false,
             interaction: {
                 intersect: false,
@@ -218,7 +217,7 @@ function initAxisChart(canvasId, title, axis) {
                         color: '#666'
                     },
                     grid: {
-                        color: 'rgba(200, 200, 200, 0.2)'
+                        color: 'rgba(200, 200, 200, 0.1)'
                     },
                     title: {
                         display: true,
@@ -377,20 +376,18 @@ function initAlertsHistoryChart() {
             datasets: datasets
         },
         options: {
-            responsive: false,
-            maintainAspectRatio: true,
+            maintainAspectRatio: false,
+            indexAxis: 'y',
             scales: {
                 x: {
-                    stacked: true,
+                    beginAtZero: true,
                     grid: {
-                        display: false
+                        color: 'rgba(200, 200, 200, 0.1)'
                     }
                 },
                 y: {
-                    stacked: true,
-                    beginAtZero: true,
-                    ticks: {
-                        precision: 0
+                    grid: {
+                        display: false
                     }
                 }
             },
@@ -441,15 +438,21 @@ function fetchAlertsHistoryData() {
                 const date = new Date(alert.timestamp);
                 const dayName = days[date.getDay()];
                 
-                // Determinar el nivel según el error_type
-                // Asumimos que error_type puede contener información sobre el nivel
-                if (alert.error_type.includes('Nivel 3') || alert.error_type.includes('Level 3') || alert.error_type.includes('Crítico')) {
-                    alertsByDay[dayName].level3++;
-                } else if (alert.error_type.includes('Nivel 2') || alert.error_type.includes('Level 2')) {
+                // Determinar el nivel según el error_type o severidad
+                // El backend genera valores 0, 1, 2 - se mantiene esta lógica para compatibilidad
+                const severity = parseInt(alert.error_type) || parseInt(alert.severity) || 0;
+                
+                if (severity === 2) {
                     alertsByDay[dayName].level2++;
+                } else if (severity === 1) {
+                    alertsByDay[dayName].level1++;
                 } else {
+                    // Para valores desconocidos o 0, se consideran de nivel 1
                     alertsByDay[dayName].level1++;
                 }
+                
+                // Nota: El nivel 3 actualmente no se implementa en el backend
+                // Se mantiene la estructura por si se implementa en el futuro
             });
             
             // Extraer datos para las series

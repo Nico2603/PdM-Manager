@@ -1,51 +1,48 @@
 /**
- * PdM-Manager - JavaScript Principal v1.0.0
- * Inicialización y coordinación de la aplicación
+ * PdM-Manager - JavaScript Principal v2.0.0
+ * Inicialización de aplicación y carga de componentes
  * 
  * Última actualización: 2023-09-15
+ * 
+ * Optimizaciones (2024):
+ * - Eliminadas referencias a campos antiguos (type, ubicacion, frecuencia notificaciones)
+ * - Eliminadas vistas obsoletas (pestaña Notificaciones)
+ * - Eliminado código responsive innecesario
+ * - Unificadas funciones para gestión de límites
+ * - Simplificada lógica de severidad para usar valores 0, 1, 2 conforme al backend
+ * - Funcionalidad para nivel 3 mantenida en estructura para futura implementación
  */
 
 // Esperar a que el DOM esté completamente cargado
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('Inicializando PdM-Manager...');
-
-    // Inicializar eventos globales
+    console.log('Inicializando aplicación PdM-Manager v2.0...');
+    
+    // Inicializar eventos de estado global
     if (typeof initGlobalStateEvents === 'function') {
         initGlobalStateEvents();
-    } else {
-        console.error('Error: La función initGlobalStateEvents no está disponible');
     }
-
-    // Inicializar funciones de navegación
+    
+    // Inicializar navegación
     if (typeof initNavigation === 'function') {
         initNavigation();
-    } else {
-        console.error('Error: La función initNavigation no está disponible');
     }
-
-    // Inicializar barra lateral
+    
+    // Inicializar menú lateral
     if (typeof initSidebar === 'function') {
         initSidebar();
-    } else {
-        console.error('Error: La función initSidebar no está disponible');
     }
-
-    // Inicializar elementos UI comunes
+    
+    // Inicializar componentes UI
     if (typeof initUI === 'function') {
         initUI();
-    } else {
-        console.error('Error: La función initUI no está disponible');
     }
+    
+    console.log('Aplicación inicializada correctamente');
+});
 
-    // Registrar listener para cambios de estado global
-    document.addEventListener('globalStateChange', function(e) {
-        console.log('Cambio de estado global detectado:', e.detail.key);
-        
-        // Propagar el evento a los módulos que lo necesiten
-        if (typeof handleGlobalStateChange === 'function') {
-            handleGlobalStateChange(e);
-        }
-    });
-
-    console.log('Inicialización completada');
+// Suscribirse a eventos de cambio de estado global
+document.addEventListener('globalStateChange', function(e) {
+    if (typeof handleGlobalStateChange === 'function') {
+        handleGlobalStateChange(e);
+    }
 }); 

@@ -1,7 +1,12 @@
 /**
- * PdM-Manager - Estilos CSS Unificados v1.2.0
+ * PdM-Manager - Estilos CSS Unificados v1.3.0
  * Tema oscuro minimalista con alta legibilidad y contrastes optimizados
  * Última actualización: 2023-09-15
+ * 
+ * Optimizado el 2024-03-29:
+ * - Unificado el estilo de los botones custom-file-button para coincidir con el tema principal
+ * - Eliminadas media queries innecesarias
+ * - Limpiado de selectores no utilizados
  */
 
 /* ------------------------------
@@ -207,23 +212,26 @@ p {
 }
 
 .charts-container {
-    display: grid;
-    grid-template-columns: repeat(1, 1fr);
-    gap: var(--spacing-xl);
-    margin-top: var(--spacing-xl);
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+    width: 100%;
 }
 
 .chart-container {
-    background-color: var(--color-background-light);
+    background-color: var(--color-background);
     border-radius: var(--border-radius);
-    padding: var(--spacing-md);
     box-shadow: var(--shadow-sm);
-    transition: box-shadow var(--transition-base), transform var(--transition-base);
-    height: 350px;
+    padding: var(--spacing-md);
+    transition: box-shadow var(--transition-fast);
+    width: 100%;
 }
 
-.chart-container:hover {
-    box-shadow: var(--shadow-md);
+.chart-container-x,
+.chart-container-y,
+.chart-container-z {
+    width: 100% !important;
+    margin-bottom: var(--spacing-md);
 }
 
 .chart-header {
@@ -564,9 +572,9 @@ p {
     justify-content: center;
     gap: var(--spacing-sm);
     padding: var(--spacing-sm) var(--spacing-lg);
-    background-color: var(--color-background-light);
-    color: var(--color-text);
-    border: 1px solid var(--color-border);
+    background-color: var(--color-primary);
+    color: white;
+    border: none;
     border-radius: var(--border-radius-sm);
     font-weight: 500;
     font-size: var(--font-size-sm);
@@ -576,8 +584,7 @@ p {
 }
 
 .custom-file-button:hover {
-    background-color: var(--color-background-hover);
-    border-color: var(--color-primary);
+    background-color: var(--color-primary-hover);
     transform: translateY(-1px);
 }
 
@@ -598,18 +605,6 @@ p {
 .file-selected .custom-file-label {
     color: var(--color-text);
     font-weight: 500;
-}
-
-/* Añadimos estilos específicos para la versión de escritorio */
-@media (min-width: 768px) {
-    .form-select, 
-    .custom-file-button {
-        padding: calc(var(--spacing-sm) + 2px) var(--spacing-lg);
-    }
-    
-    .custom-file {
-        margin-bottom: var(--spacing-lg);
-    }
 }
 
 .form-actions {
@@ -801,6 +796,19 @@ p {
 .monitoring-status .status-text {
     font-size: var(--font-size-sm);
     color: var(--color-text);
+}
+
+/* Estilos para las acciones del sidebar */
+.sidebar-actions {
+    margin-top: var(--spacing-md);
+}
+
+.sidebar-action-item {
+    margin-bottom: var(--spacing-md);
+}
+
+.sidebar-action-item:last-child {
+    margin-bottom: 0;
 }
 
 .text-muted {
@@ -1133,6 +1141,10 @@ p {
     margin-top: 1rem;
 }
 
+.mt-4 {
+    margin-top: 2rem;
+}
+
 .d-none {
     display: none !important;
 }
@@ -1180,4 +1192,219 @@ p {
 
 .animate-slide-up {
     animation: slideUp var(--transition-base) forwards;
+}
+
+/* Estilos para el menú desplegable y botones de exportación */
+.chart-dropdown {
+    position: relative;
+    display: inline-block;
+}
+
+.chart-dropdown-toggle {
+    background: none;
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius-sm);
+    padding: 5px 8px;
+    cursor: pointer;
+    transition: background-color var(--transition-fast);
+}
+
+.chart-dropdown-toggle:hover {
+    background-color: var(--color-background-hover);
+}
+
+.chart-dropdown-menu {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    width: 160px;
+    background-color: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius-sm);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    z-index: 10;
+    opacity: 0;
+    transform: translateY(-10px);
+    pointer-events: none;
+    transition: opacity var(--transition-fast), transform var(--transition-fast);
+}
+
+.chart-dropdown.active .chart-dropdown-menu {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+}
+
+.chart-dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm) var(--spacing-md);
+    font-size: var(--font-size-sm);
+    color: var(--color-text);
+    cursor: pointer;
+    transition: background-color var(--transition-fast);
+    border: none;
+    background: none;
+    width: 100%;
+    text-align: left;
+}
+
+.chart-dropdown-item i {
+    color: var(--color-primary);
+}
+
+.chart-dropdown-item:hover {
+    background-color: var(--color-background-hover);
+}
+
+/* No permitir visualización responsive en dispositivos móviles */
+@media (max-width: 768px) {
+    .app-container {
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .sidebar {
+        display: none;
+    }
+    
+    .main-content {
+        margin-left: 0;
+        width: 100%;
+    }
+    
+    body::before {
+        content: "Esta aplicación no está disponible en dispositivos móviles.";
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: var(--color-background);
+        color: var(--color-text);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: var(--spacing-lg);
+        text-align: center;
+        font-size: var(--font-size-lg);
+        z-index: 9999;
+    }
+}
+
+/* Estilos para enlaces de datos y modal de detalles */
+.view-vibration-data {
+    color: var(--color-primary);
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+.view-vibration-data:hover {
+    color: var(--color-primary-dark);
+}
+
+.modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    opacity: 0;
+    transition: opacity var(--transition-fast);
+}
+
+.modal.show {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 1;
+}
+
+.modal-dialog {
+    width: 100%;
+    max-width: 600px;
+    transform: translateY(-20px);
+    transition: transform var(--transition-fast);
+}
+
+.modal.show .modal-dialog {
+    transform: translateY(0);
+}
+
+.modal-content {
+    background-color: var(--color-background);
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow-lg);
+    overflow: hidden;
+}
+
+.modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--spacing-md) var(--spacing-lg);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.modal-title {
+    margin: 0;
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-lg);
+    cursor: pointer;
+    padding: 0;
+}
+
+.modal-close:hover {
+    color: var(--color-text);
+}
+
+.modal-body {
+    padding: var(--spacing-lg);
+}
+
+.modal-footer {
+    padding: var(--spacing-md) var(--spacing-lg);
+    border-top: 1px solid var(--color-border);
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--spacing-md);
+}
+
+.modal-vibration-details {
+    width: 100%;
+}
+
+.vibration-data-grid {
+    display: grid;
+    gap: var(--spacing-md);
+    margin-top: var(--spacing-md);
+}
+
+.data-row {
+    display: flex;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--color-border-light);
+    padding-bottom: var(--spacing-sm);
+}
+
+.data-label {
+    font-weight: 500;
+    color: var(--color-text-secondary);
+}
+
+.data-value {
+    font-weight: 600;
+    color: var(--color-text);
 }
