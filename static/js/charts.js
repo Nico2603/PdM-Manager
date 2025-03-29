@@ -13,7 +13,6 @@
 let vibrationChartX = null;
 let vibrationChartY = null;
 let vibrationChartZ = null;
-let alertsHistoryChart = null;
 
 // Datos de los gráficos
 let chartData = {
@@ -330,163 +329,6 @@ function updateAxisChart(chart, axis) {
     chart.update();
 }
 
-// Inicializar gráfico de historial de alertas
-function initAlertsHistoryChart() {
-    const canvas = document.getElementById('alertsHistoryChart');
-    if (!canvas) return;
-    
-    const ctx = canvas.getContext('2d');
-    
-    // Si ya existe, destruirlo
-    if (alertsHistoryChart) {
-        alertsHistoryChart.destroy();
-    }
-    
-    // Preparar datos iniciales
-    const labels = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
-    const datasets = [
-        {
-            label: 'Nivel 1',
-            data: [0, 0, 0, 0, 0, 0, 0],
-            backgroundColor: SEVERITY_COLORS[1],
-            borderColor: SEVERITY_COLORS[1],
-            borderWidth: 1
-        },
-        {
-            label: 'Nivel 2',
-            data: [0, 0, 0, 0, 0, 0, 0],
-            backgroundColor: SEVERITY_COLORS[2],
-            borderColor: SEVERITY_COLORS[2],
-            borderWidth: 1
-        },
-        {
-            label: 'Nivel 3',
-            data: [0, 0, 0, 0, 0, 0, 0],
-            backgroundColor: SEVERITY_COLORS[3],
-            borderColor: SEVERITY_COLORS[3],
-            borderWidth: 1
-        }
-    ];
-    
-    // Crear gráfico
-    alertsHistoryChart = new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: labels,
-            datasets: datasets
-        },
-        options: {
-            maintainAspectRatio: false,
-            indexAxis: 'y',
-            scales: {
-                x: {
-                    beginAtZero: true,
-                    grid: {
-                        color: 'rgba(200, 200, 200, 0.1)'
-                    }
-                },
-                y: {
-                    grid: {
-                        display: false
-                    }
-                }
-            },
-            plugins: {
-                legend: {
-                    position: 'top',
-                    align: 'end',
-                    labels: {
-                        boxWidth: 12,
-                        usePointStyle: true,
-                        pointStyle: 'circle'
-                    }
-                },
-                tooltip: {
-                    mode: 'index',
-                    intersect: false
-                }
-            }
-        }
-    });
-    
-    // Cargar datos reales
-    fetchAlertsHistoryData();
-    
-    return alertsHistoryChart;
-}
-
-// Cargar datos para el gráfico de historial de alertas
-function fetchAlertsHistoryData() {
-    // Obtener los datos reales de alertas simplificadas desde el API
-    fetch('/api/alerts/simplified')
-        .then(response => response.json())
-        .then(data => {
-            // Agrupar alertas por día de la semana
-            const days = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
-            const alertsByDay = {
-                'Lun': { level1: 0, level2: 0, level3: 0 },
-                'Mar': { level1: 0, level2: 0, level3: 0 },
-                'Mié': { level1: 0, level2: 0, level3: 0 },
-                'Jue': { level1: 0, level2: 0, level3: 0 },
-                'Vie': { level1: 0, level2: 0, level3: 0 },
-                'Sáb': { level1: 0, level2: 0, level3: 0 },
-                'Dom': { level1: 0, level2: 0, level3: 0 }
-            };
-            
-            // Procesar cada alerta
-            data.forEach(alert => {
-                const date = new Date(alert.timestamp);
-                const dayName = days[date.getDay()];
-                
-                // Determinar el nivel según el error_type o severidad
-                // El backend genera valores 0, 1, 2 - se mantiene esta lógica para compatibilidad
-                const severity = parseInt(alert.error_type) || parseInt(alert.severity) || 0;
-                
-                if (severity === 2) {
-                    alertsByDay[dayName].level2++;
-                } else if (severity === 1) {
-                    alertsByDay[dayName].level1++;
-                } else {
-                    // Para valores desconocidos o 0, se consideran de nivel 1
-                    alertsByDay[dayName].level1++;
-                }
-                
-                // Nota: El nivel 3 actualmente no se implementa en el backend
-                // Se mantiene la estructura por si se implementa en el futuro
-            });
-            
-            // Extraer datos para las series
-            const level1Data = [];
-            const level2Data = [];
-            const level3Data = [];
-            
-            // Mantener el orden correcto de los días
-            ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'].forEach(day => {
-                level1Data.push(alertsByDay[day].level1);
-                level2Data.push(alertsByDay[day].level2);
-                level3Data.push(alertsByDay[day].level3);
-            });
-            
-            updateAlertsHistoryChart(level1Data, level2Data, level3Data);
-        })
-        .catch(error => {
-            console.error('Error al cargar datos de alertas:', error);
-            // En caso de error, mostrar datos vacíos
-            updateAlertsHistoryChart([0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0]);
-        });
-}
-
-// Actualizar el gráfico de historial de alertas con nuevos datos
-function updateAlertsHistoryChart(level1Data, level2Data, level3Data) {
-    if (!alertsHistoryChart) return;
-    
-    alertsHistoryChart.data.datasets[0].data = level1Data;
-    alertsHistoryChart.data.datasets[1].data = level2Data;
-    alertsHistoryChart.data.datasets[2].data = level3Data;
-    
-    alertsHistoryChart.update();
-}
-
 // ==========================================================================
 // ACTUALIZACIÓN DE LÍMITES
 // ==========================================================================
@@ -641,7 +483,6 @@ window.updateVibrationChartY = updateVibrationChartY;
 window.updateVibrationChartZ = updateVibrationChartZ;
 window.updateAxisChart = updateAxisChart;
 window.updateAxisChartLimits = updateAxisChartLimits;
-window.initAlertsHistoryChart = initAlertsHistoryChart;
 window.updateChartsWithNewLimits = updateChartsWithNewLimits;
 window.chartData = chartData;
 window.stats = getGlobalState('stats');
