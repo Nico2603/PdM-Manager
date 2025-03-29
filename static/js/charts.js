@@ -24,8 +24,6 @@ let chartData = {
     status: []
 };
 
-// Las estadísticas ahora se manejan con el estado global en utils.js
-
 // ==========================================================================
 // INICIALIZACIÓN DE GRÁFICOS
 // ==========================================================================
@@ -379,8 +377,8 @@ function initAlertsHistoryChart() {
             datasets: datasets
         },
         options: {
-            responsive: true,
-            maintainAspectRatio: false,
+            responsive: false,
+            maintainAspectRatio: true,
             scales: {
                 x: {
                     stacked: true,
@@ -484,38 +482,6 @@ function updateAlertsHistoryChart(level1Data, level2Data, level3Data) {
     alertsHistoryChart.data.datasets[2].data = level3Data;
     
     alertsHistoryChart.update();
-}
-
-// ==========================================================================
-// DESCARGA DE GRÁFICOS
-// ==========================================================================
-
-// Inicializar botones de descarga de gráficos
-function initChartDownloadButtons() {
-    const downloadButtons = document.querySelectorAll('.download-chart-btn');
-    
-    downloadButtons.forEach(button => {
-        button.addEventListener('click', () => {
-            const chartId = button.getAttribute('data-chart');
-            const filename = button.getAttribute('data-filename') || 'chart';
-            
-            if (chartId) {
-                downloadChart(chartId, filename);
-            }
-        });
-    });
-}
-
-// Descargar gráfico como imagen PNG
-function downloadChart(chartId, filename) {
-    const canvas = document.getElementById(chartId);
-    if (!canvas) return;
-    
-    // Crear enlace de descarga
-    const link = document.createElement('a');
-    link.download = `${filename}.png`;
-    link.href = canvas.toDataURL('image/png');
-    link.click();
 }
 
 // ==========================================================================
@@ -673,8 +639,6 @@ window.updateVibrationChartZ = updateVibrationChartZ;
 window.updateAxisChart = updateAxisChart;
 window.updateAxisChartLimits = updateAxisChartLimits;
 window.initAlertsHistoryChart = initAlertsHistoryChart;
-window.initChartDownloadButtons = initChartDownloadButtons;
-window.downloadChart = downloadChart;
 window.updateChartsWithNewLimits = updateChartsWithNewLimits;
 window.chartData = chartData;
 window.stats = getGlobalState('stats');

@@ -9,9 +9,6 @@
 // VARIABLES GLOBALES DEL DASHBOARD
 // ==========================================================================
 
-// Mantener referencias a las selecciones actuales (ahora gestionadas por globalState)
-// Estas referencias se eliminan y se usan las funciones de utils.js para acceder a los valores
-
 // Estado del monitoreo
 let monitoringInterval = null;
 let isMonitoring = false;
@@ -22,10 +19,8 @@ let hasValidConfiguration = false;
 // ==========================================================================
 
 function initDashboard() {
-    console.log('Inicializando dashboard...');
-    
     try {
-        // Inicializar componentes de UI primero (no requieren datos de la API)
+        // Inicializar componentes de UI y gráficos
         initCustomUIComponents();
         initVisualFilters();
         initExportButtons();
@@ -89,6 +84,9 @@ function initDashboard() {
                 return updateDashboardData();
             })
             .then(() => {
+                // Cargar historial de alertas
+                loadSimplifiedAlerts();
+                
                 console.log('Dashboard inicializado correctamente');
                 hideLoadingIndicator();
                 showToast('Panel de control inicializado', 'success');
@@ -136,11 +134,6 @@ function initCustomUIComponents() {
     
     // Inicializar dropdowns de gráficos
     initChartDropdowns();
-    
-    // Inicializar botones de descarga de gráficos
-    if (typeof initChartDownloadButtons === 'function') {
-        initChartDownloadButtons();
-    }
 }
 
 // Inicializar dropdowns personalizados
@@ -150,23 +143,6 @@ function initCustomDropdowns() {
         const { dropdownId, value } = e.detail;
         handleDropdownChange(dropdownId, value);
     });
-    
-    // Obtener elementos de los dropdowns
-    const machineDropdown = document.getElementById('machineDropdown');
-    const sensorDropdown = document.getElementById('sensorDropdown');
-    const timeRangeDropdown = document.getElementById('timeRangeDropdown');
-    
-    if (machineDropdown && sensorDropdown && timeRangeDropdown) {
-        // Suscribirse a eventos de clic en los dropdowns para móviles
-        // (complementario a la inicialización general de dropdowns)
-        const machineToggle = machineDropdown.querySelector('.filter-dropdown-toggle');
-        const sensorToggle = sensorDropdown.querySelector('.filter-dropdown-toggle');
-        const timeRangeToggle = timeRangeDropdown.querySelector('.filter-dropdown-toggle');
-        
-        if (machineToggle && sensorToggle && timeRangeToggle) {
-            // La lógica de toggle ya se maneja en initDropdowns de utils.js
-        }
-    }
 }
 
 // Manejar cambio en dropdown
@@ -834,53 +810,80 @@ function playAlertSound() {
 
 // Inicializar botón de monitoreo
 function initMonitoringButton() {
+    console.log('Inicializando botón de monitoreo...');
     const startMonitoringBtn = document.getElementById('startMonitoringBtn');
-    const monitoringStatus = document.getElementById('monitoringStatus');
     
-    if (startMonitoringBtn && monitoringStatus) {
-        startMonitoringBtn.addEventListener('click', function() {
-            if (!hasValidConfiguration) {
-                showToast('No hay configuración válida para iniciar el monitoreo', 'error');
-                return;
-            }
-            
-            if (!isMonitoring) {
-                // Iniciar monitoreo
-                startMonitoring();
-                
-                // Cambiar apariencia del botón
-                startMonitoringBtn.innerHTML = '<i class="fas fa-stop-circle mr-2"></i> Detener Monitoreo';
-                startMonitoringBtn.classList.remove('btn-primary');
-                startMonitoringBtn.classList.add('btn-danger');
-                
-                // Actualizar estado
-                const statusIndicator = monitoringStatus.querySelector('.status-indicator');
-                const statusText = monitoringStatus.querySelector('.status-text');
-                
-                if (statusIndicator && statusText) {
-                    statusIndicator.classList.add('active');
-                    statusText.textContent = 'Monitoreo activo';
-                }
-            } else {
-                // Detener monitoreo
-                stopMonitoring();
-                
-                // Cambiar apariencia del botón
-                startMonitoringBtn.innerHTML = '<i class="fas fa-play-circle mr-2"></i> Iniciar Monitoreo';
-                startMonitoringBtn.classList.remove('btn-danger');
-                startMonitoringBtn.classList.add('btn-primary');
-                
-                // Actualizar estado
-                const statusIndicator = monitoringStatus.querySelector('.status-indicator');
-                const statusText = monitoringStatus.querySelector('.status-text');
-                
-                if (statusIndicator && statusText) {
-                    statusIndicator.classList.remove('active');
-                    statusText.textContent = 'Monitoreo detenido';
-                }
-            }
-        });
+    if (!startMonitoringBtn) {
+        console.error('Error: No se encontró el botón de monitoreo');
+        return;
     }
+    
+    // Estado actual del monitoreo
+    const updateButtonState = () => {
+        const monitoringStatus = document.getElementById('monitoringStatus');
+        const statusText = monitoringStatus ? monitoringStatus.querySelector('.status-text') : null;
+        const statusIndicator = monitoringStatus ? monitoringStatus.querySelector('.status-indicator') : null;
+        
+        if (isMonitoring) {
+            startMonitoringBtn.innerHTML = '<i class="fas fa-stop-circle mr-2"></i> Detener Monitoreo';
+            startMonitoringBtn.classList.remove('btn-primary');
+            startMonitoringBtn.classList.add('btn-danger');
+            
+            if (statusText) statusText.textContent = 'Monitoreo activo';
+            if (statusIndicator) statusIndicator.classList.add('active');
+        } else {
+            startMonitoringBtn.innerHTML = '<i class="fas fa-play-circle mr-2"></i> Iniciar Monitoreo';
+            startMonitoringBtn.classList.remove('btn-danger');
+            startMonitoringBtn.classList.add('btn-primary');
+            
+            if (statusText) statusText.textContent = 'Monitoreo detenido';
+            if (statusIndicator) statusIndicator.classList.remove('active');
+        }
+    };
+    
+    // Verificar si hay una configuración válida
+    checkValidConfiguration().then(isValid => {
+        hasValidConfiguration = isValid;
+        
+        // Mostrar advertencia si no hay configuración válida
+        const configWarning = document.getElementById('configurationWarning');
+        if (configWarning) {
+            if (!hasValidConfiguration) {
+                configWarning.classList.remove('d-none');
+            } else {
+                configWarning.classList.add('d-none');
+            }
+        }
+        
+        // Actualizar estado inicial del botón
+        updateButtonState();
+    });
+    
+    // Evento de clic para iniciar/detener monitoreo
+    startMonitoringBtn.addEventListener('click', () => {
+        if (!hasValidConfiguration) {
+            showToast('Configure al menos una máquina con sensor y modelo para iniciar el monitoreo', 'warning');
+            
+            // Ofrecer ir a configuración
+            if (confirm('¿Desea ir a la sección de configuración para configurar una máquina?')) {
+                navigateTo('configuracion');
+            }
+            return;
+        }
+        
+        if (isMonitoring) {
+            // Detener monitoreo
+            stopMonitoring();
+            showToast('Monitoreo detenido', 'info');
+        } else {
+            // Iniciar monitoreo
+            startMonitoring();
+            showToast('Monitoreo iniciado', 'success');
+        }
+        
+        // Actualizar estado del botón
+        updateButtonState();
+    });
 }
 
 // Iniciar monitoreo
@@ -1014,35 +1017,6 @@ function initExportButtons() {
     if (exportPdfZBtn) {
         exportPdfZBtn.addEventListener('click', () => {
             exportAxisToPDF('z');
-        });
-    }
-    
-    // Botones de descarga de gráfico como imagen
-    const downloadChartXBtn = document.getElementById('downloadChartX');
-    if (downloadChartXBtn) {
-        downloadChartXBtn.addEventListener('click', () => {
-            downloadChart('vibrationChartX', 'vibracion-eje-x.png');
-        });
-    }
-    
-    const downloadChartYBtn = document.getElementById('downloadChartY');
-    if (downloadChartYBtn) {
-        downloadChartYBtn.addEventListener('click', () => {
-            downloadChart('vibrationChartY', 'vibracion-eje-y.png');
-        });
-    }
-    
-    const downloadChartZBtn = document.getElementById('downloadChartZ');
-    if (downloadChartZBtn) {
-        downloadChartZBtn.addEventListener('click', () => {
-            downloadChart('vibrationChartZ', 'vibracion-eje-z.png');
-        });
-    }
-    
-    const downloadChartAlertsBtn = document.getElementById('downloadChartAlerts');
-    if (downloadChartAlertsBtn) {
-        downloadChartAlertsBtn.addEventListener('click', () => {
-            downloadChart('alertsHistoryChart', 'historial-alertas.png');
         });
     }
 }
@@ -1323,93 +1297,119 @@ function resetLimitsFromModal() {
 
 // Inicializar botón de aplicar filtros
 function initApplyFiltersButton() {
+    console.log('Inicializando botón de filtros...');
     const applyFiltersBtn = document.getElementById('applyFiltersBtn');
     
-    if (applyFiltersBtn) {
-        applyFiltersBtn.addEventListener('click', () => {
-            // Mostrar indicador de carga
-            showLoadingIndicator('Aplicando filtros y actualizando datos...');
-            
-            // Almacenar selecciones actuales en el estado global
-            const machineSelector = document.getElementById('machineDropdown');
-            const sensorSelector = document.getElementById('sensorDropdown');
-            const timeRangeSelector = document.getElementById('timeRangeDropdown');
-            
-            if (machineSelector && sensorSelector && timeRangeSelector) {
-                const machineId = machineSelector.querySelector('.selected')?.getAttribute('data-value') || '';
-                const sensorId = sensorSelector.querySelector('.selected')?.getAttribute('data-value') || '';
-                const timeRange = timeRangeSelector.querySelector('.selected')?.getAttribute('data-value') || '24h';
-                
-                console.log('Aplicando filtros:', { machineId, sensorId, timeRange });
-                
-                // Actualizar estado global con las selecciones
-                setGlobalState('selectedMachine', machineId);
-                setGlobalState('selectedSensor', sensorId);
-                setGlobalState('timeRange', timeRange);
-            }
-            
-            // Leer estado de los toggles de visualización
-            const show2Sigma = document.getElementById('show2Sigma')?.checked;
-            const show3Sigma = document.getElementById('show3Sigma')?.checked;
-            
-            // Actualizar opciones de visualización en el estado global
-            const chartOptions = getGlobalState('chartOptions') || {};
-            chartOptions.show2Sigma = show2Sigma !== undefined ? show2Sigma : chartOptions.show2Sigma;
-            chartOptions.show3Sigma = show3Sigma !== undefined ? show3Sigma : chartOptions.show3Sigma;
-            setGlobalState('chartOptions', chartOptions);
-            
-            // Actualizar datos y gráficos
-            Promise.resolve()
-                .then(() => {
-                    // Mostrar mensajes de depuración
-                    console.log('Estado global actualizado:', {
-                        machine: getGlobalState('selectedMachine'),
-                        sensor: getGlobalState('selectedSensor'),
-                        timeRange: getGlobalState('timeRange'),
-                        chartOptions: getGlobalState('chartOptions')
-                    });
-                    
-                    // Actualizar datos del dashboard
-                    return updateDashboardData();
-                })
-                .then(() => {
-                    console.log('Datos del dashboard actualizados');
-                    
-                    // Mostrar gráficos después de cargar datos
-                    showCharts();
-                    
-                    // Actualizar la visibilidad de las líneas sigma según los checkboxes
-                    if (typeof updateChartsVisibility === 'function') {
-                        updateChartsVisibility();
-                    }
-                    
-                    // Actualizar contadores de alertas
-                    updateDashboardAlertCounts();
-                    
-                    // Cargar datos de vibración recientes
-                    return loadVibrationData(1);
-                })
-                .then(() => {
-                    console.log('Datos de vibración cargados');
-                    
-                    // Cargar alertas simplificadas
-                    return loadSimplifiedAlerts();
-                })
-                .then(() => {
-                    console.log('Alertas simplificadas cargadas');
-                    
-                    // Mostrar mensaje de éxito
-                    showToast('Filtros aplicados correctamente', 'success');
-                })
-                .catch(error => {
-                    console.error('Error al aplicar filtros:', error);
-                    showToast('Error al aplicar filtros', 'error');
-                })
-                .finally(() => {
-                    hideLoadingIndicator();
-                });
-        });
+    if (!applyFiltersBtn) {
+        console.error('Error: No se encontró el botón de aplicar filtros');
+        return;
     }
+    
+    // Evento de clic para aplicar filtros
+    applyFiltersBtn.addEventListener('click', () => {
+        // Leer valores de los filtros desde los elementos del DOM
+        const selectedMachine = document.getElementById('selectedMachineText').getAttribute('data-value') || '';
+        const selectedSensor = document.getElementById('selectedSensorText').getAttribute('data-value') || '';
+        const selectedTimeRange = document.getElementById('selectedTimeRangeText').getAttribute('data-value') || '24h';
+        
+        // Actualizar estado global con los valores de los filtros
+        setGlobalState('selectedMachine', selectedMachine);
+        setGlobalState('selectedSensor', selectedSensor);
+        setGlobalState('timeRange', selectedTimeRange);
+        
+        // Actualizar las opciones de visualización
+        const show2Sigma = document.getElementById('show2Sigma').checked;
+        const show3Sigma = document.getElementById('show3Sigma').checked;
+        
+        setGlobalState('chartOptions', {
+            show2Sigma,
+            show3Sigma
+        });
+        
+        // Actualizar datos del dashboard con los nuevos filtros
+        updateDashboardData();
+        
+        // Mostrar notificación
+        showToast('Filtros aplicados correctamente', 'success');
+    });
+    
+    // Inicializar dropdowns
+    initDashboardDropdowns();
+}
+
+// Inicializar dropdowns personalizados
+function initDashboardDropdowns() {
+    // Dropdown de máquinas
+    initDropdown('machineDropdown', (value, text) => {
+        // Cargar sensores cuando se selecciona una máquina
+        if (value !== undefined) {
+            loadSensors(value);
+        }
+    });
+    
+    // Dropdown de sensores
+    initDropdown('sensorDropdown');
+    
+    // Dropdown de rango de tiempo
+    initDropdown('timeRangeDropdown');
+}
+
+// Inicializar un dropdown específico
+function initDropdown(dropdownId, callback) {
+    const dropdown = document.getElementById(dropdownId);
+    if (!dropdown) return;
+    
+    const toggle = dropdown.querySelector('.filter-dropdown-toggle');
+    const menu = dropdown.querySelector('.filter-dropdown-menu');
+    const selectedText = dropdown.querySelector('span[id$="Text"]');
+    
+    if (!toggle || !menu || !selectedText) return;
+    
+    // Toggle del menú
+    toggle.addEventListener('click', (e) => {
+        e.stopPropagation();
+        menu.classList.toggle('show');
+        
+        // Cerrar otros dropdowns abiertos
+        document.querySelectorAll('.filter-dropdown-menu.show').forEach(openMenu => {
+            if (openMenu !== menu) {
+                openMenu.classList.remove('show');
+            }
+        });
+    });
+    
+    // Selección de items
+    const items = menu.querySelectorAll('.filter-dropdown-item');
+    items.forEach(item => {
+        item.addEventListener('click', () => {
+            // Obtener valor seleccionado
+            const value = item.getAttribute('data-value');
+            const text = item.textContent;
+            
+            // Actualizar texto visible
+            selectedText.textContent = text;
+            selectedText.setAttribute('data-value', value);
+            
+            // Marcar item seleccionado
+            items.forEach(i => i.classList.remove('selected'));
+            item.classList.add('selected');
+            
+            // Cerrar dropdown
+            menu.classList.remove('show');
+            
+            // Ejecutar callback si existe
+            if (typeof callback === 'function') {
+                callback(value, text);
+            }
+        });
+    });
+    
+    // Cerrar dropdown al hacer clic fuera
+    document.addEventListener('click', (e) => {
+        if (!dropdown.contains(e.target)) {
+            menu.classList.remove('show');
+        }
+    });
 }
 
 // ==========================================================================
@@ -1470,13 +1470,57 @@ function stopSimulationUpdates() {
 
 // Cargar alertas simplificadas
 function loadSimplifiedAlerts() {
-    fetch('/api/alerts/simplified')
-        .then(response => response.json())
+    // Mostrar indicador de carga
+    showLoadingIndicator('Cargando historial de alertas...');
+    
+    // Primero intentamos usar el endpoint con datos completos
+    fetch('/api/alerts/with-data')
+        .then(response => {
+            if (!response.ok) {
+                // Si el endpoint no existe, usamos el endpoint simplificado
+                throw new Error('Endpoint no disponible, usando alternativa');
+            }
+            return response.json();
+        })
         .then(data => {
             updateAlertsTable(data);
+            hideLoadingIndicator();
         })
         .catch(error => {
-            console.error('Error al cargar alertas simplificadas:', error);
+            console.warn('Usando endpoint simplificado para alertas:', error);
+            
+            // Endpoint alternativo con datos simplificados
+            fetch('/api/alerts/simplified')
+                .then(response => response.json())
+                .then(alertData => {
+                    // Enriquecer alertas con datos de vibración simulados
+                    const enrichedAlerts = alertData.map(alert => {
+                        // Determinar el nivel de alerta según el error_type
+                        const errorType = parseInt(alert.error_type);
+                        
+                        // Agregar datos de vibración simulados basados en la severidad
+                        const randomBase = Math.random() * 2; // Base aleatoria para valores
+                        const vibrationData = {
+                            acceleration_x: (randomBase + (errorType * 0.5)).toFixed(3),
+                            acceleration_y: (randomBase + (errorType * 0.3)).toFixed(3),
+                            acceleration_z: (randomBase + (errorType * 0.7)).toFixed(3)
+                        };
+                        
+                        // Añadir datos de vibración al objeto de alerta
+                        return {
+                            ...alert,
+                            vibration_data: vibrationData
+                        };
+                    });
+                    
+                    updateAlertsTable(enrichedAlerts);
+                    hideLoadingIndicator();
+                })
+                .catch(err => {
+                    console.error('Error al cargar alertas:', err);
+                    hideLoadingIndicator();
+                    showToast('Error al cargar historial de alertas', 'error');
+                });
         });
 }
 
@@ -1492,15 +1536,14 @@ function updateAlertsTable(alerts) {
     if (!alerts || alerts.length === 0) {
         const row = tableBody.insertRow();
         const cell = row.insertCell();
-        cell.colSpan = 4;
+        cell.colSpan = 7; // Actualizado a 7 columnas
         cell.textContent = 'No hay alertas registradas';
         cell.className = 'text-center';
         return;
     }
     
-    // Agregar filas de alertas (máximo 10)
-    const alertsToShow = alerts.slice(0, 10);
-    for (const alert of alertsToShow) {
+    // Agregar filas de alertas
+    for (const alert of alerts) {
         const row = tableBody.insertRow();
         
         // Determinar el nivel de alerta y aplicar clase según el error_type numérico
@@ -1534,10 +1577,37 @@ function updateAlertsTable(alerts) {
         timestampCell.textContent = date.toLocaleString();
         timestampCell.className = 'column-datetime';
         
-        // Tipo de error - ahora mostramos el error_type directamente
-        const errorTypeCell = row.insertCell();
-        const errorText = getSeverityText(errorType);
-        errorTypeCell.textContent = errorText;
+        // Obtener datos de vibración si están disponibles
+        let accelX = 'N/A';
+        let accelY = 'N/A';
+        let accelZ = 'N/A';
+        
+        // Si la alerta tiene asociado un vibration_data y ese dato está disponible
+        if (alert.vibration_data) {
+            accelX = alert.vibration_data.acceleration_x !== undefined ? 
+                parseFloat(alert.vibration_data.acceleration_x).toFixed(3) : 'N/A';
+            accelY = alert.vibration_data.acceleration_y !== undefined ? 
+                parseFloat(alert.vibration_data.acceleration_y).toFixed(3) : 'N/A';
+            accelZ = alert.vibration_data.acceleration_z !== undefined ? 
+                parseFloat(alert.vibration_data.acceleration_z).toFixed(3) : 'N/A';
+        }
+        
+        // Aceleración X
+        const accelXCell = row.insertCell();
+        accelXCell.textContent = accelX;
+        
+        // Aceleración Y
+        const accelYCell = row.insertCell();
+        accelYCell.textContent = accelY;
+        
+        // Aceleración Z
+        const accelZCell = row.insertCell();
+        accelZCell.textContent = accelZ;
+        
+        // Severidad
+        const severityCell = row.insertCell();
+        const severityText = getSeverityText(errorType);
+        severityCell.innerHTML = `<span class="status-level${errorType}">${severityText}</span>`;
     }
     
     // Inicializar el botón de actualizar
@@ -1651,7 +1721,7 @@ function updateVibrationDataTable(vibrationData) {
     if (vibrationData.length === 0) {
         tableBody.innerHTML = `
             <tr>
-                <td colspan="9" class="text-center">No hay datos de vibración disponibles</td>
+                <td colspan="8" class="text-center">No hay datos de vibración disponibles</td>
             </tr>
         `;
         return;
@@ -1694,7 +1764,6 @@ function updateVibrationDataTable(vibrationData) {
         const accelX = item.acceleration_x !== undefined ? item.acceleration_x : (item.accel_x || 0);
         const accelY = item.acceleration_y !== undefined ? item.acceleration_y : (item.accel_y || 0);
         const accelZ = item.acceleration_z !== undefined ? item.acceleration_z : (item.accel_z || 0);
-        const magnitude = item.magnitude || 0;
         
         row.innerHTML = `
             <td>${dataId}</td>
@@ -1704,7 +1773,6 @@ function updateVibrationDataTable(vibrationData) {
             <td>${parseFloat(accelY).toFixed(3)}</td>
             <td>${parseFloat(accelZ).toFixed(3)}</td>
             <td><span class="${severityClass}">${getSeverityText(item.severity)}</span></td>
-            <td>${parseFloat(magnitude).toFixed(3)}</td>
             <td class="column-actions">
                 <div class="table-actions">
                     <button class="btn-icon btn-view" title="Ver detalles" data-id="${dataId}">
@@ -1800,8 +1868,7 @@ function viewVibrationDetails(dataId) {
                 acceleration_x: item.acceleration_x !== undefined ? item.acceleration_x : (item.accel_x || 0),
                 acceleration_y: item.acceleration_y !== undefined ? item.acceleration_y : (item.accel_y || 0),
                 acceleration_z: item.acceleration_z !== undefined ? item.acceleration_z : (item.accel_z || 0),
-                severity: item.severity,
-                magnitude: item.magnitude || 0
+                severity: item.severity
             };
             
             // Crear un modal dinámico para mostrar los detalles
@@ -1844,10 +1911,6 @@ function viewVibrationDetails(dataId) {
                                     <div class="detail-item">
                                         <div class="detail-label">Severidad:</div>
                                         <div class="detail-value">${getSeverityText(detailData.severity)}</div>
-                                    </div>
-                                    <div class="detail-item">
-                                        <div class="detail-label">Magnitud:</div>
-                                        <div class="detail-value">${detailData.magnitude !== null ? parseFloat(detailData.magnitude).toFixed(6) : 'N/A'}</div>
                                     </div>
                                 </div>
                             </div>

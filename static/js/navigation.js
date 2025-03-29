@@ -11,22 +11,15 @@
 
 // Inicializar menú lateral
 function initSidebar() {
-    // Manejar toggle del menú en móvil
-    const mobileMenuToggle = document.querySelector('.mobile-menu-toggle');
-    const appContainer = document.querySelector('.app-container');
-    
-    if (mobileMenuToggle && appContainer) {
-        mobileMenuToggle.addEventListener('click', () => {
-            appContainer.classList.toggle('sidebar-open');
-        });
-    }
-    
     // Inicializar botón de actualización de datos
     const refreshBtn = document.getElementById('refreshDataBtn');
     if (refreshBtn) {
         refreshBtn.addEventListener('click', () => {
             if (typeof updateDashboardData === 'function') {
                 updateDashboardData();
+                showToast('Datos actualizados', 'success');
+            } else {
+                console.error('La función updateDashboardData no está disponible');
             }
         });
     }
@@ -34,6 +27,8 @@ function initSidebar() {
 
 // Inicializar navegación
 function initNavigation() {
+    console.log('Inicializando navegación...');
+    
     // Configurar enlaces de navegación
     const navLinks = document.querySelectorAll('.nav-link');
     
@@ -55,6 +50,20 @@ function initNavigation() {
         });
     });
     
+    // Configurar enlaces dentro del contenido
+    const contentLinks = document.querySelectorAll('a[href^="#"]');
+    contentLinks.forEach(link => {
+        if (!link.classList.contains('nav-link')) {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                const targetPage = link.getAttribute('href').substring(1);
+                if (targetPage) {
+                    navigateTo(targetPage);
+                }
+            });
+        }
+    });
+    
     // Inicializar navegación por hash
     window.addEventListener('hashchange', () => {
         const hash = window.location.hash.substring(1);
@@ -73,10 +82,22 @@ function initNavigation() {
     } else {
         navigateTo('dashboard');
     }
+    
+    console.log('Navegación inicializada');
 }
 
 // Navegar a la página indicada
 function navigateTo(page) {
+    console.log('Navegando a:', page);
+    
+    // Si la página contiene ":", es una subpágina (por ejemplo, "configuracion:maquinas")
+    let mainPage = page;
+    let subPage = null;
+    
+    if (page.includes(':')) {
+        [mainPage, subPage] = page.split(':');
+    }
+    
     // Actualizar hash en la URL si no coincide ya con la página actual
     if (window.location.hash !== '#' + page) {
         // Usamos history.pushState para evitar recargar la página
@@ -87,7 +108,7 @@ function navigateTo(page) {
     const navLinks = document.querySelectorAll('.nav-link');
     navLinks.forEach(link => {
         const linkPage = link.getAttribute('data-page');
-        if (linkPage === page) {
+        if (linkPage === mainPage) {
             link.classList.add('active');
         } else {
             link.classList.remove('active');
@@ -95,21 +116,24 @@ function navigateTo(page) {
     });
     
     // Mostrar la sección correspondiente
-    showSection(page + '-section');
+    showSection(mainPage + '-section');
+    
+    // Si hay una subpágina, activar esa pestaña específica
+    if (subPage && mainPage === 'configuracion') {
+        const tabItem = document.querySelector(`.tab-item[data-tab="${subPage}"]`);
+        if (tabItem) {
+            tabItem.click();
+        }
+    }
     
     // Actualizar breadcrumb
-    updateBreadcrumb(page);
+    updateBreadcrumb(mainPage);
     
     // Inicializar componentes específicos de la página
-    initPageContent(page);
+    initPageContent(mainPage);
     
     // Actualizar datos dinámicos según la sección
-    updateSectionData(page);
-    
-    // Disparamos manualmente un evento hashchange para asegurar que otros 
-    // componentes que escuchan este evento se actualicen
-    const hashChangeEvent = new HashChangeEvent('hashchange');
-    window.dispatchEvent(hashChangeEvent);
+    updateSectionData(mainPage);
 }
 
 // Mostrar una sección y ocultar las demás
@@ -120,9 +144,11 @@ function showSection(sectionId) {
     sections.forEach(section => {
         if (section.id === sectionId) {
             section.classList.add('active');
+            section.classList.add('animate-fade-in');
             sectionFound = true;
         } else {
             section.classList.remove('active');
+            section.classList.remove('animate-fade-in');
         }
     });
     
@@ -157,9 +183,6 @@ function updateBreadcrumb(page) {
             case 'configuracion':
                 sectionName = 'Configuración';
                 break;
-            case 'ajustes':
-                sectionName = 'Ajustes';
-                break;
             default:
                 sectionName = page.charAt(0).toUpperCase() + page.slice(1);
                 break;
@@ -189,11 +212,15 @@ function initPageContent(page) {
         case 'dashboard':
             if (typeof initDashboard === 'function') {
                 initDashboard();
+            } else {
+                console.error('La función initDashboard no está disponible');
             }
             break;
         case 'configuracion':
             if (typeof initConfig === 'function') {
                 initConfig();
+            } else {
+                console.error('La función initConfig no está disponible');
             }
             break;
     }
@@ -215,23 +242,4 @@ window.initNavigation = initNavigation;
 window.navigateTo = navigateTo;
 window.showSection = showSection;
 window.getCurrentPage = getCurrentPage;
-window.updateSectionData = updateSectionData;
-
-// Inicialización al cargar la página
-document.addEventListener('DOMContentLoaded', () => {
-    // Inicializar estado global y eventos
-    if (typeof initGlobalStateEvents === 'function') {
-        initGlobalStateEvents();
-    }
-    
-    // Inicializar menú lateral
-    initSidebar();
-    
-    // Inicializar navegación
-    initNavigation();
-    
-    // Inicializar UI
-    if (typeof initUI === 'function') {
-        initUI();
-    }
-}); 
+window.updateSectionData = updateSectionData; 

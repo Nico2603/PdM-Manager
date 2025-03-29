@@ -37,15 +37,22 @@ function initConfig() {
 
 // Inicializar pestañas de configuración
 function initConfigTabs() {
+    console.log('Inicializando pestañas de configuración...');
     const tabItems = document.querySelectorAll('.config-tabs .tab-item');
     const tabContents = document.querySelectorAll('.config-content .tab-content');
     
-    if (!tabItems.length || !tabContents.length) return;
+    if (!tabItems.length || !tabContents.length) {
+        console.error('Error: No se encontraron los elementos de las pestañas');
+        return;
+    }
     
     // Manejar eventos de clic en las pestañas
     tabItems.forEach(tab => {
         tab.addEventListener('click', () => {
             const targetTab = tab.getAttribute('data-tab');
+            if (!targetTab) return;
+            
+            console.log('Cambiando a pestaña:', targetTab);
             
             // Activar pestaña seleccionada
             tabItems.forEach(item => item.classList.remove('active'));
@@ -53,13 +60,21 @@ function initConfigTabs() {
             
             // Mostrar contenido correspondiente
             tabContents.forEach(content => content.classList.remove('active'));
-            document.getElementById(`${targetTab}-tab`).classList.add('active');
+            const tabContent = document.getElementById(`${targetTab}-tab`);
+            if (tabContent) {
+                tabContent.classList.add('active');
+                tabContent.classList.add('animate-fade-in');
+                setTimeout(() => tabContent.classList.remove('animate-fade-in'), 500);
+            } else {
+                console.error(`Error: No se encontró el contenido para la pestaña "${targetTab}"`);
+            }
             
             // Actualizar URL con el fragmento correspondiente
             window.location.hash = `configuracion:${targetTab}`;
             
             // Actualizar breadcrumb
-            updateBreadcrumb(`Configuración - ${getTabName(targetTab)}`);
+            const tabName = getTabName(targetTab);
+            updateBreadcrumb(`Configuración - ${tabName}`);
         });
     });
     
@@ -71,19 +86,28 @@ function initConfigTabs() {
             const tabToActivate = document.querySelector(`.tab-item[data-tab="${tabName}"]`);
             if (tabToActivate) {
                 tabToActivate.click();
+                return true;
             }
         }
+        return false;
     };
     
-    // Activar pestaña según URL al cargar la página
-    checkUrlAndActivateTab();
+    // Activar pestaña según URL o usar la primera pestaña por defecto
+    if (!checkUrlAndActivateTab() && tabItems.length > 0) {
+        // Si no hay hash específico o el hash no corresponde a una pestaña válida, seleccionar la primera
+        tabItems[0].click();
+    }
     
     // Escuchar cambios en el hash de la URL
     window.addEventListener('hashchange', () => {
-        if (document.querySelector('[data-page="configuracion"]').classList.contains('active')) {
+        // Solo procesar el cambio si estamos en la sección de configuración
+        const currentPage = getCurrentPage().split(':')[0];
+        if (currentPage === 'configuracion') {
             checkUrlAndActivateTab();
         }
     });
+    
+    console.log('Pestañas de configuración inicializadas');
 }
 
 // Obtener nombre formateado de la pestaña
@@ -204,171 +228,103 @@ function checkSensorsExist() {
 
 // Actualizar datos de configuración
 function refreshConfigData() {
-    // Recargar tablas de datos
-    loadModelsTable();
-    loadSensorsTable();
+    // Cargar datos de máquinas
     loadMachinesTable();
     
-    // Cargar límites de aceleración
+    // Cargar datos de sensores
+    loadSensorsTable();
+    
+    // Cargar datos de modelos
+    loadModelsTable();
+    
+    // Actualizar límites
     loadCurrentLimits();
+    
+    // Mostrar notificación
+    showToast('Datos de configuración actualizados', 'info');
 }
-
-// ==========================================================================
-// GESTIÓN DE MÁQUINAS
-// ==========================================================================
 
 // Inicializar gestión de máquinas
 function initMachineManagement() {
-    // Cargar máquinas existentes
-    loadMachines();
-    
-    // Configurar botón para guardar máquina
-    const saveMachineBtn = document.getElementById('saveMachineBtn');
-    if (saveMachineBtn) {
-        saveMachineBtn.addEventListener('click', saveMachine);
+    // Inicializar formulario de máquina
+    const machineForm = document.getElementById('machineForm');
+    if (machineForm) {
+        machineForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            saveMachine();
+        });
     }
     
-    // Configurar eventos para cerrar modales
-    const closeButtons = document.querySelectorAll('[data-dismiss="modal"]');
-    closeButtons.forEach(button => {
-        button.addEventListener('click', () => {
-            const modal = button.closest('.modal');
-            if (modal) modal.classList.remove('show');
+    // Inicializar botón de cancelar
+    const cancelMachineBtn = document.getElementById('cancelMachineBtn');
+    if (cancelMachineBtn) {
+        cancelMachineBtn.addEventListener('click', () => {
+            machineForm.reset();
         });
-    });
+    }
 }
 
 // Cargar tabla de máquinas
 function loadMachinesTable() {
+    const machinesTableBody = document.querySelector('#machinesTable tbody');
+    if (!machinesTableBody) return;
+    
+    // Mostrar indicador de carga
+    machinesTableBody.innerHTML = '<tr><td colspan="5" class="text-center">Cargando datos...</td></tr>';
+    
+    // Obtener datos de la API
     fetch('/api/machines')
         .then(response => response.json())
         .then(machines => {
-            const tableBody = document.getElementById('machinesTableBody');
-            if (!tableBody) return;
-            
-            tableBody.innerHTML = '';
+            // Vaciar tabla
+            machinesTableBody.innerHTML = '';
             
             if (machines.length === 0) {
-                tableBody.innerHTML = `
-                    <tr>
-                        <td colspan="6" class="text-center">No hay máquinas registradas</td>
-                    </tr>
-                `;
+                machinesTableBody.innerHTML = '<tr><td colspan="5" class="text-center">No hay máquinas configuradas</td></tr>';
                 return;
             }
             
-            // Cargar nombres de sensores para referencia
-            fetch('/api/sensors')
-                .then(response => response.json())
-                .then(sensors => {
-                    const sensorMap = {};
-                    sensors.forEach(sensor => {
-                        sensorMap[sensor.sensor_id] = sensor.name;
+            // Poblar tabla con datos
+            machines.forEach(machine => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${machine.id}</td>
+                    <td>${machine.name}</td>
+                    <td>${machine.type || 'No especificado'}</td>
+                    <td>${machine.location || 'No especificado'}</td>
+                    <td class="actions-cell">
+                        <button class="btn-icon edit-machine" data-id="${machine.id}" title="Editar máquina">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="btn-icon delete-machine" data-id="${machine.id}" title="Eliminar máquina">
+                            <i class="fas fa-trash-alt"></i>
+                        </button>
+                    </td>
+                `;
+                
+                // Añadir acciones a los botones
+                const editBtn = row.querySelector('.edit-machine');
+                const deleteBtn = row.querySelector('.delete-machine');
+                
+                if (editBtn) {
+                    editBtn.addEventListener('click', () => {
+                        editMachine(machine.id);
                     });
-                    
-                    machines.forEach(machine => {
-                        const row = document.createElement('tr');
-                        
-                        // Preparar estado según valor
-                        let statusClass = '';
-                        let statusText = 'Desconocido';
-                        
-                        switch (machine.status) {
-                            case 'operativo':
-                                statusClass = 'status-operativo';
-                                statusText = 'Operativo';
-                                break;
-                            case 'mantenimiento':
-                                statusClass = 'status-mantenimiento';
-                                statusText = 'En Mantenimiento';
-                                break;
-                            case 'apagado':
-                                statusClass = 'status-apagado';
-                                statusText = 'Apagado';
-                                break;
-                            case 'error':
-                            case 'critical':
-                                statusClass = 'status-critical';
-                                statusText = machine.status === 'error' ? 'Error' : 'Crítico';
-                                break;
-                        }
-                        
-                        // Obtener nombre del sensor si existe
-                        const sensorName = machine.sensor_id && sensorMap[machine.sensor_id] 
-                            ? sensorMap[machine.sensor_id] 
-                            : 'No asignado';
-                            
-                        // Determinar clase para campos obligatorios
-                        const sensorClass = machine.sensor_id ? '' : 'text-danger';
-                        
-                        row.innerHTML = `
-                            <td class="column-id">${machine.machine_id}</td>
-                            <td><strong>${machine.name}</strong></td>
-                            <td>${machine.description || '-'}</td>
-                            <td class="${sensorClass}">${sensorName}</td>
-                            <td><span class="${statusClass}">${statusText}</span></td>
-                            <td class="column-actions">
-                                <div class="table-actions">
-                                    <button class="btn-icon btn-edit" title="Editar máquina" data-id="${machine.machine_id}">
-                                        <i class="fas fa-edit"></i>
-                                    </button>
-                                    <button class="btn-icon btn-delete" title="Eliminar máquina" data-id="${machine.machine_id}">
-                                        <i class="fas fa-trash"></i>
-                                    </button>
-                                </div>
-                            </td>
-                        `;
-                        
-                        tableBody.appendChild(row);
+                }
+                
+                if (deleteBtn) {
+                    deleteBtn.addEventListener('click', () => {
+                        deleteMachine(machine.id);
                     });
-                    
-                    // Configurar eventos para editar y eliminar
-                    const editButtons = tableBody.querySelectorAll('.btn-edit');
-                    editButtons.forEach(button => {
-                        button.addEventListener('click', () => {
-                            const machineId = button.getAttribute('data-id');
-                            editMachine(machineId);
-                        });
-                    });
-                    
-                    const deleteButtons = tableBody.querySelectorAll('.btn-delete');
-                    deleteButtons.forEach(button => {
-                        button.addEventListener('click', () => {
-                            const machineId = button.getAttribute('data-id');
-                            deleteMachine(machineId);
-                        });
-                    });
-                })
-                .catch(error => {
-                    console.error('Error al cargar sensores:', error);
-                });
-        })
-        .catch(error => {
-            console.error('Error al cargar máquinas:', error);
-            showToast('Error al cargar la lista de máquinas', 'error');
-        });
-}
-
-// Cargar sensores para el selector
-function loadSensorsForSelect() {
-    fetch('/api/sensors')
-        .then(response => response.json())
-        .then(sensors => {
-            const sensorSelect = document.getElementById('machineSensor');
-            if (!sensorSelect) return;
-            
-            // Mantener la opción "Ninguno"
-            sensorSelect.innerHTML = '<option value="">Ninguno</option>';
-            
-            sensors.forEach(sensor => {
-                const option = document.createElement('option');
-                option.value = sensor.sensor_id;
-                option.textContent = sensor.name;
-                sensorSelect.appendChild(option);
+                }
+                
+                machinesTableBody.appendChild(row);
             });
         })
         .catch(error => {
-            console.error('Error al cargar sensores:', error);
+            console.error('Error al cargar máquinas:', error);
+            machinesTableBody.innerHTML = '<tr><td colspan="5" class="text-center">Error al cargar datos</td></tr>';
+            showToast('Error al cargar máquinas', 'error');
         });
 }
 
@@ -984,9 +940,11 @@ function initModelManagement() {
             // Resetear campos de archivo
             if (document.getElementById('modelFileName')) {
                 document.getElementById('modelFileName').textContent = 'Ningún archivo seleccionado';
+                document.getElementById('modelFileName').parentElement.classList.remove('file-selected');
             }
             if (document.getElementById('scalerFileName')) {
                 document.getElementById('scalerFileName').textContent = 'Ningún archivo seleccionado';
+                document.getElementById('scalerFileName').parentElement.classList.remove('file-selected');
             }
             
             // Configurar mensaje de requerimiento para archivo del modelo
@@ -1038,8 +996,10 @@ function setupFileInputs() {
     modelFileInput.addEventListener('change', (event) => {
         if (event.target.files.length > 0) {
             modelFileName.textContent = event.target.files[0].name;
+            modelFileName.parentElement.classList.add('file-selected');
         } else {
             modelFileName.textContent = 'Ningún archivo seleccionado';
+            modelFileName.parentElement.classList.remove('file-selected');
         }
     });
     
@@ -1055,8 +1015,10 @@ function setupFileInputs() {
     scalerFileInput.addEventListener('change', (event) => {
         if (event.target.files.length > 0) {
             scalerFileName.textContent = event.target.files[0].name;
+            scalerFileName.parentElement.classList.add('file-selected');
         } else {
             scalerFileName.textContent = 'Ningún archivo seleccionado';
+            scalerFileName.parentElement.classList.remove('file-selected');
         }
     });
 }
@@ -1163,7 +1125,18 @@ function editModel(modelId) {
             const pklFileName = model.route_pkl ? model.route_pkl.split('/').pop() : 'No seleccionado';
             
             document.getElementById('modelFileName').textContent = h5FileName;
+            if (h5FileName && h5FileName !== 'Ningún archivo seleccionado') {
+                document.getElementById('modelFileName').parentElement.classList.add('file-selected');
+            } else {
+                document.getElementById('modelFileName').parentElement.classList.remove('file-selected');
+            }
+
             document.getElementById('scalerFileName').textContent = pklFileName;
+            if (pklFileName && pklFileName !== 'Ningún archivo seleccionado') {
+                document.getElementById('scalerFileName').parentElement.classList.add('file-selected');
+            } else {
+                document.getElementById('scalerFileName').parentElement.classList.remove('file-selected');
+            }
             
             // Actualizar título del modal
             document.getElementById('modelModalTitle').textContent = 'Editar Modelo';
@@ -1529,3 +1502,7 @@ function loadModels() {
             hideLoadingIndicator();
         });
 }
+
+// Exportar funciones para uso global
+window.initConfig = initConfig;
+window.refreshConfigData = refreshConfigData;

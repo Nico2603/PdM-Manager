@@ -198,32 +198,42 @@ function showToast(message, type = 'info') {
             <i class="fas fa-${icon}"></i>
         </div>
         <div class="toast-content">
-            <p>${message}</p>
+            <div class="toast-message">${message}</div>
         </div>
         <button class="toast-close">
             <i class="fas fa-times"></i>
         </button>
     `;
     
+    // Añadir al cuerpo del documento
     document.body.appendChild(toast);
     
-    // Evento para cerrar el toast
+    // Añadir clase para mostrar con animación
+    setTimeout(() => {
+        toast.classList.add('show');
+    }, 10);
+    
+    // Configurar evento de cierre
     const closeBtn = toast.querySelector('.toast-close');
     if (closeBtn) {
         closeBtn.addEventListener('click', () => closeToast(toast));
     }
     
-    // Auto cerrar después de 5 segundos
+    // Auto cerrar después de un tiempo
     setTimeout(() => {
         closeToast(toast);
     }, 5000);
+    
+    return toast;
 }
 
 // Cerrar toast
 function closeToast(toast) {
     if (!toast) return;
     
-    toast.classList.add('animate-fade-out');
+    toast.classList.remove('show');
+    
+    // Remover del DOM después de la animación
     setTimeout(() => {
         if (toast.parentNode) {
             toast.parentNode.removeChild(toast);
@@ -231,155 +241,63 @@ function closeToast(toast) {
     }, 300);
 }
 
-// ==========================================================================
-// INDICADORES DE CARGA
-// ==========================================================================
-
-// Mostrar indicador de carga global
+// Mostrar indicador de carga
 function showLoadingIndicator(message = 'Cargando...') {
-    const loader = document.createElement('div');
-    loader.className = 'global-loader';
-    loader.innerHTML = `
-        <div class="loader-content">
-            <div class="spinner"></div>
-            <p>${message}</p>
-        </div>
-    `;
+    const loadingOverlay = document.getElementById('loadingOverlay');
+    const loadingMessage = document.getElementById('loadingMessage');
     
-    document.body.appendChild(loader);
+    if (loadingMessage) loadingMessage.textContent = message;
+    if (loadingOverlay) loadingOverlay.classList.add('show');
 }
 
-// Ocultar indicador de carga global
+// Ocultar indicador de carga
 function hideLoadingIndicator() {
-    const loader = document.querySelector('.global-loader');
-    if (loader) {
-        loader.remove();
-    }
+    const loadingOverlay = document.getElementById('loadingOverlay');
+    if (loadingOverlay) loadingOverlay.classList.remove('show');
 }
 
 // Mostrar toast de carga
 function showLoadingToast(message = 'Procesando...') {
-    // Eliminar loading toasts previos
-    const existingLoadingToasts = document.querySelectorAll('.toast-loading');
-    existingLoadingToasts.forEach(toast => {
-        toast.remove();
-    });
+    // Eliminar cualquier toast de carga existente
+    hideLoadingToast();
     
     const toast = document.createElement('div');
-    toast.className = 'toast toast-loading animate-slide-up';
     toast.id = 'loadingToast';
+    toast.className = 'toast toast-info animate-slide-up';
     
     toast.innerHTML = `
         <div class="toast-icon">
-            <div class="spinner-mini"></div>
+            <i class="fas fa-spinner fa-spin"></i>
         </div>
         <div class="toast-content">
-            <p id="loadingToastMessage">${message}</p>
-            <div class="progress">
-                <div class="progress-bar" id="loadingProgress" style="width: 0%"></div>
-            </div>
+            <div class="toast-message">${message}</div>
         </div>
     `;
     
+    // Añadir al cuerpo del documento
     document.body.appendChild(toast);
     
-    // Animar la barra de progreso
-    let progress = 0;
-    const progressBar = document.getElementById('loadingProgress');
+    // Añadir clase para mostrar con animación
+    setTimeout(() => {
+        toast.classList.add('show');
+    }, 10);
     
-    if (progressBar) {
-        const progressInterval = setInterval(() => {
-            if (progress < 90) {
-                progress += Math.random() * 5;
-                progressBar.style.width = `${progress}%`;
-            }
-        }, 300);
-        
-        // Guardar el intervalo para poder limpiarlo después
-        toast.dataset.progressInterval = progressInterval;
-    }
+    return toast;
 }
 
 // Ocultar toast de carga
 function hideLoadingToast() {
-    const toast = document.getElementById('loadingToast');
-    if (!toast) return;
+    const loadingToast = document.getElementById('loadingToast');
+    if (!loadingToast) return;
     
-    // Completar la barra de progreso
-    const progressBar = document.getElementById('loadingProgress');
-    if (progressBar) {
-        progressBar.style.width = '100%';
-    }
+    loadingToast.classList.remove('show');
     
-    // Limpiar el intervalo de progreso
-    if (toast.dataset.progressInterval) {
-        clearInterval(parseInt(toast.dataset.progressInterval));
-    }
-    
-    // Esperar un momento para que se vea completo
+    // Remover del DOM después de la animación
     setTimeout(() => {
-        toast.classList.add('animate-fade-out');
-        setTimeout(() => {
-            if (toast.parentNode) {
-                toast.parentNode.removeChild(toast);
-            }
-        }, 300);
-    }, 500);
-}
-
-// ==========================================================================
-// INICIALIZACIÓN DE COMPONENTES UI
-// ==========================================================================
-
-// Inicializar tema oscuro
-function initDarkTheme() {
-    const isDarkMode = localStorage.getItem('darkMode') === 'true';
-    document.body.classList.toggle('dark-mode', isDarkMode);
-}
-
-// Inicializar tooltips
-function initTooltips() {
-    const tooltipElements = document.querySelectorAll('[data-tooltip]');
-    
-    tooltipElements.forEach(element => {
-        element.addEventListener('mouseenter', () => {
-            const tooltipText = element.getAttribute('data-tooltip');
-            
-            // Crear tooltip
-            const tooltip = document.createElement('div');
-            tooltip.className = 'tooltip';
-            tooltip.textContent = tooltipText;
-            
-            // Posicionar tooltip
-            const rect = element.getBoundingClientRect();
-            tooltip.style.left = rect.left + (rect.width / 2) + 'px';
-            tooltip.style.top = rect.top - 8 + 'px';
-            
-            // Añadir al DOM
-            document.body.appendChild(tooltip);
-            
-            // Animar
-            setTimeout(() => {
-                tooltip.classList.add('show');
-            }, 10);
-            
-            // Guardar referencia
-            element.tooltipElement = tooltip;
-        });
-        
-        element.addEventListener('mouseleave', () => {
-            if (element.tooltipElement) {
-                element.tooltipElement.classList.remove('show');
-                
-                setTimeout(() => {
-                    if (element.tooltipElement && element.tooltipElement.parentNode) {
-                        element.tooltipElement.parentNode.removeChild(element.tooltipElement);
-                        element.tooltipElement = null;
-                    }
-                }, 200);
-            }
-        });
-    });
+        if (loadingToast.parentNode) {
+            loadingToast.parentNode.removeChild(loadingToast);
+        }
+    }, 300);
 }
 
 // Inicializar dropdowns
@@ -389,173 +307,173 @@ function initDropdowns() {
     dropdowns.forEach(dropdown => {
         const toggle = dropdown.querySelector('.filter-dropdown-toggle');
         const menu = dropdown.querySelector('.filter-dropdown-menu');
+        const items = dropdown.querySelectorAll('.filter-dropdown-item');
+        const selectedText = dropdown.querySelector('[id$="Text"]');
         
-        if (!toggle || !menu) return;
-        
-        // Toggle dropdown al hacer clic
-        toggle.addEventListener('click', () => {
-            // Cerrar otros dropdowns
-            document.querySelectorAll('.filter-dropdown-menu.show').forEach(openMenu => {
-                if (openMenu !== menu) {
-                    openMenu.classList.remove('show');
-                }
-            });
-            
-            menu.classList.toggle('show');
-        });
-        
-        // Manejar selección de items
-        const items = menu.querySelectorAll('.filter-dropdown-item');
-        items.forEach(item => {
-            item.addEventListener('click', () => {
-                // Actualizar selección
-                menu.querySelectorAll('.filter-dropdown-item.selected').forEach(selectedItem => {
-                    selectedItem.classList.remove('selected');
-                });
+        if (toggle && menu) {
+            // Alternar menú al hacer clic en el botón
+            toggle.addEventListener('click', (e) => {
+                e.stopPropagation();
+                dropdown.classList.toggle('open');
                 
-                item.classList.add('selected');
-                
-                // Actualizar texto del toggle
-                const textElement = toggle.querySelector('span');
-                if (textElement) {
-                    textElement.textContent = item.textContent;
-                }
-                
-                // Cerrar dropdown
-                menu.classList.remove('show');
-                
-                // Disparar evento de cambio
-                const event = new CustomEvent('dropdown-change', {
-                    detail: {
-                        dropdownId: dropdown.id,
-                        value: item.getAttribute('data-value')
+                // Cerrar otros dropdowns que estén abiertos
+                dropdowns.forEach(other => {
+                    if (other !== dropdown && other.classList.contains('open')) {
+                        other.classList.remove('open');
                     }
                 });
-                document.dispatchEvent(event);
             });
-        });
-        
-        // Cerrar dropdown al hacer clic fuera
-        document.addEventListener('click', (e) => {
-            if (!dropdown.contains(e.target)) {
-                menu.classList.remove('show');
-            }
+            
+            // Manejar selección de elementos
+            items.forEach(item => {
+                item.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    
+                    // Obtener valores
+                    const value = item.getAttribute('data-value');
+                    const text = item.textContent;
+                    const dropdownId = dropdown.id;
+                    
+                    // Actualizar texto seleccionado
+                    if (selectedText) {
+                        selectedText.textContent = text;
+                    }
+                    
+                    // Actualizar estado de selección
+                    items.forEach(i => i.classList.remove('selected'));
+                    item.classList.add('selected');
+                    
+                    // Cerrar menú
+                    dropdown.classList.remove('open');
+                    
+                    // Disparar evento
+                    const event = new CustomEvent('dropdown-change', {
+                        detail: { dropdownId, value, text }
+                    });
+                    document.dispatchEvent(event);
+                });
+            });
+        }
+    });
+    
+    // Cerrar dropdowns al hacer clic fuera
+    document.addEventListener('click', () => {
+        dropdowns.forEach(dropdown => {
+            dropdown.classList.remove('open');
         });
     });
 }
 
 // Inicializar switches
 function initSwitches() {
-    const switches = document.querySelectorAll('.custom-switch input[type="checkbox"]');
-    
-    switches.forEach(switchEl => {
-        switchEl.addEventListener('change', () => {
-            updateChartsVisibility();
-        });
-    });
+    // Ya implementado automáticamente con CSS e input:checked
 }
 
-// Actualizar visibilidad de elementos en gráficos
-function updateChartsVisibility() {
-    // Obtener estados de los switches
-    const show2Sigma = document.getElementById('show2Sigma')?.checked || false;
-    const show3Sigma = document.getElementById('show3Sigma')?.checked || false;
-    
-    // Si están disponibles los gráficos de vibración, actualizar visibilidad
-    if (typeof updateVibrationChartX === 'function' && 
-        typeof updateVibrationChartY === 'function' && 
-        typeof updateVibrationChartZ === 'function') {
-        
-        // Actualizar configuración global usando la función correcta
-        setGlobalState('chartOptions', {
-            showMean: false,
-            show2Sigma: show2Sigma,
-            show3Sigma: show3Sigma
-        });
-        
-        // Actualizar cada eje del gráfico
-        updateVibrationChartX();
-        updateVibrationChartY();
-        updateVibrationChartZ();
-    }
-}
-
-// Actualizar tiempo de última actualización
+// Actualizar hora de última actualización
 function updateLastUpdateTime() {
-    const lastUpdateElement = document.getElementById('lastUpdateTime');
-    if (lastUpdateElement) {
-        lastUpdateElement.textContent = new Date().toLocaleTimeString();
+    const lastUpdateTimeEl = document.getElementById('lastUpdateTime');
+    if (lastUpdateTimeEl) {
+        const now = new Date();
+        const hours = now.getHours().toString().padStart(2, '0');
+        const minutes = now.getMinutes().toString().padStart(2, '0');
+        const seconds = now.getSeconds().toString().padStart(2, '0');
+        lastUpdateTimeEl.textContent = `${hours}:${minutes}:${seconds}`;
     }
 }
 
-// Inicializar tema según preferencias del usuario
-function initThemeToggle() {
-    const themeToggleBtn = document.getElementById('themeToggle');
-    if (!themeToggleBtn) return;
+// Inicializar todos los componentes de la UI
+function initUI() {
+    console.log('Inicializando componentes UI...');
     
-    // Cargar preferencia almacenada
-    const isDarkMode = localStorage.getItem('darkMode') === 'true';
-    document.body.classList.toggle('dark-mode', isDarkMode);
+    // Inicializar dropdowns personalizados
+    initDropdowns();
     
-    // Actualizar icono del botón
-    const themeIcon = themeToggleBtn.querySelector('i');
-    if (themeIcon) {
-        themeIcon.className = isDarkMode ? 'fas fa-sun' : 'fas fa-moon';
-    }
+    // Inicializar interruptores (switches)
+    initSwitches();
     
-    // Manejar cambio de tema
-    themeToggleBtn.addEventListener('click', () => {
-        const currentDarkMode = document.body.classList.contains('dark-mode');
-        document.body.classList.toggle('dark-mode');
-        
-        // Guardar preferencia
-        localStorage.setItem('darkMode', !currentDarkMode);
-        
-        // Actualizar icono
-        if (themeIcon) {
-            themeIcon.className = !currentDarkMode ? 'fas fa-sun' : 'fas fa-moon';
+    // Inicializar últimos tiempos de actualización
+    updateLastUpdateTime();
+    
+    // Inicializar tooltips
+    initTooltips();
+    
+    // Inicializar botones de colapso 
+    initCollapseButtons();
+    
+    // Inicializar manejadores para campos de archivos
+    initFileInputHandlers();
+    
+    console.log('Componentes UI inicializados');
+}
+
+// Inicializar tooltips
+function initTooltips() {
+    const tooltipElements = document.querySelectorAll('[title]');
+    tooltipElements.forEach(element => {
+        if (element.title) {
+            element.setAttribute('data-tooltip', element.title);
+            element.removeAttribute('title');
         }
     });
 }
 
-// Inicializar componentes específicos de la página
-function initPageSpecificComponents() {
-    const currentPage = getCurrentPage();
+// Inicializar botones de colapso
+function initCollapseButtons() {
+    const collapseButtons = document.querySelectorAll('[data-collapse]');
     
-    // Usar la función centralizada en navigation.js
-    if (typeof initPageContent === 'function') {
-        initPageContent(currentPage);
-    }
+    collapseButtons.forEach(button => {
+        const targetId = button.getAttribute('data-collapse');
+        const targetElement = document.getElementById(targetId);
+        
+        if (button && targetElement) {
+            button.addEventListener('click', () => {
+                targetElement.classList.toggle('collapsed');
+                const icon = button.querySelector('i');
+                if (icon) {
+                    if (targetElement.classList.contains('collapsed')) {
+                        icon.className = icon.className.replace('up', 'down');
+                    } else {
+                        icon.className = icon.className.replace('down', 'up');
+                    }
+                }
+            });
+        }
+    });
 }
 
-// Inicializar la UI global
-function initUI() {
-    // Inicializar tema
-    initDarkTheme();
+// Inicializar manejadores para campos de archivos
+function initFileInputHandlers() {
+    const fileInputs = document.querySelectorAll('input[type="file"]');
     
-    // Inicializar componentes generales
-    initTooltips();
-    initDropdowns();
-    initSwitches();
-    initThemeToggle();
-    
-    // Inicializar componentes específicos de la página
-    initPageSpecificComponents();
+    fileInputs.forEach(input => {
+        const button = input.nextElementSibling;
+        const label = button ? button.nextElementSibling : null;
+        
+        if (input && button && label) {
+            // Hacer clic en el botón activa el input file
+            button.addEventListener('click', (e) => {
+                e.preventDefault();
+                input.click();
+            });
+            
+            // Actualizar la etiqueta al seleccionar un archivo
+            input.addEventListener('change', () => {
+                if (input.files.length > 0) {
+                    label.textContent = input.files[0].name;
+                } else {
+                    label.textContent = 'Ningún archivo seleccionado';
+                }
+            });
+        }
+    });
 }
 
 // Exportar funciones para uso global
+window.initUI = initUI;
 window.showToast = showToast;
 window.closeToast = closeToast;
 window.showLoadingIndicator = showLoadingIndicator;
 window.hideLoadingIndicator = hideLoadingIndicator;
 window.showLoadingToast = showLoadingToast;
 window.hideLoadingToast = hideLoadingToast;
-window.initUI = initUI;
-window.initTooltips = initTooltips;
-window.initDropdowns = initDropdowns;
-window.initSwitches = initSwitches;
-window.updateChartsVisibility = updateChartsVisibility;
-window.updateLastUpdateTime = updateLastUpdateTime;
-window.initThemeToggle = initThemeToggle;
-window.SEVERITY_COLORS = SEVERITY_COLORS;
-window.cache = cache; 
+window.updateLastUpdateTime = updateLastUpdateTime; 
