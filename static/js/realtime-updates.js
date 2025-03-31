@@ -199,9 +199,17 @@ const debouncedBatchUpdate = debounce(
     { context: 'websocket_batch' }
 );
 
-// Función para agregar actualización al lote
+// Función para encolar actualizaciones
 function queueUpdate(updateFunction) {
+    if (typeof updateFunction !== 'function') {
+        logWebSocket('warn', 'queueUpdate: Se pasó un argumento que no es una función');
+        return;
+    }
+    
+    logWebSocket('debug', 'Encolando actualización');
     pendingUpdates.add(updateFunction);
+    
+    // Programar la ejecución de las actualizaciones pendientes
     debouncedBatchUpdate();
 }
 
@@ -416,67 +424,121 @@ function requestInitialData() {
 
 // Manejar mensajes WebSocket
 function handleWebSocketMessage(data) {
-    logWebSocket('debug', `Mensaje recibido: ${data.type}`);
-    
-    // Comprobar si debemos procesar este tipo de mensaje o aplicar throttling
-    if (!shouldProcessMessage(data.type)) {
-        return; // El mensaje se procesará más tarde mediante throttling
-    }
-    
     try {
-        switch (data.type) {
-            case 'machine_update':
-                logWebSocket('debug', 'Actualizando tabla de máquinas desde WebSocket');
-                refreshMachinesTable();
-                break;
-                
-            case 'sensor_update':
-                logWebSocket('debug', 'Actualizando tabla de sensores desde WebSocket');
-                refreshSensorsTable();
-                
-                // También actualizar los selectores de sensores en las máquinas
-                updateMachineSensorSelectors();
-                break;
-                
-            case 'model_update':
-                logWebSocket('debug', 'Actualizando tabla de modelos desde WebSocket');
-                refreshModelsTable();
-                
-                // También actualizar los selectores de modelos en los sensores
-                updateModelSelectors();
-                break;
-                
-            case 'vibration_data':
-                if (!shouldProcessWebSocketUpdate('vibration_data')) return;
-                
-                logWebSocket('debug', 'Datos de vibración recibidos');
-                // Implementación de actualización de datos de vibración
-                handleVibrationData(data.data);
-                break;
-                
-            case 'alert':
-                if (!shouldProcessWebSocketUpdate('alert')) return;
-                
-                logWebSocket('debug', 'Alerta recibida');
-                // Implementación de actualización de alertas
-                handleAlertUpdate(data.data);
-                break;
-                
-            case 'system_status':
-                logWebSocket('debug', 'Actualización de estado del sistema recibida');
-                updateSystemStatus(data.data);
-                break;
-                
-            case 'config_update':
-                logWebSocket('debug', 'Actualización de configuración recibida');
-                handleConfigUpdate(data.data);
-                break;
-                
-            default:
-                logWebSocket('warn', `Tipo de mensaje desconocido: ${data.type}`);
+        // Convertir el mensaje a objeto si es string
+        if (typeof data === 'string') {
+            try {
+                data = JSON.parse(data);
+            } catch (parseError) {
+                logWebSocket('error', `Error al parsear mensaje WebSocket: ${parseError.message}`, parseError);
+                return;
+            }
+        }
+    
+        if (!data || !data.type) {
+            logWebSocket('warn', 'Mensaje WebSocket sin tipo o inválido', data);
+            return;
+        }
+        
+        logWebSocket('debug', `Mensaje recibido: ${data.type}`);
+        
+        // Comprobar si debemos procesar este tipo de mensaje o aplicar throttling
+        if (!shouldProcessMessage(data.type)) {
+            return; // El mensaje se procesará más tarde mediante throttling
+        }
+        
+        try {
+            switch (data.type) {
+                case 'machine_update':
+                    logWebSocket('debug', 'Actualizando tabla de máquinas desde WebSocket', data.data);
+                    
+                    // Si tenemos detalles específicos sobre la acción realizada
+                    if (data.data && data.data.action) {
+                        const action = data.data.action;
+                        const machineId = data.data.machine_id;
+                        
+                        logWebSocket('debug', `Acción: ${action}, Máquina ID: ${machineId}`);
+                        
+                        // Mostrar notificación según la acción
+                        if (action === 'create') {
+                            showToast('Nueva máquina agregada', 'info');
+                        } else if (action === 'update') {
+                            showToast('Máquina actualizada', 'info');
+                        } else if (action === 'delete') {
+                            showToast('Máquina eliminada', 'info');
+                        }
+                    }
+                    
+                    // Actualizar la tabla de máquinas
+                    refreshMachinesTable();
+                    break;
+                    
+                case 'sensor_update':
+                    logWebSocket('debug', 'Actualizando tabla de sensores desde WebSocket');
+                    refreshSensorsTable();
+                    
+                    // También actualizar los selectores de sensores en las máquinas
+                    if (typeof window.updateMachineSensorSelectors === 'function') {
+                        logWebSocket('debug', 'Actualizando selectores de sensores');
+                        window.updateMachineSensorSelectors();
+                    } else if (typeof updateMachineSensorSelectors === 'function') {
+                        logWebSocket('debug', 'Actualizando selectores de sensores');
+                        updateMachineSensorSelectors();
+                    } else {
+                        logWebSocket('warn', 'Función updateMachineSensorSelectors no disponible');
+                    }
+                    break;
+                    
+                case 'model_update':
+                    logWebSocket('debug', 'Actualizando tabla de modelos desde WebSocket');
+                    refreshModelsTable();
+                    
+                    // También actualizar los selectores de modelos en los sensores
+                    if (typeof window.updateModelSelectors === 'function') {
+                        logWebSocket('debug', 'Actualizando selectores de modelos');
+                        window.updateModelSelectors();
+                    } else if (typeof updateModelSelectors === 'function') {
+                        logWebSocket('debug', 'Actualizando selectores de modelos');
+                        updateModelSelectors();
+                    } else {
+                        logWebSocket('warn', 'Función updateModelSelectors no disponible');
+                    }
+                    break;
+                    
+                case 'vibration_data':
+                    if (!shouldProcessWebSocketUpdate('vibration_data')) return;
+                    
+                    logWebSocket('debug', 'Datos de vibración recibidos');
+                    // Implementación de actualización de datos de vibración
+                    handleVibrationData(data.data);
+                    break;
+                    
+                case 'alert':
+                    if (!shouldProcessWebSocketUpdate('alert')) return;
+                    
+                    logWebSocket('debug', 'Alerta recibida');
+                    // Implementación de actualización de alertas
+                    handleAlertUpdate(data.data);
+                    break;
+                    
+                case 'system_status':
+                    logWebSocket('debug', 'Actualización de estado del sistema recibida');
+                    updateSystemStatus(data.data);
+                    break;
+                    
+                case 'config_update':
+                    logWebSocket('debug', 'Actualización de configuración recibida');
+                    handleConfigUpdate(data.data);
+                    break;
+                    
+                default:
+                    logWebSocket('warn', `Tipo de mensaje desconocido: ${data.type}`);
+            }
+        } catch (error) {
+            logWebSocket('error', `Error al procesar mensaje WebSocket de tipo ${data.type}`, error);
         }
     } catch (error) {
-        logWebSocket('error', `Error al procesar mensaje WebSocket de tipo ${data.type}`, error);
+        logWebSocket('error', `Error en la función handleWebSocketMessage`, error);
     }
 }
 
@@ -487,8 +549,23 @@ function refreshMachinesTable() {
     if (!shouldUpdate()) {
         logWebSocket('debug', 'Actualizaciones demasiado frecuentes, encolando actualización de máquinas');
         queueUpdate(() => {
-            if (typeof loadMachinesTable === 'function') {
+            // Intentar con diferentes variantes de nombres de funciones
+            if (typeof window.refreshMachinesTable === 'function') {
+                window.refreshMachinesTable();
+                logWebSocket('debug', 'Actualización encolada ejecutada (window.refreshMachinesTable)');
+            } else if (typeof loadMachinesTable === 'function') {
                 loadMachinesTable();
+                logWebSocket('debug', 'Actualización encolada ejecutada (loadMachinesTable)');
+            } else if (typeof window.loadMachinesTable === 'function') {
+                window.loadMachinesTable();
+                logWebSocket('debug', 'Actualización encolada ejecutada (window.loadMachinesTable)');
+            } else {
+                logWebSocket('warn', 'No se encontró ninguna función para cargar máquinas');
+            }
+            
+            // Actualizar siempre los selectores de sensores si está disponible la función
+            if (typeof window.updateMachineSensorSelectors === 'function') {
+                window.updateMachineSensorSelectors();
             }
         });
         return;
@@ -497,15 +574,41 @@ function refreshMachinesTable() {
     logWebSocket('debug', 'Ejecutando actualización inmediata de tabla de máquinas');
     const startTime = performance.now();
     
-    if (typeof loadMachinesTable === 'function') {
-        try {
-            loadMachinesTable();
-            logWebSocket('debug', 'Actualización de tabla de máquinas completada', null, startTime);
-        } catch (error) {
-            handleWebSocketError(error, 'actualización de tabla de máquinas');
+    try {
+        let updated = false;
+        let tableFn = null;
+        
+        // Obtener la función de actualización de tabla
+        if (typeof refreshMachinesTable_original === 'function') {
+            tableFn = refreshMachinesTable_original;
+        } else if (typeof window.refreshMachinesTable === 'function' && window.refreshMachinesTable !== refreshMachinesTable) {
+            tableFn = window.refreshMachinesTable;
+        } else if (typeof loadMachinesTable === 'function') {
+            tableFn = loadMachinesTable;
+        } else if (typeof window.loadMachinesTable === 'function') {
+            tableFn = window.loadMachinesTable;
         }
-    } else {
-        logWebSocket('warn', 'Función loadMachinesTable no disponible');
+        
+        // Ejecutar función si se encontró
+        if (tableFn) {
+            tableFn();
+            updated = true;
+            logWebSocket('debug', 'Actualización de tabla de máquinas completada', null, startTime);
+        } else {
+            logWebSocket('warn', 'No se encontró ninguna función para cargar máquinas');
+        }
+        
+        // Actualizar también los selectores de sensores para máquinas
+        if (typeof window.updateMachineSensorSelectors === 'function') {
+            window.updateMachineSensorSelectors();
+            logWebSocket('debug', 'Actualizados selectores de sensores para máquinas');
+        }
+        
+        if (!updated) {
+            logWebSocket('warn', 'No se pudo actualizar la tabla de máquinas');
+        }
+    } catch (error) {
+        handleWebSocketError(error, 'actualización de tabla de máquinas');
     }
 }
 
@@ -516,8 +619,23 @@ function refreshSensorsTable() {
     if (!shouldUpdate()) {
         logWebSocket('debug', 'Actualizaciones demasiado frecuentes, encolando actualización de sensores');
         queueUpdate(() => {
-            if (typeof loadSensorsTable === 'function') {
+            // Intentar con diferentes variantes de nombres de funciones
+            if (typeof window.refreshSensorsTable === 'function' && window.refreshSensorsTable !== refreshSensorsTable) {
+                window.refreshSensorsTable();
+                logWebSocket('debug', 'Actualización encolada ejecutada (window.refreshSensorsTable)');
+            } else if (typeof loadSensorsTable === 'function') {
                 loadSensorsTable();
+                logWebSocket('debug', 'Actualización encolada ejecutada (loadSensorsTable)');
+            } else if (typeof window.loadSensorsTable === 'function') {
+                window.loadSensorsTable();
+                logWebSocket('debug', 'Actualización encolada ejecutada (window.loadSensorsTable)');
+            } else {
+                logWebSocket('warn', 'No se encontró ninguna función para cargar sensores');
+            }
+            
+            // Actualizar también los selectores de sensores para máquinas
+            if (typeof window.updateMachineSensorSelectors === 'function') {
+                window.updateMachineSensorSelectors();
             }
         });
         return;
@@ -526,15 +644,41 @@ function refreshSensorsTable() {
     logWebSocket('debug', 'Ejecutando actualización inmediata de tabla de sensores');
     const startTime = performance.now();
     
-    if (typeof loadSensorsTable === 'function') {
-        try {
-            loadSensorsTable();
-            logWebSocket('debug', 'Actualización de tabla de sensores completada', null, startTime);
-        } catch (error) {
-            handleWebSocketError(error, 'actualización de tabla de sensores');
+    try {
+        let updated = false;
+        let tableFn = null;
+        
+        // Obtener la función de actualización de tabla
+        if (typeof refreshSensorsTable_original === 'function') {
+            tableFn = refreshSensorsTable_original;
+        } else if (typeof window.refreshSensorsTable === 'function' && window.refreshSensorsTable !== refreshSensorsTable) {
+            tableFn = window.refreshSensorsTable;
+        } else if (typeof loadSensorsTable === 'function') {
+            tableFn = loadSensorsTable;
+        } else if (typeof window.loadSensorsTable === 'function') {
+            tableFn = window.loadSensorsTable;
         }
-    } else {
-        logWebSocket('warn', 'Función loadSensorsTable no disponible');
+        
+        // Ejecutar función si se encontró
+        if (tableFn) {
+            tableFn();
+            updated = true;
+            logWebSocket('debug', 'Actualización de tabla de sensores completada', null, startTime);
+        } else {
+            logWebSocket('warn', 'No se encontró ninguna función para cargar sensores');
+        }
+        
+        // Actualizar también los selectores de sensores para máquinas
+        if (typeof window.updateMachineSensorSelectors === 'function') {
+            window.updateMachineSensorSelectors();
+            logWebSocket('debug', 'Actualizados selectores de sensores para máquinas');
+        }
+        
+        if (!updated) {
+            logWebSocket('warn', 'No se pudo actualizar la tabla de sensores');
+        }
+    } catch (error) {
+        handleWebSocketError(error, 'actualización de tabla de sensores');
     }
 }
 
@@ -675,19 +819,55 @@ function setupUpdateListeners() {
     }
     
     // Escuchar eventos de actualización de tablas
-    addRealtimeListener(document, 'machinesTableUpdated', () => {
-        console.log('Tabla de máquinas actualizada');
+    addRealtimeListener(document, 'machinesTableUpdated', (event) => {
+        const detail = event.detail || {};
+        logWebSocket('debug', 'Evento: Tabla de máquinas actualizada', detail);
+        
+        // Manejar diferentes tipos de actualizaciones
+        if (detail.action === 'create') {
+            logWebSocket('info', `Nueva máquina creada con ID: ${detail.machine_id}`);
+        } else if (detail.action === 'update') {
+            logWebSocket('info', `Máquina actualizada con ID: ${detail.machine_id}`);
+        } else if (detail.action === 'delete') {
+            logWebSocket('info', `Máquina eliminada con ID: ${detail.machine_id}`);
+        } else if (detail.action === 'refresh') {
+            logWebSocket('debug', `Tabla de máquinas refrescada, ${detail.count} registros`);
+        }
+        
         updateLastUpdateTime();
     });
     
-    addRealtimeListener(document, 'sensorsTableUpdated', () => {
-        console.log('Tabla de sensores actualizada');
+    addRealtimeListener(document, 'sensorsTableUpdated', (event) => {
+        const detail = event.detail || {};
+        logWebSocket('debug', 'Tabla de sensores actualizada', detail);
+        updateLastUpdateTime();
+        
+        // Actualizar selectores de sensores si cambia la tabla de sensores
+        if (typeof window.updateMachineSensorSelectors === 'function') {
+            window.updateMachineSensorSelectors();
+        }
+    });
+    
+    addRealtimeListener(document, 'modelsTableUpdated', (event) => {
+        const detail = event.detail || {};
+        logWebSocket('debug', 'Tabla de modelos actualizada', detail);
         updateLastUpdateTime();
     });
     
-    addRealtimeListener(document, 'modelsTableUpdated', () => {
-        console.log('Tabla de modelos actualizada');
-        updateLastUpdateTime();
+    // Escuchar cambios en pestañas de configuración
+    const tabItems = document.querySelectorAll('.tab-item');
+    tabItems.forEach(tab => {
+        addRealtimeListener(tab, 'click', () => {
+            const tabId = tab.getAttribute('data-tab');
+            if (tabId === 'machine') {
+                // Actualizar selectores de sensores cuando se cambia a la pestaña de máquinas
+                setTimeout(() => {
+                    if (typeof window.updateMachineSensorSelectors === 'function') {
+                        window.updateMachineSensorSelectors();
+                    }
+                }, 300);
+            }
+        });
     });
 }
 
@@ -733,6 +913,8 @@ addRealtimeListener(document, 'pageChanged', function(event) {
 
 // Exportar funciones necesarias
 window.cleanupRealtimeListeners = cleanupRealtimeListeners;
+window.refreshAllTables = refreshAllTables;
+window.setupUpdateListeners = setupUpdateListeners;
 
 // Función para manejar actualizaciones de datos de vibración
 function handleVibrationData(data) {

@@ -156,6 +156,17 @@ function initMachineTab() {
         // Inicializar event listeners para los botones de edición y eliminación
         setupMachineTableActions();
         
+        // Configurar evento para cuando se cambie a esta pestaña
+        const machineTab = document.querySelector('.tab-item[data-tab="machine"]');
+        if (machineTab) {
+            machineTab.addEventListener('click', function() {
+                // Actualizar listado de sensores al activar esta pestaña
+                setTimeout(() => {
+                    updateMachineSensorSelectors();
+                }, 100);
+            });
+        }
+        
         logConfig('debug', 'Pestaña de máquinas inicializada correctamente');
     } catch (error) {
         logConfig('error', 'Error al inicializar pestaña de máquinas', error);
@@ -165,6 +176,12 @@ function initMachineTab() {
 
 // Función para guardar una máquina (creación o actualización)
 function saveMachine(machineData) {
+    // Verificar datos mínimos requeridos
+    if (!machineData.name || machineData.name.trim() === '') {
+        showToast('El nombre de la máquina es obligatorio', 'error');
+        return;
+    }
+    
     // Crear FormData
     const formData = new FormData();
     formData.append('name', machineData.name);
@@ -178,6 +195,17 @@ function saveMachine(machineData) {
         : `${API_CONFIG.BASE_URL}/api/machines`;
     const method = isUpdate ? 'PUT' : 'POST';
     
+    // Mostrar notificación de carga
+    showToast('Guardando máquina...', 'info');
+    
+    // Deshabilitar el botón de guardar para evitar dobles envíos
+    const submitButton = document.querySelector('#machineForm button[type="submit"]');
+    if (submitButton) {
+        submitButton.disabled = true;
+    }
+    
+    logConfig('debug', `Enviando petición ${method} a ${url} con datos:`, machineData);
+    
     // Enviar petición al servidor
     fetch(url, {
         method: method,
@@ -187,29 +215,51 @@ function saveMachine(machineData) {
         if (!response.ok) {
             throw new Error(`Error: ${response.status} ${response.statusText}`);
         }
+        logConfig('debug', 'Respuesta del servidor recibida correctamente');
         return response.json();
     })
     .then(data => {
-        logConfig('info', `Máquina ${isUpdate ? 'actualizada' : 'creada'} correctamente`);
+        logConfig('info', `Máquina ${isUpdate ? 'actualizada' : 'creada'} correctamente`, data);
         showToast(`Máquina ${isUpdate ? 'actualizada' : 'guardada'} correctamente`, 'success');
         
         // Limpiar formulario
         resetMachineForm();
         
-        // Actualizar la tabla de máquinas
-        refreshMachinesTable();
+        // Actualizar la tabla de máquinas de forma forzada
+        setTimeout(() => {
+            // Recuperar los datos actualizados del servidor
+            refreshMachinesTable();
+            
+            // Disparar evento personalizado para notificar que la tabla de máquinas se ha actualizado
+            const event = new CustomEvent('machinesTableUpdated', { 
+                detail: { 
+                    action: isUpdate ? 'update' : 'create',
+                    machine_id: data.data ? data.data.machine_id : (data.machine_id || '')
+                } 
+            });
+            document.dispatchEvent(event);
+        }, 300);
         
         // Si tenemos WebSockets activos, notificar a otros clientes
         if (typeof socket !== 'undefined' && socket && socket.readyState === WebSocket.OPEN) {
             socket.send(JSON.stringify({
                 type: 'machine_update',
-                data: { machine_id: data.machine_id }
+                data: { 
+                    machine_id: data.data ? data.data.machine_id : (data.machine_id || ''),
+                    action: isUpdate ? 'update' : 'create'
+                }
             }));
         }
     })
     .catch(error => {
         logConfig('error', 'Error al guardar la máquina', error);
         showToast(`Error al guardar la máquina: ${error.message}`, 'error');
+    })
+    .finally(() => {
+        // Re-habilitar el botón de guardar
+        if (submitButton) {
+            submitButton.disabled = false;
+        }
     });
 }
 
@@ -218,10 +268,19 @@ function refreshMachinesTable() {
     logConfig('debug', 'Actualizando tabla de máquinas');
     
     const machinesTable = document.getElementById('machinesTable');
-    if (!machinesTable) return;
+    if (!machinesTable) {
+        logConfig('warn', 'No se encontró la tabla de máquinas en el DOM');
+        return;
+    }
     
     const tbody = machinesTable.querySelector('tbody');
-    if (!tbody) return;
+    if (!tbody) {
+        logConfig('warn', 'No se encontró el tbody en la tabla de máquinas');
+        return;
+    }
+    
+    // Mostrar indicador de carga
+    tbody.innerHTML = '<tr><td colspan="5" class="text-center"><i class="fas fa-spinner fa-spin mr-2"></i>Cargando máquinas...</td></tr>';
     
     // Obtener sensores para mapear IDs a nombres
     let sensorMap = {};
@@ -233,10 +292,28 @@ function refreshMachinesTable() {
             }
             return response.json();
         })
-        .then(sensors => {
+        .then(response => {
+            // Asegurarse de extraer correctamente los datos de cualquier formato de respuesta
+            let sensors = response;
+            if (response.data && Array.isArray(response.data)) {
+                sensors = response.data;
+            } else if (response.success && response.data && Array.isArray(response.data)) {
+                sensors = response.data;
+            }
+            
+            if (!Array.isArray(sensors)) {
+                logConfig('warn', 'Respuesta no válida: sensors no es un array', { response });
+                // Continuar con un mapa vacío
+                return fetch(`${API_CONFIG.BASE_URL}/api/machines`);
+            }
+            
+            logConfig('debug', `Se encontraron ${sensors.length} sensores para mapear nombres`);
+            
             // Crear mapa de IDs a nombres de sensores
             sensorMap = sensors.reduce((map, sensor) => {
-                map[sensor.sensor_id] = sensor.name || `Sensor ${sensor.sensor_id}`;
+                if (sensor && sensor.sensor_id) {
+                    map[sensor.sensor_id] = sensor.name || `Sensor ${sensor.sensor_id}`;
+                }
                 return map;
             }, {});
             
@@ -249,7 +326,24 @@ function refreshMachinesTable() {
             }
             return response.json();
         })
-        .then(data => {
+        .then(response => {
+            // Asegurarse de extraer correctamente los datos de cualquier formato de respuesta
+            let data = response;
+            if (response.data && Array.isArray(response.data)) {
+                data = response.data;
+            } else if (response.success && response.data && Array.isArray(response.data)) {
+                data = response.data;
+            }
+            
+            if (!Array.isArray(data)) {
+                logConfig('warn', 'Respuesta no válida: data no es un array', { response });
+                // Mostrar mensaje de error en la tabla
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center">Error al cargar máquinas</td></tr>';
+                return;
+            }
+            
+            logConfig('debug', `Se encontraron ${data.length} máquinas para mostrar en la tabla`);
+            
             // Limpiar tabla
             tbody.innerHTML = '';
             
@@ -266,6 +360,7 @@ function refreshMachinesTable() {
                 const sensorName = machine.sensor_id ? (sensorMap[machine.sensor_id] || 'Sensor desconocido') : 'No asignado';
                 
                 const row = document.createElement('tr');
+                row.setAttribute('data-machine-id', machine.machine_id);
                 row.innerHTML = `
                     <td>${machine.machine_id}</td>
                     <td>${machine.name || 'Sin nombre'}</td>
@@ -286,11 +381,23 @@ function refreshMachinesTable() {
             // Reinicializar listeners
             setupMachineTableActions();
             
+            // Disparar evento personalizado para notificar que la tabla se ha actualizado
+            const event = new CustomEvent('machinesTableUpdated', { 
+                detail: { 
+                    count: data.length,
+                    action: 'refresh'
+                } 
+            });
+            document.dispatchEvent(event);
+            
             logConfig('debug', `Tabla de máquinas actualizada con ${data.length} registros`);
         })
         .catch(error => {
             logConfig('error', 'Error al actualizar tabla de máquinas', error);
             showToast(`Error al cargar máquinas: ${error.message}`, 'error');
+            
+            // Mostrar mensaje de error en la tabla
+            tbody.innerHTML = `<tr><td colspan="5" class="text-center">Error al cargar máquinas: ${error.message}</td></tr>`;
         });
 }
 
@@ -309,6 +416,37 @@ function updateMachineSensorSelectors() {
         return;
     }
     
+    // Mostrar estado de carga en los selectores
+    machineSensorSelects.forEach(select => {
+        if (!select) return;
+        
+        // Guardar el valor seleccionado actualmente
+        const currentValue = select.value;
+        
+        // Limpiar opciones actuales, excepto la primera (si existe)
+        while (select.options.length > 1) {
+            select.remove(1);
+        }
+        
+        // Si no hay primera opción, crearla
+        if (select.options.length === 0) {
+            const defaultOption = document.createElement('option');
+            defaultOption.value = '';
+            defaultOption.textContent = 'Seleccione un sensor';
+            select.appendChild(defaultOption);
+        }
+        
+        // Añadir opción de carga
+        const loadingOption = document.createElement('option');
+        loadingOption.value = '';
+        loadingOption.textContent = 'Cargando sensores...';
+        loadingOption.disabled = true;
+        select.appendChild(loadingOption);
+        
+        // Seleccionar opción de carga
+        select.value = '';
+    });
+    
     // Obtener sensores desde el servidor
     fetch(`${API_CONFIG.BASE_URL}/api/sensors`)
         .then(response => {
@@ -317,7 +455,22 @@ function updateMachineSensorSelectors() {
             }
             return response.json();
         })
-        .then(sensors => {
+        .then(response => {
+            // Asegurarse de extraer correctamente los datos de cualquier formato de respuesta
+            let sensors = response;
+            if (response.data && Array.isArray(response.data)) {
+                sensors = response.data;
+            } else if (response.success && response.data && Array.isArray(response.data)) {
+                sensors = response.data;
+            }
+            
+            if (!Array.isArray(sensors)) {
+                logConfig('warn', 'Respuesta no válida: sensors no es un array', { response });
+                throw new Error('Formato de respuesta no válido');
+            }
+            
+            logConfig('debug', `Se encontraron ${sensors.length} sensores para actualizar selectores`);
+            
             machineSensorSelects.forEach(select => {
                 if (!select) return;
                 
@@ -329,20 +482,51 @@ function updateMachineSensorSelectors() {
                     select.remove(1);
                 }
                 
-                // Añadir opciones para cada sensor
-                sensors.forEach(sensor => {
+                // Si no hay primera opción, crearla
+                if (select.options.length === 0) {
+                    const defaultOption = document.createElement('option');
+                    defaultOption.value = '';
+                    defaultOption.textContent = 'Seleccione un sensor';
+                    select.appendChild(defaultOption);
+                }
+                
+                // Si no hay sensores, mostrar mensaje
+                if (sensors.length === 0) {
                     const option = document.createElement('option');
-                    option.value = sensor.sensor_id;
-                    option.textContent = sensor.name || `Sensor ${sensor.sensor_id}`;
+                    option.value = '';
+                    option.textContent = 'No hay sensores disponibles';
+                    option.disabled = true;
                     select.appendChild(option);
-                });
+                } else {
+                    // Ordenar sensores por ID
+                    sensors.sort((a, b) => (a.sensor_id || 0) - (b.sensor_id || 0));
+                    
+                    // Añadir opciones para cada sensor
+                    sensors.forEach(sensor => {
+                        if (!sensor || !sensor.sensor_id) {
+                            logConfig('warn', 'Sensor inválido encontrado', { sensor });
+                            return;
+                        }
+                        
+                        const option = document.createElement('option');
+                        option.value = sensor.sensor_id;
+                        option.textContent = sensor.name || `Sensor ${sensor.sensor_id}`;
+                        select.appendChild(option);
+                    });
+                }
                 
                 // Restaurar valor seleccionado si aún existe
                 if (currentValue) {
                     const exists = Array.from(select.options).some(option => option.value === currentValue);
                     if (exists) {
                         select.value = currentValue;
+                    } else {
+                        // Si la opción anterior ya no existe, seleccionar la predeterminada
+                        select.selectedIndex = 0;
                     }
+                } else {
+                    // Si no había valor seleccionado, seleccionar la predeterminada
+                    select.selectedIndex = 0;
                 }
             });
             
@@ -350,6 +534,27 @@ function updateMachineSensorSelectors() {
         })
         .catch(error => {
             logConfig('error', 'Error al actualizar selectores de sensores', error);
+            showToast('Error al cargar sensores disponibles', 'error');
+            
+            // Mostrar mensaje de error en los selectores
+            machineSensorSelects.forEach(select => {
+                if (!select) return;
+                
+                // Limpiar opciones actuales, excepto la primera
+                while (select.options.length > 1) {
+                    select.remove(1);
+                }
+                
+                // Añadir mensaje de error
+                const errorOption = document.createElement('option');
+                errorOption.value = '';
+                errorOption.textContent = 'Error al cargar sensores';
+                errorOption.disabled = true;
+                select.appendChild(errorOption);
+                
+                // Restaurar a primera opción
+                select.selectedIndex = 0;
+            });
         });
 }
 
@@ -400,6 +605,9 @@ function setupMachineTableActions() {
             if (confirm(`¿Está seguro que desea eliminar la máquina con ID ${machineId}?`)) {
                 logConfig('debug', `Eliminando máquina con ID: ${machineId}`);
                 
+                // Mostrar notificación de carga
+                showToast('Eliminando máquina...', 'info');
+                
                 fetch(`${API_CONFIG.BASE_URL}/api/machines/${machineId}`, {
                     method: 'DELETE'
                 })
@@ -416,11 +624,23 @@ function setupMachineTableActions() {
                     // Actualizar tabla
                     refreshMachinesTable();
                     
+                    // Disparar evento personalizado
+                    const event = new CustomEvent('machinesTableUpdated', { 
+                        detail: { 
+                            action: 'delete',
+                            machine_id: machineId 
+                        } 
+                    });
+                    document.dispatchEvent(event);
+                    
                     // Si tenemos WebSockets activos, notificar a otros clientes
                     if (typeof socket !== 'undefined' && socket && socket.readyState === WebSocket.OPEN) {
                         socket.send(JSON.stringify({
                             type: 'machine_update',
-                            data: { machine_id: machineId, deleted: true }
+                            data: { 
+                                machine_id: machineId, 
+                                action: 'delete'
+                            }
                         }));
                     }
                 })
@@ -514,6 +734,15 @@ function saveSensor(sensorData) {
         : `${API_CONFIG.BASE_URL}/api/sensors`;
     const method = isUpdate ? 'PUT' : 'POST';
     
+    // Mostrar notificación de carga
+    showToast('Guardando sensor...', 'info');
+    
+    // Deshabilitar el botón de guardar para evitar dobles envíos
+    const submitButton = document.querySelector('#sensorForm button[type="submit"]');
+    if (submitButton) {
+        submitButton.disabled = true;
+    }
+    
     // Enviar petición al servidor
     fetch(url, {
         method: method,
@@ -526,29 +755,50 @@ function saveSensor(sensorData) {
         return response.json();
     })
     .then(data => {
-        logConfig('info', `Sensor ${isUpdate ? 'actualizado' : 'creado'} correctamente`);
+        logConfig('info', `Sensor ${isUpdate ? 'actualizado' : 'creado'} correctamente`, data);
         showToast(`Sensor ${isUpdate ? 'actualizado' : 'guardado'} correctamente`, 'success');
         
         // Limpiar formulario
         resetSensorForm();
         
-        // Actualizar la tabla de sensores
-        refreshSensorsTable();
-        
-        // Actualizar los selectores de sensores en formularios de máquinas
-        updateMachineSensorSelectors();
+        // Actualizar la tabla de sensores de forma forzada
+        setTimeout(() => {
+            // Recuperar los datos actualizados del servidor
+            refreshSensorsTable();
+            
+            // Actualizar los selectores de sensores en formularios de máquinas
+            updateMachineSensorSelectors();
+            
+            // Disparar evento personalizado para notificar que la tabla de sensores se ha actualizado
+            const event = new CustomEvent('sensorsTableUpdated', { 
+                detail: { 
+                    action: isUpdate ? 'update' : 'create',
+                    sensor_id: data.data ? data.data.sensor_id : (data.sensor_id || '')
+                } 
+            });
+            document.dispatchEvent(event);
+        }, 300);
         
         // Si tenemos WebSockets activos, notificar a otros clientes
         if (typeof socket !== 'undefined' && socket && socket.readyState === WebSocket.OPEN) {
             socket.send(JSON.stringify({
                 type: 'sensor_update',
-                data: { sensor_id: data.sensor_id }
+                data: { 
+                    sensor_id: data.data ? data.data.sensor_id : (data.sensor_id || ''),
+                    action: isUpdate ? 'update' : 'create'
+                }
             }));
         }
     })
     .catch(error => {
         logConfig('error', 'Error al guardar el sensor', error);
         showToast(`Error al guardar el sensor: ${error.message}`, 'error');
+    })
+    .finally(() => {
+        // Re-habilitar el botón de guardar
+        if (submitButton) {
+            submitButton.disabled = false;
+        }
     });
 }
 
@@ -557,10 +807,19 @@ function refreshSensorsTable() {
     logConfig('debug', 'Actualizando tabla de sensores');
     
     const sensorsTable = document.getElementById('sensorsTable');
-    if (!sensorsTable) return;
+    if (!sensorsTable) {
+        logConfig('warn', 'No se encontró la tabla de sensores en el DOM');
+        return;
+    }
     
     const tbody = sensorsTable.querySelector('tbody');
-    if (!tbody) return;
+    if (!tbody) {
+        logConfig('warn', 'No se encontró el tbody en la tabla de sensores');
+        return;
+    }
+    
+    // Mostrar indicador de carga
+    tbody.innerHTML = '<tr><td colspan="5" class="text-center"><i class="fas fa-spinner fa-spin mr-2"></i>Cargando sensores...</td></tr>';
     
     // Obtener modelos para mapear IDs a nombres
     let modelMap = {};
@@ -572,10 +831,28 @@ function refreshSensorsTable() {
             }
             return response.json();
         })
-        .then(models => {
+        .then(response => {
+            // Asegurarse de extraer correctamente los datos de cualquier formato de respuesta
+            let models = response;
+            if (response.data && Array.isArray(response.data)) {
+                models = response.data;
+            } else if (response.success && response.data && Array.isArray(response.data)) {
+                models = response.data;
+            }
+            
+            if (!Array.isArray(models)) {
+                logConfig('warn', 'Respuesta no válida: models no es un array', { response });
+                // Continuar con un mapa vacío
+                return fetch(`${API_CONFIG.BASE_URL}/api/sensors`);
+            }
+            
+            logConfig('debug', `Se encontraron ${models.length} modelos para mapear nombres`);
+            
             // Crear mapa de IDs a nombres de modelos
             modelMap = models.reduce((map, model) => {
-                map[model.model_id] = model.name || `Modelo ${model.model_id}`;
+                if (model && model.model_id) {
+                    map[model.model_id] = model.name || `Modelo ${model.model_id}`;
+                }
                 return map;
             }, {});
             
@@ -588,7 +865,24 @@ function refreshSensorsTable() {
             }
             return response.json();
         })
-        .then(data => {
+        .then(response => {
+            // Asegurarse de extraer correctamente los datos de cualquier formato de respuesta
+            let data = response;
+            if (response.data && Array.isArray(response.data)) {
+                data = response.data;
+            } else if (response.success && response.data && Array.isArray(response.data)) {
+                data = response.data;
+            }
+            
+            if (!Array.isArray(data)) {
+                logConfig('warn', 'Respuesta no válida: data no es un array', { response });
+                // Mostrar mensaje de error en la tabla
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center">Error al cargar sensores</td></tr>';
+                return;
+            }
+            
+            logConfig('debug', `Se encontraron ${data.length} sensores para mostrar en la tabla`);
+            
             // Limpiar tabla
             tbody.innerHTML = '';
             
@@ -605,6 +899,7 @@ function refreshSensorsTable() {
                 const modelName = sensor.model_id ? (modelMap[sensor.model_id] || 'Modelo desconocido') : 'No asignado';
                 
                 const row = document.createElement('tr');
+                row.setAttribute('data-sensor-id', sensor.sensor_id);
                 row.innerHTML = `
                     <td>${sensor.sensor_id}</td>
                     <td>${sensor.name || 'Sin nombre'}</td>
@@ -625,11 +920,30 @@ function refreshSensorsTable() {
             // Reinicializar listeners
             setupSensorTableActions();
             
+            // Disparar evento personalizado para notificar que la tabla se ha actualizado
+            const event = new CustomEvent('sensorsTableUpdated', { 
+                detail: { 
+                    count: data.length,
+                    action: 'refresh'
+                } 
+            });
+            document.dispatchEvent(event);
+            
+            // Actualizar también los selectores después de cargar los sensores
+            if (typeof updateMachineSensorSelectors === 'function') {
+                setTimeout(() => {
+                    updateMachineSensorSelectors();
+                }, 200);
+            }
+            
             logConfig('debug', `Tabla de sensores actualizada con ${data.length} registros`);
         })
         .catch(error => {
             logConfig('error', 'Error al actualizar tabla de sensores', error);
             showToast(`Error al cargar sensores: ${error.message}`, 'error');
+            
+            // Mostrar mensaje de error en la tabla
+            tbody.innerHTML = `<tr><td colspan="5" class="text-center">Error al cargar sensores: ${error.message}</td></tr>`;
         });
 }
 
@@ -1112,4 +1426,19 @@ window.initMachineTab = initMachineTab;
 window.initSensorTab = initSensorTab;
 window.initModelTab = initModelTab;
 window.initLimitsTab = initLimitsTab;
-window.fetchVibrationLimits = fetchVibrationLimits; 
+window.fetchVibrationLimits = fetchVibrationLimits;
+
+// Exportar funciones de actualización de tablas
+window.refreshMachinesTable = refreshMachinesTable;
+window.refreshSensorsTable = refreshSensorsTable;
+window.refreshModelsTable = refreshModelsTable;
+window.loadMachinesTable = refreshMachinesTable;
+window.loadSensorsTable = refreshSensorsTable;
+window.loadModelsTable = refreshModelsTable;
+
+// Exportar funciones de actualización de selectores
+window.updateMachineSensorSelectors = updateMachineSensorSelectors;
+window.updateModelSelectors = updateModelSelectors;
+window.setupSensorTableActions = setupSensorTableActions;
+window.setupMachineTableActions = setupMachineTableActions;
+window.setupModelTableActions = setupModelTableActions; 
