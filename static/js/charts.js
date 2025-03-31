@@ -75,7 +75,20 @@ function initAxisChart(canvasId, title, axis) {
         setGlobalState('stats', stats);
     }
     
-    const chartOptions = getGlobalState('chartOptions') || { show2Sigma: true, show3Sigma: true };
+    // Obtener las opciones de visualización específicas del eje
+    const globalChartOptions = getGlobalState('chartOptions') || { show2Sigma: true, show3Sigma: true };
+    const axisSpecificOptions = getGlobalState(`chartOptions_${axis}`) || {
+        show2Sigma: globalChartOptions.show2Sigma, 
+        show3Sigma: globalChartOptions.show3Sigma
+    };
+    
+    // Inicializar estado si no existe
+    if (!getGlobalState(`chartOptions_${axis}`)) {
+        setGlobalState(`chartOptions_${axis}`, axisSpecificOptions);
+    }
+    
+    // Actualizar botones con estado actual
+    updateSigmaToggleButtonStates(axis, axisSpecificOptions);
     
     // Configuración de colores y opciones
     const chartColors = {
@@ -101,7 +114,7 @@ function initAxisChart(canvasId, title, axis) {
     // Añadir líneas estadísticas si están disponibles y activadas
     if (stats && stats[axis]) {
         // Límites 2-sigma
-        if (chartOptions && chartOptions.show2Sigma && stats[axis].sigma2) {
+        if (axisSpecificOptions.show2Sigma && stats[axis].sigma2) {
             datasets.push({
                 label: `+2σ (${axis.toUpperCase()})`,
                 data: Array(chartData.timestamps.length || 0).fill(stats[axis].sigma2.upper),
@@ -124,7 +137,7 @@ function initAxisChart(canvasId, title, axis) {
         }
         
         // Límites 3-sigma
-        if (chartOptions && chartOptions.show3Sigma && stats[axis].sigma3) {
+        if (axisSpecificOptions.show3Sigma && stats[axis].sigma3) {
             datasets.push({
                 label: `+3σ (${axis.toUpperCase()})`,
                 data: Array(chartData.timestamps.length || 0).fill(stats[axis].sigma3.upper),
@@ -295,7 +308,7 @@ function updateAxisChart(chart, axis) {
     
     // Obtener estadísticas y opciones de gráfico
     const stats = getGlobalState('stats');
-    const chartOptions = getGlobalState('chartOptions') || { show2Sigma: true, show3Sigma: true };
+    const chartOptions = getGlobalState(`chartOptions_${axis}`) || getGlobalState('chartOptions') || { show2Sigma: true, show3Sigma: true };
     
     // Eliminar datasets adicionales (líneas estadísticas)
     while (chart.data.datasets.length > 1) {
@@ -305,7 +318,7 @@ function updateAxisChart(chart, axis) {
     // Añadir líneas estadísticas si están disponibles y activadas
     if (stats && stats[axis]) {
         // Límites 2-sigma (solo si show2Sigma está activo)
-        if (chartOptions && chartOptions.show2Sigma && stats[axis].sigma2) {
+        if (chartOptions.show2Sigma && stats[axis].sigma2) {
             chart.data.datasets.push({
                 label: `+2σ (${axis.toUpperCase()})`,
                 data: Array(timestamps.length).fill(stats[axis].sigma2.upper),
@@ -328,7 +341,7 @@ function updateAxisChart(chart, axis) {
         }
         
         // Límites 3-sigma (solo si show3Sigma está activo)
-        if (chartOptions && chartOptions.show3Sigma && stats[axis].sigma3) {
+        if (chartOptions.show3Sigma && stats[axis].sigma3) {
             chart.data.datasets.push({
                 label: `+3σ (${axis.toUpperCase()})`,
                 data: Array(timestamps.length).fill(stats[axis].sigma3.upper),
@@ -583,7 +596,8 @@ function updateAxisChartVisibility(chart, axis, options) {
         return;
     }
     
-    const chartOptions = options || getGlobalState('chartOptions') || { show2Sigma: true, show3Sigma: true };
+    // Usar opciones específicas del eje o las globales
+    const chartOptions = options || getGlobalState(`chartOptions_${axis}`) || getGlobalState('chartOptions') || { show2Sigma: true, show3Sigma: true };
     console.log(`Actualizando visibilidad del gráfico para eje ${axis}:`, chartOptions);
     
     // Obtener límites actuales
@@ -664,6 +678,104 @@ function updateAxisChartVisibility(chart, axis, options) {
     }
 }
 
+// Actualizar la visibilidad de los elementos en un gráfico específico
+function toggleSigmaLimits(axis, sigmaType) {
+    console.log(`Alternando visualización de límites ${sigmaType}σ para eje ${axis}`);
+    
+    // Obtener opciones específicas del eje
+    const chartOptions = getGlobalState(`chartOptions_${axis}`) || getGlobalState('chartOptions') || { show2Sigma: true, show3Sigma: true };
+    
+    // Alternar el estado
+    const optionKey = `show${sigmaType}Sigma`;
+    chartOptions[optionKey] = !chartOptions[optionKey];
+    
+    // Guardar el estado actualizado
+    setGlobalState(`chartOptions_${axis}`, chartOptions);
+    
+    // Actualizar el estado visual del botón
+    const button = document.getElementById(`toggle${sigmaType}Sigma${axis.toUpperCase()}`);
+    if (button) {
+        button.classList.toggle('active', chartOptions[optionKey]);
+    }
+    
+    // Obtener el gráfico correcto según el eje
+    let chart;
+    switch (axis) {
+        case 'x':
+            chart = vibrationChartX;
+            break;
+        case 'y':
+            chart = vibrationChartY;
+            break;
+        case 'z':
+            chart = vibrationChartZ;
+            break;
+        default:
+            console.error(`Eje ${axis} no reconocido`);
+            return;
+    }
+    
+    // Actualizar el gráfico
+    if (chart) {
+        updateAxisChart(chart, axis);
+    } else {
+        console.error(`No se encontró gráfico para el eje ${axis}`);
+    }
+}
+
+// Actualizar los estados de los botones de activación/desactivación
+function updateSigmaToggleButtonStates(axis, options) {
+    const button2Sigma = document.getElementById(`toggle2Sigma${axis.toUpperCase()}`);
+    const button3Sigma = document.getElementById(`toggle3Sigma${axis.toUpperCase()}`);
+    
+    if (button2Sigma) {
+        button2Sigma.classList.toggle('active', options.show2Sigma);
+    }
+    
+    if (button3Sigma) {
+        button3Sigma.classList.toggle('active', options.show3Sigma);
+    }
+}
+
+// Inicializar event listeners para los botones de activación/desactivación
+function initSigmaToggleButtons() {
+    // Botones 2-Sigma
+    const toggle2SigmaX = document.getElementById('toggle2SigmaX');
+    const toggle2SigmaY = document.getElementById('toggle2SigmaY');
+    const toggle2SigmaZ = document.getElementById('toggle2SigmaZ');
+    
+    // Botones 3-Sigma
+    const toggle3SigmaX = document.getElementById('toggle3SigmaX');
+    const toggle3SigmaY = document.getElementById('toggle3SigmaY');
+    const toggle3SigmaZ = document.getElementById('toggle3SigmaZ');
+    
+    // Agregar event listeners para 2-Sigma
+    if (toggle2SigmaX) {
+        toggle2SigmaX.addEventListener('click', () => toggleSigmaLimits('x', 2));
+    }
+    
+    if (toggle2SigmaY) {
+        toggle2SigmaY.addEventListener('click', () => toggleSigmaLimits('y', 2));
+    }
+    
+    if (toggle2SigmaZ) {
+        toggle2SigmaZ.addEventListener('click', () => toggleSigmaLimits('z', 2));
+    }
+    
+    // Agregar event listeners para 3-Sigma
+    if (toggle3SigmaX) {
+        toggle3SigmaX.addEventListener('click', () => toggleSigmaLimits('x', 3));
+    }
+    
+    if (toggle3SigmaY) {
+        toggle3SigmaY.addEventListener('click', () => toggleSigmaLimits('y', 3));
+    }
+    
+    if (toggle3SigmaZ) {
+        toggle3SigmaZ.addEventListener('click', () => toggleSigmaLimits('z', 3));
+    }
+}
+
 // Exportar funciones para uso global
 window.initVibrationChart = initVibrationChart;
 window.initAxisChart = initAxisChart;
@@ -675,6 +787,7 @@ window.updateAxisChartLimits = updateAxisChartLimits;
 window.updateChartsWithNewLimits = updateChartsWithNewLimits;
 window.chartData = chartData;
 window.stats = getGlobalState('stats');
+window.toggleSigmaLimits = toggleSigmaLimits;
 
 // Inicializar estado global para opciones de gráficos
 document.addEventListener('DOMContentLoaded', function() {
@@ -698,6 +811,14 @@ document.addEventListener('DOMContentLoaded', function() {
             show3Sigma: show3Sigma
         });
         
+        // Inicializar opciones específicas para cada eje
+        ['x', 'y', 'z'].forEach(axis => {
+            setGlobalState(`chartOptions_${axis}`, {
+                show2Sigma: show2Sigma,
+                show3Sigma: show3Sigma
+            });
+        });
+        
         console.log('Opciones de gráficos inicializadas:', getGlobalState('chartOptions'));
     } else {
         // Sincronizar UI con el estado global
@@ -709,19 +830,74 @@ document.addEventListener('DOMContentLoaded', function() {
             show3SigmaToggle.checked = currentOptions.show3Sigma;
         }
         
+        // Inicializar opciones específicas para cada eje si no existen
+        ['x', 'y', 'z'].forEach(axis => {
+            if (!getGlobalState(`chartOptions_${axis}`)) {
+                setGlobalState(`chartOptions_${axis}`, {
+                    show2Sigma: currentOptions.show2Sigma,
+                    show3Sigma: currentOptions.show3Sigma
+                });
+            }
+        });
+        
         console.log('UI sincronizada con opciones de gráficos existentes:', currentOptions);
     }
     
     // Agregar event listeners a los toggles si no están configurados
     if (show2SigmaToggle) {
         show2SigmaToggle.addEventListener('change', function() {
+            const checked = this.checked;
+            
+            // Actualizar opciones globales
+            const chartOptions = getGlobalState('chartOptions') || {};
+            chartOptions.show2Sigma = checked;
+            setGlobalState('chartOptions', chartOptions);
+            
+            // Actualizar opciones para cada eje
+            ['x', 'y', 'z'].forEach(axis => {
+                const axisOptions = getGlobalState(`chartOptions_${axis}`) || {};
+                axisOptions.show2Sigma = checked;
+                setGlobalState(`chartOptions_${axis}`, axisOptions);
+                
+                // Actualizar botones de toggle
+                const button = document.getElementById(`toggle2Sigma${axis.toUpperCase()}`);
+                if (button) {
+                    button.classList.toggle('active', checked);
+                }
+            });
+            
+            // Actualizar todos los gráficos
             updateChartsVisibility();
         });
     }
     
     if (show3SigmaToggle) {
         show3SigmaToggle.addEventListener('change', function() {
+            const checked = this.checked;
+            
+            // Actualizar opciones globales
+            const chartOptions = getGlobalState('chartOptions') || {};
+            chartOptions.show3Sigma = checked;
+            setGlobalState('chartOptions', chartOptions);
+            
+            // Actualizar opciones para cada eje
+            ['x', 'y', 'z'].forEach(axis => {
+                const axisOptions = getGlobalState(`chartOptions_${axis}`) || {};
+                axisOptions.show3Sigma = checked;
+                setGlobalState(`chartOptions_${axis}`, axisOptions);
+                
+                // Actualizar botones de toggle
+                const button = document.getElementById(`toggle3Sigma${axis.toUpperCase()}`);
+                if (button) {
+                    button.classList.toggle('active', checked);
+                }
+            });
+            
+            // Actualizar todos los gráficos
             updateChartsVisibility();
         });
     }
+    
+    // Inicializar botones de toggle para límites sigma
+    initSigmaToggleButtons();
 }); 

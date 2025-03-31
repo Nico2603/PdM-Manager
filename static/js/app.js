@@ -13,6 +13,15 @@ function initApplication() {
             console.error('La función initGlobalStateEvents no está disponible');
         }
         
+        // Cargar límites de vibración por defecto
+        // Esta operación se debe realizar temprano en el flujo de inicialización
+        if (typeof fetchVibrationLimits === 'function') {
+            console.log('Cargando límites de vibración por defecto...');
+            fetchVibrationLimits();
+        } else {
+            console.warn('La función fetchVibrationLimits no está disponible, no se cargarán los límites de vibración');
+        }
+        
         // Inicializar componentes UI comunes (como toasts, dropdowns, etc.)
         if (typeof initUI === 'function') {
             initUI();

@@ -29,16 +29,7 @@ let autoRefreshTimers = {
     models: null
 };
 
-// Registro de event listeners para limpieza
-const realtimeListeners = new Map();
-
-/**
- * Función centralizada para manejar errores en WebSocket
- * @param {Error|Event} error - El objeto de error capturado
- * @param {string} context - Contexto donde ocurrió el error
- * @param {boolean} reconnect - Indica si se debe intentar reconectar automáticamente
- * @param {Object} extraData - Datos adicionales a registrar con el error
- */
+// Función centralizada para manejar errores en WebSocket
 function handleWebSocketError(error, context, reconnect = true, extraData = {}) {
     // Datos básicos del error
     const errorData = {
@@ -84,22 +75,30 @@ function addRealtimeListener(element, event, handler, options = false) {
         return null;
     }
 
-    return addManagedEventListener(element, event, handler, 'realtime', options);
+    return window.addManagedEventListener(element, event, handler, 'realtime', options);
 }
 
 // Función para limpiar todos los listeners de tiempo real
 function cleanupRealtimeListeners() {
     logWebSocket('info', 'Limpiando event listeners de tiempo real');
-    return cleanupEventListenersByCategory('realtime');
+    return window.cleanupEventListenersByCategory('realtime');
 }
 
 // Función para controlar la tasa de actualizaciones utilizando el sistema unificado
 function shouldProcessWebSocketUpdate(key) {
-    return shouldUpdate(`websocket_${key}`, UPDATE_CONFIG.MIN_UPDATE_INTERVAL);
+    // Usar el sistema unificado shouldUpdate con un intervalo específico para WebSocket
+    const result = shouldUpdate(`websocket_${key}`, UPDATE_CONFIG.MIN_UPDATE_INTERVAL);
+    
+    if (!result && THROTTLE_CONFIG.LOG_SKIPPED_UPDATES) {
+        logWebSocket('debug', `Actualización WebSocket ignorada para '${key}' (throttled)`);
+    }
+    
+    return result;
 }
 
-// Función para controlar la tasa de actualizaciones
+// Función obsoleta - usar shouldProcessWebSocketUpdate en su lugar
 function shouldUpdate() {
+    console.warn('Función shouldUpdate() en realtime-updates.js está obsoleta. Usar shouldProcessWebSocketUpdate() en su lugar.');
     const now = Date.now();
     if (now - lastUpdateTime < UPDATE_CONFIG.MIN_UPDATE_INTERVAL) {
         return false;
@@ -112,8 +111,11 @@ function shouldUpdate() {
 function shouldProcessMessage(messageType) {
     logWebSocket('debug', `Evaluando throttling para mensaje: ${messageType}`);
     
+    // Generar una clave única para este tipo de mensaje
+    const throttleKey = `message_${messageType}`;
+    
     // Usar el sistema unificado shouldUpdate para verificar si debemos procesar
-    if (shouldUpdate(`message_${messageType}`, UPDATE_CONFIG.THROTTLE_INTERVAL, true)) {
+    if (shouldUpdate(throttleKey, UPDATE_CONFIG.THROTTLE_INTERVAL, true)) {
         logWebSocket('debug', `Procesando mensaje (intervalo suficiente): ${messageType}`);
         return true;
     }
@@ -122,7 +124,9 @@ function shouldProcessMessage(messageType) {
     const throttledFn = getThrottledMessageProcessor(messageType);
     
     // Programar para ejecución posterior
-    logWebSocket('debug', `Throttling mensaje: ${messageType}, programando para ejecución posterior`);
+    if (THROTTLE_CONFIG.LOG_SKIPPED_UPDATES) {
+        logWebSocket('debug', `Throttling mensaje: ${messageType}, programando para ejecución posterior`);
+    }
     throttledFn();
     
     return false;
@@ -337,101 +341,142 @@ function handleWebSocketReconnection() {
 
 // Solicitar datos iniciales al conectar
 function requestInitialData() {
-    logWebSocket('debug', 'Solicitando datos iniciales');
+    logWebSocket('info', 'Solicitando datos iniciales del servidor');
     
-    if (socket && socket.readyState === WebSocket.OPEN) {
-        const requestMsg = JSON.stringify({
-            type: 'request_data',
-            data: { tables: ['machines', 'sensors', 'models'] }
+    try {
+        // Verificar que los límites de aceleración estén configurados
+        fetch(`${API_CONFIG.BASE_URL}/api/limits`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`Error al obtener límites: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                logWebSocket('debug', 'Límites de aceleración cargados correctamente');
+                
+                // Establecer límites en estado global
+                if (typeof setGlobalState === 'function') {
+                    setGlobalState('vibrationLimits', data);
+                }
+                
+                // Actualizar formulario de límites si es visible
+                if (document.getElementById('limitsForm')) {
+                    updateLimitsForm(data);
+                }
+            })
+            .catch(error => {
+                logWebSocket('error', 'Error al cargar límites, intentando crear valores por defecto', error);
+                
+                // Intentar crear límites por defecto
+                fetch(`${API_CONFIG.BASE_URL}/api/limits/reset`, {
+                    method: 'POST'
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`Error al resetear límites: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    logWebSocket('info', 'Límites de aceleración restablecidos a valores por defecto');
+                    
+                    // Establecer límites en estado global
+                    if (typeof setGlobalState === 'function') {
+                        setGlobalState('vibrationLimits', data);
+                    }
+                    
+                    // Actualizar formulario de límites si es visible
+                    if (document.getElementById('limitsForm')) {
+                        updateLimitsForm(data);
+                    }
+                })
+                .catch(resetError => {
+                    logWebSocket('error', 'Error al restablecer límites por defecto', resetError);
+                });
+            });
+        
+        // Solicitar datos para las tablas principales
+        Promise.all([
+            refreshMachinesTable(), 
+            refreshSensorsTable(), 
+            refreshModelsTable()
+        ])
+        .then(() => {
+            logWebSocket('info', 'Datos iniciales cargados correctamente');
+        })
+        .catch(error => {
+            logWebSocket('error', 'Error al cargar datos iniciales', error);
         });
         
-        try {
-            socket.send(requestMsg);
-            logWebSocket('debug', 'Solicitud de datos iniciales enviada correctamente');
-        } catch (error) {
-            handleWebSocketError(error, 'solicitud de datos iniciales');
-        }
-    } else {
-        logWebSocket('warn', 'No se pueden solicitar datos iniciales: socket no disponible o no está abierto');
+    } catch (error) {
+        logWebSocket('error', 'Error al solicitar datos iniciales', error);
     }
 }
 
-// Procesar los mensajes recibidos por WebSocket
+// Manejar mensajes WebSocket
 function handleWebSocketMessage(data) {
-    const startTime = performance.now();
+    logWebSocket('debug', `Mensaje recibido: ${data.type}`);
+    
+    // Comprobar si debemos procesar este tipo de mensaje o aplicar throttling
+    if (!shouldProcessMessage(data.type)) {
+        return; // El mensaje se procesará más tarde mediante throttling
+    }
     
     try {
-        // Intentar parsear el mensaje JSON
-        let message;
-        try {
-            message = JSON.parse(data);
-        } catch (parseError) {
-            handleWebSocketError(parseError, 'parseo de mensaje WebSocket', false, {
-                rawData: typeof data === 'string' ? data.substring(0, 100) + '...' : 'Datos no válidos',
-                dataType: typeof data
-            });
-            return;
-        }
-        
-        if (!message.type) {
-            logWebSocket('warn', 'Formato de mensaje inválido:', message);
-            return;
-        }
-        
-        logWebSocket('debug', `Mensaje recibido de tipo: ${message.type}`);
-        
-        // Actualizar hora de última actualización
-        updateLastUpdateTime();
-        
-        // Aplicar throttling a los mensajes
-        if (!shouldProcessMessage(message.type)) {
-            logWebSocket('debug', `Mensaje throttled: ${message.type}`);
-            return;
-        }
-        
-        // Medir el tiempo de procesamiento según el tipo de mensaje
-        const processingStartTime = performance.now();
-        
-        // Manejar diferentes tipos de mensajes
-        switch (message.type) {
+        switch (data.type) {
             case 'machine_update':
-                logWebSocket('debug', 'Procesando actualización de máquinas');
+                logWebSocket('debug', 'Actualizando tabla de máquinas desde WebSocket');
                 refreshMachinesTable();
                 break;
                 
             case 'sensor_update':
-                logWebSocket('debug', 'Procesando actualización de sensores');
+                logWebSocket('debug', 'Actualizando tabla de sensores desde WebSocket');
                 refreshSensorsTable();
+                
+                // También actualizar los selectores de sensores en las máquinas
+                updateMachineSensorSelectors();
                 break;
                 
             case 'model_update':
-                logWebSocket('debug', 'Procesando actualización de modelos');
+                logWebSocket('debug', 'Actualizando tabla de modelos desde WebSocket');
                 refreshModelsTable();
+                
+                // También actualizar los selectores de modelos en los sensores
+                updateModelSelectors();
                 break;
                 
-            case 'reload_all':
-                // Para reload_all siempre procesar inmediatamente
-                logWebSocket('debug', 'Procesando recarga completa');
-                refreshAllTables();
+            case 'vibration_data':
+                if (!shouldProcessWebSocketUpdate('vibration_data')) return;
+                
+                logWebSocket('debug', 'Datos de vibración recibidos');
+                // Implementación de actualización de datos de vibración
+                handleVibrationData(data.data);
                 break;
                 
-            case 'ping':
-                // Solo actualizar el estado de conexión
-                logWebSocket('debug', 'Ping recibido');
-                updateConnectionStatus(true);
+            case 'alert':
+                if (!shouldProcessWebSocketUpdate('alert')) return;
+                
+                logWebSocket('debug', 'Alerta recibida');
+                // Implementación de actualización de alertas
+                handleAlertUpdate(data.data);
+                break;
+                
+            case 'system_status':
+                logWebSocket('debug', 'Actualización de estado del sistema recibida');
+                updateSystemStatus(data.data);
+                break;
+                
+            case 'config_update':
+                logWebSocket('debug', 'Actualización de configuración recibida');
+                handleConfigUpdate(data.data);
                 break;
                 
             default:
-                logWebSocket('warn', `Tipo de mensaje no reconocido: ${message.type}`);
+                logWebSocket('warn', `Tipo de mensaje desconocido: ${data.type}`);
         }
-        
-        logWebSocket('debug', `Procesamiento de mensaje ${message.type} completado`, null, processingStartTime);
     } catch (error) {
-        handleWebSocketError(error, 'procesamiento de mensaje WebSocket', false, {
-            dataSnippet: typeof data === 'string' ? data.substring(0, 100) + '...' : 'Datos no válidos'
-        });
-    } finally {
-        logWebSocket('debug', 'Manejo de mensaje WebSocket completado', null, startTime);
+        logWebSocket('error', `Error al procesar mensaje WebSocket de tipo ${data.type}`, error);
     }
 }
 
@@ -687,4 +732,229 @@ addRealtimeListener(document, 'pageChanged', function(event) {
 });
 
 // Exportar funciones necesarias
-window.cleanupRealtimeListeners = cleanupRealtimeListeners; 
+window.cleanupRealtimeListeners = cleanupRealtimeListeners;
+
+// Función para manejar actualizaciones de datos de vibración
+function handleVibrationData(data) {
+    logWebSocket('debug', 'Procesando datos de vibración');
+    
+    // Actualizar gráficos si la función existe
+    if (typeof window.updateChartData === 'function') {
+        window.updateChartData(data);
+    }
+    
+    // Actualizar valores de monitoreo en tiempo real
+    updateRealtimeMonitoringValues(data);
+}
+
+// Función para actualizar valores de monitoreo en tiempo real
+function updateRealtimeMonitoringValues(data) {
+    // Actualizar valores en la interfaz si existen los elementos
+    if (data.acceleration_x !== undefined) {
+        const xValueElement = document.getElementById('acceleration-x-value');
+        if (xValueElement) {
+            xValueElement.textContent = data.acceleration_x.toFixed(2);
+        }
+    }
+    
+    if (data.acceleration_y !== undefined) {
+        const yValueElement = document.getElementById('acceleration-y-value');
+        if (yValueElement) {
+            yValueElement.textContent = data.acceleration_y.toFixed(2);
+        }
+    }
+    
+    if (data.acceleration_z !== undefined) {
+        const zValueElement = document.getElementById('acceleration-z-value');
+        if (zValueElement) {
+            zValueElement.textContent = data.acceleration_z.toFixed(2);
+        }
+    }
+    
+    // Actualizar indicador de severidad si existe
+    if (data.severity !== undefined) {
+        const severityElement = document.getElementById('vibration-severity');
+        if (severityElement) {
+            severityElement.textContent = getSeverityText(data.severity);
+            
+            // Actualizar clase de severidad
+            severityElement.className = 'severity-indicator';
+            severityElement.classList.add(`severity-${data.severity}`);
+        }
+    }
+}
+
+// Función para obtener texto de severidad
+function getSeverityText(severity) {
+    switch (severity) {
+        case 0: return 'Normal';
+        case 1: return 'Advertencia';
+        case 2: return 'Alerta';
+        case 3: return 'Crítico';
+        default: return 'Desconocido';
+    }
+}
+
+// Función para manejar actualizaciones de alertas
+function handleAlertUpdate(data) {
+    logWebSocket('debug', 'Procesando alerta recibida', data);
+    
+    // Mostrar alerta en UI para alertas de severidad alta
+    if (data.error_type >= 2) {
+        logWebSocket('warn', `Alerta de tipo ${data.error_type} recibida`);
+        
+        // Mostrar alertas críticas con mayor prominencia
+        if (data.error_type === 3 && typeof window.showCriticalAlert === 'function') {
+            window.showCriticalAlert(data);
+        }
+        
+        // Mostrar notificación toast
+        showToast(
+            `Alerta: ${getAlertTypeText(data.error_type)}`, 
+            data.error_type === 3 ? 'error' : 'warning'
+        );
+        
+        // Reproducir sonido de alerta si existe la función
+        if (typeof window.playAlertSound === 'function') {
+            window.playAlertSound(data.error_type);
+        }
+    }
+    
+    // Actualizar contadores de alertas en el dashboard
+    updateAlertCounters();
+    
+    // Actualizar tabla de alertas si estamos en la vista de alertas
+    if (document.getElementById('alertsTable') && 
+        typeof window.refreshAlertsTable === 'function') {
+        window.refreshAlertsTable();
+    }
+}
+
+// Función para obtener texto descriptivo del tipo de alerta
+function getAlertTypeText(errorType) {
+    switch (errorType) {
+        case 1: return 'Anomalía Leve';
+        case 2: return 'Anomalía Significativa';
+        case 3: return 'Anomalía Crítica / Repetitiva';
+        default: return 'Desconocida';
+    }
+}
+
+// Función para actualizar contadores de alertas
+function updateAlertCounters() {
+    // Obtener contadores actualizados desde el servidor
+    fetch(`${API_CONFIG.BASE_URL}/api/dashboard-data/stats?time_range=day`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`Error al obtener estadísticas: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            // Actualizar contadores en la interfaz
+            if (data.alert_counts) {
+                const counts = data.alert_counts;
+                
+                // Actualizar contadores si existen los elementos
+                if (document.getElementById('level1Count')) {
+                    document.getElementById('level1Count').textContent = counts.level1 || 0;
+                }
+                
+                if (document.getElementById('level2Count')) {
+                    document.getElementById('level2Count').textContent = counts.level2 || 0;
+                }
+                
+                if (document.getElementById('level3Count')) {
+                    document.getElementById('level3Count').textContent = counts.level3 || 0;
+                }
+                
+                if (document.getElementById('totalAlertsCount')) {
+                    document.getElementById('totalAlertsCount').textContent = counts.total || 0;
+                }
+            }
+        })
+        .catch(error => {
+            logWebSocket('error', 'Error al actualizar contadores de alertas', error);
+        });
+}
+
+// Función para manejar actualizaciones de estado del sistema
+function updateSystemStatus(data) {
+    logWebSocket('debug', 'Actualizando estado del sistema', data);
+    
+    // Actualizar indicador de estado
+    const statusIndicator = document.querySelector('.status-indicator');
+    const statusText = document.querySelector('.status-text');
+    
+    if (statusIndicator && statusText) {
+        if (data.connected) {
+            statusIndicator.classList.add('connected');
+            statusIndicator.classList.remove('disconnected');
+            statusText.textContent = 'Sistema conectado';
+        } else {
+            statusIndicator.classList.remove('connected');
+            statusIndicator.classList.add('disconnected');
+            statusText.textContent = 'Sistema desconectado';
+        }
+    }
+    
+    // Actualizar estado de monitoreo
+    if (data.monitoring !== undefined) {
+        const monitoringStatus = document.getElementById('monitoringStatus');
+        const startMonitoringBtn = document.getElementById('startMonitoringBtn');
+        
+        if (monitoringStatus) {
+            const statusIndicator = monitoringStatus.querySelector('.status-indicator');
+            const statusText = monitoringStatus.querySelector('.status-text');
+            
+            if (statusIndicator && statusText) {
+                if (data.monitoring) {
+                    statusIndicator.classList.add('active');
+                    statusText.textContent = 'Monitoreo activo';
+                    
+                    if (startMonitoringBtn) {
+                        startMonitoringBtn.innerHTML = '<i class="fas fa-stop-circle mr-2"></i> Detener Monitoreo';
+                        startMonitoringBtn.classList.add('btn-danger');
+                        startMonitoringBtn.classList.remove('btn-primary');
+                    }
+                } else {
+                    statusIndicator.classList.remove('active');
+                    statusText.textContent = 'Monitoreo detenido';
+                    
+                    if (startMonitoringBtn) {
+                        startMonitoringBtn.innerHTML = '<i class="fas fa-play-circle mr-2"></i> Iniciar Monitoreo';
+                        startMonitoringBtn.classList.add('btn-primary');
+                        startMonitoringBtn.classList.remove('btn-danger');
+                    }
+                }
+            }
+        }
+    }
+    
+    // Actualizar hora de última actualización
+    updateLastUpdateTime();
+}
+
+// Función para manejar actualizaciones de configuración
+function handleConfigUpdate(data) {
+    logWebSocket('debug', 'Procesando actualización de configuración', data);
+    
+    if (data.limits) {
+        // Actualizar límites en el estado global
+        if (typeof setGlobalState === 'function') {
+            setGlobalState('vibrationLimits', data.limits);
+        }
+        
+        // Actualizar formulario de límites si es visible
+        if (document.getElementById('limitsForm')) {
+            updateLimitsForm(data.limits);
+        }
+    }
+    
+    // Verificar si tenemos una configuración válida para el monitoreo
+    if (typeof window.checkValidConfiguration === 'function') {
+        setTimeout(() => {
+            window.checkValidConfiguration();
+        }, 500);
+    }
+} 

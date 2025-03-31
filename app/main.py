@@ -236,6 +236,38 @@ else:
 # Crear las tablas en la BD (solo si no existen)
 Base.metadata.create_all(bind=engine)
 
+# Inicializar los límites por defecto en la base de datos si no existen
+def init_default_limits():
+    try:
+        # Usamos una sesión específica para esta operación
+        from app.database import SessionLocal
+        db = SessionLocal()
+        try:
+            # Verificar si ya existen límites en la base de datos
+            existing_limits = crud.get_limit_config(db)
+            
+            if existing_limits:
+                log_info("Límites de vibración ya existentes en la base de datos")
+                log_info(f"Valores actuales X: {existing_limits.x_2inf}/{existing_limits.x_2sup}/{existing_limits.x_3inf}/{existing_limits.x_3sup}")
+                log_info(f"Valores actuales Y: {existing_limits.y_2inf}/{existing_limits.y_2sup}/{existing_limits.y_3inf}/{existing_limits.y_3sup}")
+                log_info(f"Valores actuales Z: {existing_limits.z_2inf}/{existing_limits.z_2sup}/{existing_limits.z_3inf}/{existing_limits.z_3sup}")
+            else:
+                # Crear límites con valores por defecto
+                limit_config = models.LimitConfig()
+                crud.create_limit_config(db, limit_config)
+                log_info("Límites de vibración por defecto guardados en la base de datos")
+                log_info(f"Valores por defecto X: {limit_config.x_2inf}/{limit_config.x_2sup}/{limit_config.x_3inf}/{limit_config.x_3sup}")
+                log_info(f"Valores por defecto Y: {limit_config.y_2inf}/{limit_config.y_2sup}/{limit_config.y_3inf}/{limit_config.y_3sup}")
+                log_info(f"Valores por defecto Z: {limit_config.z_2inf}/{limit_config.z_2sup}/{limit_config.z_3inf}/{limit_config.z_3sup}")
+        finally:
+            # Asegurarse de cerrar la sesión
+            db.close()
+    except Exception as e:
+        log_error(e, "Error al inicializar los límites por defecto en la base de datos")
+
+# Ejecutar la inicialización de límites por defecto
+init_default_limits()
+
 # Configurar los manejadores de errores
 configure_error_handlers(app)
 
@@ -953,7 +985,7 @@ async def create_sensor_endpoint(
     """Crear un nuevo sensor"""
     try:
         # Crear nuevo sensor
-        sensor = Sensor(
+        sensor = models.Sensor(
             name=name,
             description=description,
             model_id=model_id
@@ -1160,7 +1192,7 @@ async def create_model_endpoint(
                 f.write(await scaler_file.read())
         
         # Crear el modelo en la base de datos
-        model = Model(
+        model = models.Model(
             name=name,
             description=description,
             route_h5=model_h5_path.replace('\\', '/'),

@@ -1549,3 +1549,112 @@ p {
   color: #6b7280;
   font-size: 0.9rem;
 }
+
+/* Estilos para botones de activación/desactivación de límites sigma */
+.toggle-sigma {
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding: 0.25rem 0.5rem;
+  margin-right: 0.5rem;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  background-color: var(--surface-color);
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.toggle-sigma i {
+  font-size: 8px;
+  margin-right: 3px;
+  transition: color 0.2s ease;
+}
+
+.toggle-sigma span {
+  font-weight: 600;
+}
+
+.toggle-sigma.active {
+  background-color: var(--accent-color-light);
+  color: var(--accent-color-dark);
+}
+
+.toggle-sigma.active[data-sigma="2"] i {
+  color: rgba(255, 159, 64, 0.9);
+}
+
+.toggle-sigma.active[data-sigma="3"] i {
+  color: rgba(255, 99, 132, 0.9);
+}
+
+.toggle-sigma:hover {
+  background-color: var(--hover-color);
+}
+
+.toggle-sigma.active:hover {
+  background-color: var(--accent-color);
+  color: white;
+}
+
+/* Ajustar espaciado en chart-actions */
+.chart-actions {
+  display: flex;
+  align-items: center;
+}
+
+/* ------------------------------
+   MENSAJE DE NO CONFIGURACIÓN
+   ------------------------------ */
+.no-config-message {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    padding: var(--spacing-xl);
+    margin: var(--spacing-xl) 0;
+}
+
+.no-config-message .message-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    max-width: 500px;
+    padding: var(--spacing-xl);
+    background-color: var(--color-background-light);
+    border: 2px solid var(--color-accent);
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow-md);
+}
+
+.no-config-message .message-icon {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 60px;
+    height: 60px;
+    margin-bottom: var(--spacing-md);
+    background-color: var(--color-accent);
+    border-radius: 50%;
+}
+
+.no-config-message .message-icon i {
+    font-size: 1.8rem;
+    color: #fff;
+}
+
+.no-config-message h3 {
+    margin-bottom: var(--spacing-md);
+    color: var(--color-text);
+    font-size: var(--font-size-xl);
+}
+
+.no-config-message p {
+    margin-bottom: var(--spacing-lg);
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-md);
+}
+
+.no-config-message .btn {
+    padding: var(--spacing-sm) var(--spacing-lg);
+}

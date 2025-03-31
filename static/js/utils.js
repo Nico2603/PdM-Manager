@@ -984,7 +984,8 @@ const THROTTLE_CONFIG = {
 const timers = {
     debounce: new Map(),
     throttle: new Map(),
-    lastExecution: new Map()
+    lastExecution: new Map(),
+    skippedUpdates: null
 };
 
 /**
@@ -1150,6 +1151,7 @@ function shouldUpdate(key, minInterval = THROTTLE_CONFIG.MIN_UPDATE_INTERVAL, up
     const lastTime = timers.lastExecution.get(key) || 0;
     const elapsed = now - lastTime;
     
+    // Si ha pasado suficiente tiempo, permitir actualización
     if (elapsed >= minInterval) {
         if (updateTimestamp) {
             timers.lastExecution.set(key, now);
@@ -1157,15 +1159,55 @@ function shouldUpdate(key, minInterval = THROTTLE_CONFIG.MIN_UPDATE_INTERVAL, up
         return true;
     }
     
+    // Actualización ignorada por límite de tiempo
+    // Mantener estadísticas de eventos ignorados
+    if (!timers.skippedUpdates) {
+        timers.skippedUpdates = new Map();
+    }
+    
+    // Incrementar contador de actualizaciones ignoradas para esta clave
+    const skippedStats = timers.skippedUpdates.get(key) || { count: 0, totalTimeWaited: 0 };
+    skippedStats.count++;
+    skippedStats.totalTimeWaited += minInterval - elapsed;
+    skippedStats.lastSkipped = now;
+    timers.skippedUpdates.set(key, skippedStats);
+    
+    // Registrar en el log si está habilitado
     if (THROTTLE_CONFIG.LOG_SKIPPED_UPDATES) {
         AppLogger.debug('performance', `Actualización ignorada para '${key}' (${elapsed}ms < ${minInterval}ms)`);
     }
     
+    // Una vez cada 10 actualizaciones ignoradas, registrar estadísticas
+    if (skippedStats.count % 10 === 0) {
+        AppLogger.info('performance', `Estadísticas de throttling para '${key}': ${skippedStats.count} actualizaciones ignoradas, tiempo promedio ahorrado: ${Math.round(skippedStats.totalTimeWaited / skippedStats.count)}ms`);
+    }
+    
     return false;
+}
+
+/**
+ * Obtener estadísticas de actualizaciones ignoradas
+ * @returns {Object} - Estadísticas por clave
+ */
+function getThrottlingStats() {
+    const stats = {};
+    
+    if (timers.skippedUpdates) {
+        timers.skippedUpdates.forEach((value, key) => {
+            stats[key] = {
+                skippedCount: value.count,
+                avgTimeWaited: value.count > 0 ? Math.round(value.totalTimeWaited / value.count) : 0,
+                lastSkipped: value.lastSkipped ? new Date(value.lastSkipped).toISOString() : null
+            };
+        });
+    }
+    
+    return stats;
 }
 
 // Exportar funciones para uso global
 window.debounce = debounce;
 window.throttle = throttle;
 window.cancelPendingTimers = cancelPendingTimers;
-window.shouldUpdate = shouldUpdate; 
+window.shouldUpdate = shouldUpdate;
+window.getThrottlingStats = getThrottlingStats; 

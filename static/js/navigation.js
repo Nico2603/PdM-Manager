@@ -2,44 +2,20 @@
 // NAVEGACIÓN Y MENÚ LATERAL
 // ==========================================================================
 
-// Gestión de Event Listeners
-const eventListeners = new Map();
-
 // Función para registrar y gestionar event listeners
-function addManagedEventListener(element, event, handler, options = false) {
+function addNavigationListener(element, event, handler, options = false) {
     if (!element) {
-        logNavigation('warn', 'addManagedEventListener: Elemento no válido');
-        return;
+        logNavigation('warn', 'addNavigationListener: Elemento no válido');
+        return null;
     }
     
-    // Crear identificador único para el elemento
-    const elementId = element.id || 
-                     (element === document ? 'document' : 
-                     (element === window ? 'window' : 'anonymous'));
-    
-    // Crear clave única para el registro
-    const key = `${elementId}-${event}`;
-    
-    // Remover listener existente si existe
-    if (eventListeners.has(key)) {
-        const { handler: oldHandler, options: oldOptions } = eventListeners.get(key);
-        logNavigation('debug', `Removiendo listener existente: ${key}`);
-        element.removeEventListener(event, oldHandler, oldOptions);
-        eventListeners.delete(key);
-    }
-    
-    // Agregar nuevo listener
-    element.addEventListener(event, handler, options);
-    eventListeners.set(key, { element, handler, options });
-    
-    logNavigation('debug', `Listener registrado: ${key}`);
-    return key;
+    return window.addManagedEventListener(element, event, handler, 'navigation', options);
 }
 
 // Función para remover todos los event listeners registrados
-function cleanupEventListeners() {
+function cleanupNavigationListeners() {
     logNavigation('info', `Limpieza de event listeners de navegación`);
-    return cleanupEventListenersByCategory('navigation');
+    return window.cleanupEventListenersByCategory('navigation');
 }
 
 // Inicializar menú lateral
@@ -51,7 +27,7 @@ function initSidebar() {
     const sidebar = document.getElementById('sidebar');
     if (sidebar) {
         // Manejar clics en elementos del sidebar
-        addManagedEventListener(sidebar, 'click', (e) => {
+        addNavigationListener(sidebar, 'click', (e) => {
             // Botón de actualización
             const refreshBtn = e.target.closest('#refreshDataBtn');
             if (refreshBtn) {
@@ -73,6 +49,12 @@ function initSidebar() {
                 const targetPage = navLink.getAttribute('data-page');
                 
                 if (targetPage) {
+                    // Prevenir navegaciones mientras otra está en progreso
+                    if (isNavigating) {
+                        logNavigation('warn', `Clic en menú ignorado: navegación a ${targetPage} bloqueada mientras otra está en progreso`);
+                        return;
+                    }
+                    
                     logNavigation('debug', `Clic en enlace de navegación: ${targetPage}`);
                     // Actualizar clase activa directamente desde aquí
                     document.querySelectorAll('.nav-link').forEach(link => 
@@ -97,7 +79,7 @@ function initNavigation() {
     const startTime = performance.now();
     
     // Limpiar listeners existentes
-    cleanupEventListeners();
+    cleanupNavigationListeners();
     
     // Inicializar el sidebar primero
     initSidebar();
@@ -105,13 +87,19 @@ function initNavigation() {
     // Configurar delegación de eventos para el contenido principal
     const contentContainer = document.querySelector('.content');
     if (contentContainer) {
-        addManagedEventListener(contentContainer, 'click', (e) => {
+        addNavigationListener(contentContainer, 'click', (e) => {
             // Enlaces dentro del contenido
             const link = e.target.closest('a[href^="#"]');
             if (link && !link.classList.contains('nav-link')) {
                 e.preventDefault();
                 const targetPage = link.getAttribute('href').substring(1);
                 if (targetPage) {
+                    // Prevenir navegaciones mientras otra está en progreso
+                    if (isNavigating) {
+                        logNavigation('warn', `Clic en enlace ignorado: navegación a ${targetPage} bloqueada mientras otra está en progreso`);
+                        return;
+                    }
+                    
                     logNavigation('debug', `Clic en enlace interno: ${targetPage}`);
                     navigateTo(targetPage);
                 }
@@ -121,11 +109,20 @@ function initNavigation() {
         logNavigation('warn', 'No se encontró el contenedor de contenido');
     }
     
-    // Configurar listener de hashchange
-    addManagedEventListener(window, 'hashchange', handleHashChange, 'navigation');
+    // Configurar listener de hashchange con opción para evitar duplicados
+    // Remover cualquier event listener existente para hashchange antes de agregar el nuevo
+    window.removeEventListener('hashchange', handleHashChange);
+    addNavigationListener(window, 'hashchange', (e) => {
+        // Verificar si ya estamos en proceso de navegación para evitar recursión
+        if (isNavigating) {
+            logNavigation('debug', 'Evento hashchange ignorado: navegación en progreso');
+            return;
+        }
+        handleHashChange();
+    }, 'navigation');
     
     // Configurar listener para eventos de página cambiada
-    addManagedEventListener(document, 'pageChanged', (e) => {
+    addNavigationListener(document, 'pageChanged', (e) => {
         logNavigation('debug', 'Evento pageChanged detectado:', e.detail);
         
         // Si hay listeners específicos para limpiar según la página
@@ -162,29 +159,15 @@ function cleanupPageSpecific(page) {
     switch (page) {
         case 'dashboard':
             logNavigation('debug', 'Limpiando listeners específicos del dashboard');
-            cleanupEventListenersByCategory('dashboard');
+            window.cleanupEventListenersByCategory('dashboard');
             break;
         case 'configuracion':
             logNavigation('debug', 'Limpiando listeners específicos de configuración');
-            cleanupEventListenersByCategory('realtime');
+            window.cleanupEventListenersByCategory('realtime');
             break;
     }
     
     logNavigation('info', `Limpieza específica de página ${page} completada`, null, startTime);
-}
-
-// Manejador de cambios de hash
-function handleHashChange() {
-    logNavigation('debug', 'Evento hashchange detectado');
-    const hash = window.location.hash.substring(1);
-    if (hash) {
-        logNavigation('debug', `Nuevo hash: ${hash}`);
-        navigateTo(hash);
-    } else {
-        logNavigation('debug', 'Hash vacío, navegando a dashboard');
-        // Si no hay hash, ir a la página por defecto (dashboard)
-        navigateTo('dashboard');
-    }
 }
 
 // Control de navegación
@@ -192,31 +175,57 @@ let navigationCount = 0;
 let lastNavigationTime = 0;
 const NAVIGATION_DEBOUNCE = 300; // 300ms entre navegaciones
 let currentPage = '';
+let isNavigating = false; // Flag para evitar navegaciones simultáneas
+let navigationInProgressTimeout = null; // Timeout de seguridad para el flag isNavigating
+let navigationStack = []; // Stack para detectar navegaciones recursivas
+const MAX_NAVIGATION_STACK = 5; // Máximo de navegaciones permitidas en el stack
 
 // Navegar a la página indicada
-function navigateTo(page) {
+function navigateTo(page, fromHashChange = false) {
+    // Validar que page sea una cadena no vacía para evitar errores
+    if (!page || typeof page !== 'string') {
+        logNavigation('error', 'Página inválida:', page);
+        page = 'dashboard';
+    }
+    
+    // Verificar si ya estamos navegando para evitar llamadas recursivas
+    if (isNavigating) {
+        logNavigation('warn', `Navegación ignorada: otra navegación en progreso (destino: ${page})`);
+        return; // Salir inmediatamente para evitar recursión
+    }
+    
+    // Establecer flag de navegación y timeout para resetearlo en caso de error
+    isNavigating = true;
+    
+    // Establecer timeout de seguridad para resetear el flag en caso de error
+    if (navigationInProgressTimeout) {
+        clearTimeout(navigationInProgressTimeout);
+    }
+    navigationInProgressTimeout = setTimeout(() => {
+        if (isNavigating) {
+            logNavigation('warn', 'Forzando reset del flag de navegación después de 2s');
+            isNavigating = false;
+        }
+    }, 2000); // 2 segundos como máximo para cualquier navegación
+    
     logNavigation('info', `Iniciando navegación a: ${page}`);
     const startTime = performance.now();
     
     const now = Date.now();
     navigationCount++;
-    logNavigation('debug', `Navegación #${navigationCount} - Tiempo desde última: ${now - lastNavigationTime}ms`);
+    logNavigation('debug', `Navegación #${navigationCount} - Tiempo desde última: ${now - lastNavigationTime}ms - Desde hashChange: ${fromHashChange}`);
     
     // Evitar navegaciones demasiado frecuentes
     if (now - lastNavigationTime < NAVIGATION_DEBOUNCE) {
         logNavigation('warn', `Navegación ignorada: demasiado frecuente (< ${NAVIGATION_DEBOUNCE}ms)`);
+        // Resetear flag antes de salir
+        resetNavigationFlag();
         return;
     }
     
     lastNavigationTime = now;
     
     try {
-        // Validar que page sea una cadena no vacía
-        if (!page || typeof page !== 'string') {
-            logNavigation('error', 'Página inválida:', page);
-            page = 'dashboard';
-        }
-        
         // Si la página contiene ":", es una subpágina
         let mainPage = page;
         let subPage = null;
@@ -226,28 +235,64 @@ function navigateTo(page) {
             logNavigation('debug', 'Subpágina detectada:', { mainPage, subPage });
         }
         
-        // Capturar la página anterior antes de cambiar
-        const previousPage = currentPage;
-        currentPage = mainPage;
-        
-        // Lanzar evento de cambio de página
-        dispatchPageChangedEvent(mainPage, previousPage);
-        
-        // Limpieza específica de la página anterior
-        if (previousPage && previousPage !== mainPage) {
-            logNavigation('debug', `Cambiando de ${previousPage} a ${mainPage}, iniciando limpieza`);
-            cleanupPageSpecific(previousPage);
+        // Si page ya está activa, evitar procesamiento innecesario
+        if (mainPage === currentPage && document.querySelector(`.nav-link[data-page="${mainPage}"]`)?.classList.contains('active')) {
+            // Solo continuamos si es una subpágina diferente
+            if (!subPage || (subPage && window.location.hash === '#' + page)) {
+                logNavigation('debug', `Ya estamos en la página ${page}, omitiendo navegación redundante`);
+                // Resetear flag antes de salir
+                resetNavigationFlag();
+                return;
+            }
         }
         
-        // Actualizar hash en la URL
+        // Capturar la página anterior antes de cambiar
+        const previousPage = currentPage;
+        
+        // Si estamos en una subpágina de configuración y vamos a otra subpágina de configuración,
+        // no tratamos esto como un cambio de página principal para evitar reinicios innecesarios
+        let isSubpageNavigation = false;
+        if (previousPage === 'configuracion' && mainPage === 'configuracion' && subPage) {
+            isSubpageNavigation = true;
+            logNavigation('debug', 'Navegación entre subpáginas de configuración detectada');
+        } else {
+            currentPage = mainPage;
+        }
+        
+        // Lanzar evento de cambio de página solo si no es navegación entre subpáginas
+        if (!isSubpageNavigation) {
+            dispatchPageChangedEvent(mainPage, previousPage);
+            
+            // Limpieza específica de la página anterior solo si cambiamos de página principal
+            if (previousPage && previousPage !== mainPage) {
+                logNavigation('debug', `Cambiando de ${previousPage} a ${mainPage}, iniciando limpieza`);
+                cleanupPageSpecific(previousPage);
+            }
+        }
+        
+        // Actualizar hash en la URL de manera segura para evitar disparar más eventos
         const newHash = '#' + page;
-        if (window.location.hash !== newHash) {
+        if (window.location.hash !== newHash && !fromHashChange) {
             logNavigation('debug', `Actualizando hash de URL: ${newHash}`);
             try {
+                // Usar history.replaceState que no dispara eventos hashchange
+                logNavigation('debug', 'Usando history.replaceState para actualización silenciosa');
                 history.replaceState(null, null, newHash);
             } catch (e) {
                 logNavigation('warn', 'Error al actualizar history API:', e);
+                
+                // Alternativa: desactivar temporalmente el listener global y establecer un flag para evitar recursión
+                logNavigation('debug', 'Intentando actualización alternativa');
+                window.removeEventListener('hashchange', handleHashChange);
+                
+                // Actualizar el hash
                 window.location.hash = page;
+                
+                // Restaurar el event listener después de un breve tiempo
+                setTimeout(() => {
+                    window.addEventListener('hashchange', handleHashChange);
+                    logNavigation('debug', 'Listener de hashchange restaurado');
+                }, 50);
             }
         }
         
@@ -263,43 +308,123 @@ function navigateTo(page) {
         }
         logNavigation('debug', 'Actualización del menú completada', null, menuStartTime);
         
-        // Mostrar la sección correspondiente
-        logNavigation('debug', `Mostrando sección: ${mainPage}-section`);
-        const sectionStartTime = performance.now();
-        const sectionId = mainPage + '-section';
-        showSection(sectionId);
-        logNavigation('debug', 'Cambio de sección completado', null, sectionStartTime);
+        // Solo mostramos la sección correspondiente si NO es una navegación entre subpáginas
+        if (!isSubpageNavigation) {
+            // Mostrar la sección correspondiente
+            logNavigation('debug', `Mostrando sección: ${mainPage}-section`);
+            const sectionStartTime = performance.now();
+            const sectionId = mainPage + '-section';
+            showSection(sectionId);
+            logNavigation('debug', 'Cambio de sección completado', null, sectionStartTime);
+        }
         
         // Manejar subpáginas de configuración
         if (subPage && mainPage === 'configuracion') {
             logNavigation('debug', `Activando subpágina de configuración: ${subPage}`);
             const tabItem = document.querySelector(`.tab-item[data-tab="${subPage}"]`);
             if (tabItem) {
+                // Aseguramos que la sección de configuración esté visible antes de cambiar la pestaña
+                const configSection = document.getElementById('configuracion-section');
+                if (configSection) {
+                    logNavigation('debug', `Estado de configuracion-section antes: visible=${configSection.classList.contains('active')}`);
+                    if (!configSection.classList.contains('active')) {
+                        configSection.classList.add('active', 'animate-fade-in');
+                        logNavigation('debug', 'Sección de configuración activada manualmente');
+                    }
+                } else {
+                    logNavigation('error', 'No se encontró el elemento configuracion-section');
+                }
+                
+                // Usar una sola llamada a requestAnimationFrame para evitar múltiples actualizaciones
                 requestAnimationFrame(() => {
                     logNavigation('debug', `Activando tab: ${subPage}`);
-                    tabItem.click();
+                    
+                    // Desactivar el flag isNavigating temporalmente para evitar problemas durante 
+                    // la manipulación del DOM, ya que esta parte no debe causar eventos hashchange
+                    const wasNavigating = isNavigating;
+                    
+                    try {
+                        // Actualizamos las clases activas manualmente para evitar recursión
+                        const allTabs = document.querySelectorAll('.tab-item');
+                        allTabs.forEach(tab => tab.classList.remove('active'));
+                        tabItem.classList.add('active');
+                        
+                        // También actualizamos los contenidos de pestaña directamente
+                        const tabContents = document.querySelectorAll('.tab-content');
+                        tabContents.forEach(content => {
+                            content.classList.remove('active');
+                        });
+                        
+                        const targetContent = document.getElementById(`${subPage}Content`);
+                        if (targetContent) {
+                            targetContent.classList.add('active');
+                            logNavigation('debug', `Contenido de pestaña ${subPage} activado`);
+                        } else {
+                            logNavigation('error', `No se encontró el contenido para la pestaña ${subPage}`);
+                        }
+                        
+                        // Verificamos nuevamente el estado de la sección después de actualizar
+                        const configSection = document.getElementById('configuracion-section');
+                        if (configSection) {
+                            logNavigation('debug', `Estado de configuracion-section después: visible=${configSection.classList.contains('active')}`);
+                        }
+                    } catch (error) {
+                        logNavigation('error', `Error al activar subpágina ${subPage}:`, error);
+                    } finally {
+                        // Restaurar el estado de navegación
+                        isNavigating = wasNavigating;
+                    }
                 });
             } else {
                 logNavigation('warn', `No se encontró la pestaña ${subPage}`);
             }
         }
         
-        // Inicializar componentes específicos
-        logNavigation('debug', `Inicializando contenido de: ${mainPage}`);
-        const initStartTime = performance.now();
-        initPageContent(mainPage);
-        logNavigation('debug', 'Inicialización de contenido completada', null, initStartTime);
-        
-        // Actualizar datos dinámicos
-        logNavigation('debug', `Actualizando datos de: ${mainPage}`);
-        const updateStartTime = performance.now();
-        updateSectionData(mainPage);
-        logNavigation('debug', 'Actualización de datos completada', null, updateStartTime);
+        // Inicializar componentes específicos solo si no es navegación entre subpáginas
+        if (!isSubpageNavigation) {
+            logNavigation('debug', `Inicializando contenido de: ${mainPage}`);
+            const initStartTime = performance.now();
+            initPageContent(mainPage);
+            logNavigation('debug', 'Inicialización de contenido completada', null, initStartTime);
+            
+            // Actualizar datos dinámicos
+            logNavigation('debug', `Actualizando datos de: ${mainPage}`);
+            const updateStartTime = performance.now();
+            updateSectionData(mainPage);
+            logNavigation('debug', 'Actualización de datos completada', null, updateStartTime);
+        }
         
     } catch (error) {
         logNavigation('error', 'Error durante la navegación:', error);
     } finally {
         logNavigation('info', `Navegación a ${page} completada`, null, startTime);
+        // Establecer un timeout para asegurar que el flag se resetee incluso en caso de error
+        resetNavigationFlag(100);
+    }
+}
+
+// Función auxiliar para resetear la bandera de navegación de forma segura
+function resetNavigationFlag(delay = 0) {
+    if (delay > 0) {
+        setTimeout(() => {
+            isNavigating = false;
+            logNavigation('debug', 'Flag de navegación reseteado');
+            
+            // Limpiar el timeout de seguridad
+            if (navigationInProgressTimeout) {
+                clearTimeout(navigationInProgressTimeout);
+                navigationInProgressTimeout = null;
+            }
+        }, delay);
+    } else {
+        isNavigating = false;
+        logNavigation('debug', 'Flag de navegación reseteado inmediatamente');
+        
+        // Limpiar el timeout de seguridad
+        if (navigationInProgressTimeout) {
+            clearTimeout(navigationInProgressTimeout);
+            navigationInProgressTimeout = null;
+        }
     }
 }
 
@@ -327,6 +452,17 @@ function showSection(sectionId) {
     logNavigation('debug', `Mostrando sección: ${sectionId}`);
     const startTime = performance.now();
     
+    // Verificar si estamos en una subpágina de configuración (hash contiene "configuracion:")
+    const currentHash = window.location.hash;
+    const isConfigSubpage = currentHash.startsWith('#configuracion:');
+    
+    // Si estamos navegando a una subpágina de configuración y no estamos mostrando explícitamente
+    // la sección de configuración, ajustamos el sectionId
+    if (isConfigSubpage && sectionId !== 'configuracion-section') {
+        logNavigation('debug', `Navegación de subpágina de configuración detectada, ajustando a sección principal`);
+        sectionId = 'configuracion-section';
+    }
+    
     const sections = document.querySelectorAll('.content-section');
     logNavigation('debug', `Total de secciones encontradas: ${sections.length}`);
     
@@ -339,7 +475,15 @@ function showSection(sectionId) {
             let visibleCount = 0;
             
             sections.forEach(section => {
-                if (section.id === sectionId) {
+                // Si estamos en una subpágina de configuración, asegurarnos de que la sección de configuración
+                // permanezca visible
+                if (isConfigSubpage && section.id === 'configuracion-section') {
+                    logNavigation('debug', 'Manteniendo sección de configuración visible para subpágina');
+                    section.classList.add('active', 'animate-fade-in');
+                    visibleCount++;
+                }
+                // Proceso normal para las demás secciones
+                else if (section.id === sectionId) {
                     section.classList.add('active', 'animate-fade-in');
                     visibleCount++;
                 } else {
@@ -561,12 +705,88 @@ window.showSection = showSection;
 window.getCurrentPage = getCurrentPage;
 window.updateSectionData = updateSectionData;
 
-// Limpiar recursos al cerrar la página
-addManagedEventListener(window, 'beforeunload', () => {
-    logNavigation('info', 'Limpiando recursos antes de cerrar la página');
-    cleanupPreviousSection();
-    cleanupEventListeners();
+// Registrar listener para evento de cierre de ventana
+addNavigationListener(window, 'beforeunload', () => {
+    logNavigation('info', 'Cerrando página, limpiando recursos...');
     
-    // Limpiar recursos específicos de la página actual
-    cleanupPageSpecific(currentPage);
-}, 'navigation'); 
+    // Intentar limpiar recursos antes de salir
+    window.cleanupAllEventListeners();
+    
+    if (typeof socket !== 'undefined' && socket) {
+        socket.close();
+        logNavigation('debug', 'WebSocket cerrado');
+    }
+    
+    // No mostrar diálogo de confirmación
+    return undefined;
+});
+
+// Manejador de cambios de hash
+function handleHashChange() {
+    logNavigation('debug', 'Evento hashchange detectado');
+    
+    // Verificar si estamos en proceso de navegación para evitar recursión
+    if (isNavigating) {
+        logNavigation('warn', 'Evento hashchange ignorado: navegación en progreso');
+        return;
+    }
+    
+    const hash = window.location.hash.substring(1);
+    if (!hash) {
+        logNavigation('debug', 'Hash vacío, navegando a dashboard');
+        navigateTo('dashboard', true); // Pasar true para indicar que viene de un evento hashchange
+        return;
+    }
+    
+    // Verificar navegaciones recursivas
+    navigationStack.push(hash);
+    if (navigationStack.length > MAX_NAVIGATION_STACK) {
+        navigationStack.shift(); // Mantener el tamaño del stack limitado
+        
+        // Verificar si estamos en un ciclo de navegación
+        const counts = {};
+        navigationStack.forEach(h => {
+            counts[h] = (counts[h] || 0) + 1;
+        });
+        
+        // Si alguna página aparece más de 2 veces en el stack, probablemente estamos en un ciclo
+        const possibleLoop = Object.values(counts).some(count => count > 2);
+        if (possibleLoop) {
+            logNavigation('error', 'Posible ciclo de navegación detectado, interrumpiendo:', navigationStack);
+            navigationStack = []; // Limpiar el stack
+            resetNavigationFlag(); // Asegurar que el flag esté reseteado
+            return; // Interrumpir la navegación
+        }
+    }
+    
+    // Verificar si el hash es igual a la página actual para evitar recursión
+    const mainPageRequested = hash.includes(':') ? hash.split(':')[0] : hash;
+    const currentMainPage = currentPage && currentPage.includes(':') ? currentPage.split(':')[0] : currentPage;
+    
+    if (hash === currentPage || mainPageRequested === currentMainPage) {
+        // Solo comparar subpáginas si ambas páginas son iguales
+        if (hash.includes(':') && currentPage.includes(':')) {
+            const newSubPage = hash.split(':')[1];
+            const currentSubPage = currentPage.split(':')[1];
+            
+            // Si es la misma subpágina, ignorar
+            if (newSubPage === currentSubPage) {
+                logNavigation('debug', `Ignorando navegación repetida a la misma subpágina: ${hash}`);
+                return;
+            }
+        } else if (hash === currentPage) {
+            logNavigation('debug', `Ignorando navegación repetida a la misma página: ${hash}`);
+            return; // Evitar recursión
+        }
+    }
+    
+    // Prevenir múltiples navegaciones por hash en corto tiempo
+    const now = Date.now();
+    if (now - lastNavigationTime < NAVIGATION_DEBOUNCE) {
+        logNavigation('warn', `Evento hashchange ignorado: demasiado frecuente (< ${NAVIGATION_DEBOUNCE}ms)`);
+        return;
+    }
+    
+    logNavigation('debug', `Navegando a hash: ${hash}`);
+    navigateTo(hash, true); // Pasar true para indicar que viene de un evento hashchange
+} 
