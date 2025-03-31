@@ -1,18 +1,3 @@
-/**
- * PdM-Manager - JavaScript Principal v2.0.0
- * Inicialización de aplicación y carga de componentes
- * 
- * Última actualización: 2024-03-29
- * 
- * Optimizaciones (2024):
- * - Eliminadas referencias a campos antiguos
- * - Eliminadas vistas obsoletas
- * - Eliminado código redundante
- * - Unificada la gestión de límites
- * - Mejorado sistema de navegación
- * - Corregidos problemas de redirección
- */
-
 // Esperar a que el DOM esté completamente cargado
 document.addEventListener('DOMContentLoaded', initApplication);
 
@@ -47,6 +32,14 @@ function initApplication() {
             initSidebar();
         } else {
             console.warn('La función initSidebar no está disponible, el menú lateral puede no funcionar');
+        }
+
+        // Inicializar configuración
+        if (typeof initConfig === 'function') {
+            console.log('Iniciando inicialización de configuración...');
+            initConfig();
+        } else {
+            console.error('La función initConfig no está disponible, la sección de configuración no funcionará');
         }
         
         // Establecer tiempo para actualizar datos iniciales

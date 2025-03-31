@@ -35,6 +35,21 @@ from app.config import pydantic_config
 from app.database import engine, Base, get_db
 from app import crud, models
 
+# Dependencia para manejar parámetros enteros opcionales
+def parse_optional_int(
+    value: Optional[str] = Query(None, description="Valor opcional que debe convertirse a int")
+) -> Optional[int]:
+    """
+    Convierte un valor de query string a entero, manejando strings vacíos y valores nulos.
+    Retorna None si el valor es una cadena vacía, None, o no puede convertirse a entero.
+    """
+    if value is None or value == "":
+        return None
+    try:
+        return int(value)
+    except ValueError:
+        return None
+        
 # Modelos Pydantic adicionales para creación/actualización de modelos ML
 class ModelCreate(BaseModel):
     name: str
@@ -72,6 +87,8 @@ def load_model_and_scaler():
     
     model_path = os.path.join(MODELO_DIR, "modeloRNN_multiclase_v3_finetuned.h5")
     scaler_path = os.path.join(SCALER_DIR, "scaler_RNN.pkl")
+    # Ruta alternativa usando joblib (más robusto para modelos scikit-learn)
+    scaler_joblib_path = os.path.join(SCALER_DIR, "scaler_RNN_joblib.pkl")
     
     result = {
         "status": "error",
@@ -104,15 +121,21 @@ def load_model_and_scaler():
         modelo = None
         result["message"] = error_msg
     
-    # Intentar cargar el escalador
+    # Intentar cargar el escalador - Primero con joblib, luego con pickle como respaldo
     try:
-        if os.path.exists(scaler_path):
+        # Intentar primero con joblib (más robusto para objetos scikit-learn)
+        if os.path.exists(scaler_joblib_path):
+            scaler = joblib.load(scaler_joblib_path)
+            result["scaler_loaded"] = True
+            log_info(f"Escalador cargado correctamente con joblib desde: {scaler_joblib_path}")
+        # Si no existe, intentar con pickle
+        elif os.path.exists(scaler_path):
             with open(scaler_path, 'rb') as f:
                 scaler = pickle.load(f)
             result["scaler_loaded"] = True
-            log_info(f"Escalador cargado correctamente desde: {scaler_path}")
+            log_info(f"Escalador cargado correctamente con pickle desde: {scaler_path}")
         else:
-            log_warning(f"Archivo de escalador no encontrado en: {scaler_path}")
+            log_warning(f"Archivos de escalador no encontrados en: {scaler_path} o {scaler_joblib_path}")
             scaler = None
     except Exception as e:
         error_msg = f"Error al cargar el escalador: {str(e)}"
@@ -159,9 +182,15 @@ def load_scaler_safely(scaler_path):
     """Carga un escalador desde una ruta específica de forma segura"""
     try:
         if os.path.exists(scaler_path):
-            with open(scaler_path, 'rb') as f:
-                scaler_obj = pickle.load(f)
-            log_info(f"Escalador cargado correctamente desde: {scaler_path}")
+            # Intentar cargar con joblib primero (mejor para objetos scikit-learn)
+            if scaler_path.endswith('_joblib.pkl'):
+                scaler_obj = joblib.load(scaler_path)
+                log_info(f"Escalador cargado correctamente con joblib desde: {scaler_path}")
+            else:
+                # Intentar con pickle si no es un archivo joblib
+                with open(scaler_path, 'rb') as f:
+                    scaler_obj = pickle.load(f)
+                log_info(f"Escalador cargado correctamente con pickle desde: {scaler_path}")
             return scaler_obj
         else:
             log_warning(f"Archivo de escalador no encontrado en: {scaler_path}")
@@ -834,15 +863,26 @@ def reload_model(db: Session = Depends(get_db)):
             else:
                 log_warning(f"Ruta de escalador no válida para '{model.name}': {model.route_pkl}")
                 # Intentar cargar el escalador predeterminado como respaldo
-                default_scaler_path = os.path.join(SCALER_DIR, "scaler_RNN.pkl")
-                if os.path.exists(default_scaler_path):
-                    with open(default_scaler_path, 'rb') as f:
-                        scaler = pickle.load(f)
-                    result["scaler_loaded"] = True
-                    if result["message"]:
-                        result["message"] += ". "
-                    result["message"] += f"Se cargó el escalador predeterminado porque la ruta del escalador para '{model.name}' no es válida"
-                    log_info(f"Escalador predeterminado cargado como respaldo desde: {default_scaler_path}")
+                try:
+                    default_scaler_path = os.path.join(SCALER_DIR, "scaler_RNN.pkl")
+                    default_scaler_joblib_path = os.path.join(SCALER_DIR, "scaler_RNN_joblib.pkl")
+                    
+                    # Intentar primero con joblib
+                    if os.path.exists(default_scaler_joblib_path):
+                        scaler = joblib.load(default_scaler_joblib_path)
+                        log_info(f"Escalador predeterminado cargado como respaldo desde: {default_scaler_joblib_path}")
+                    # Si no existe, intentar con pickle
+                    elif os.path.exists(default_scaler_path):
+                        with open(default_scaler_path, 'rb') as f:
+                            scaler = pickle.load(f)
+                        log_info(f"Escalador predeterminado cargado como respaldo desde: {default_scaler_path}")
+                    else:
+                        log_warning("No se encontró ningún escalador predeterminado como respaldo")
+                        return create_response(success=False, error="No se pudo cargar el escalador", status_code=500)
+                except Exception as e:
+                    error_msg = f"Error al cargar el escalador predeterminado: {str(e)}"
+                    log_error(e, error_msg)
+                    return create_response(success=False, error=error_msg, status_code=500)
         except Exception as e:
             error_msg = f"Error al cargar el escalador para '{model.name}': {str(e)}"
             log_error(e, error_msg)
@@ -1787,55 +1827,55 @@ async def websocket_endpoint(websocket: WebSocket):
     except Exception as e:
         log_error(e, f"Error al enviar estado inicial por WebSocket: {str(e)}")
     
-    try:
-        while True:
+    # Bucle principal de procesamiento de mensajes
+    while True:
+        try:
             # Recibir mensaje del cliente
+            data = await websocket.receive_text()
+            
+            # Procesar mensaje del cliente
             try:
-                data = await websocket.receive_text()
+                message = json.loads(data)
                 
-                # Procesar mensaje del cliente
-                try:
-                    message = json.loads(data)
+                # Manejar solicitudes específicas del cliente
+                if message.get("type") == "request_data":
+                    # Cliente solicita actualización de datos
+                    requested_tables = message.get("data", {}).get("tables", [])
                     
-                    # Manejar solicitudes específicas del cliente
-                    if message.get("type") == "request_data":
-                        # Cliente solicita actualización de datos
-                        requested_tables = message.get("data", {}).get("tables", [])
-                        
-                        if "machines" in requested_tables:
-                            # Actualizar tabla de máquinas
-                            await ws_manager.broadcast_update("machine_update")
-                        
-                        if "sensors" in requested_tables:
-                            # Actualizar tabla de sensores
-                            await ws_manager.broadcast_update("sensor_update")
-                        
-                        if "models" in requested_tables:
-                            # Actualizar tabla de modelos
-                            await ws_manager.broadcast_update("model_update")
+                    if "machines" in requested_tables:
+                        # Actualizar tabla de máquinas
+                        await ws_manager.broadcast_update("machine_update")
                     
-                    elif message.get("type") == "ping":
-                        # Cliente envía ping para mantener la conexión
-                        await websocket.send_text(json.dumps({
-                            "type": "pong", 
-                            "timestamp": datetime.now().isoformat()
-                        }))
+                    if "sensors" in requested_tables:
+                        # Actualizar tabla de sensores
+                        await ws_manager.broadcast_update("sensor_update")
                     
-                except json.JSONDecodeError:
-                    log_warning(f"Mensaje WebSocket recibido no es JSON válido: {data}")
-                except Exception as e:
-                    log_error(e, f"Error al procesar mensaje WebSocket: {str(e)}")
+                    if "models" in requested_tables:
+                        # Actualizar tabla de modelos
+                        await ws_manager.broadcast_update("model_update")
                 
-            except WebSocketDisconnect:
-                ws_manager.disconnect(websocket)
-                break
+                elif message.get("type") == "ping":
+                    # Cliente envía ping para mantener la conexión
+                    await websocket.send_text(json.dumps({
+                        "type": "pong", 
+                        "timestamp": datetime.now().isoformat()
+                    }))
+                
+            except json.JSONDecodeError:
+                log_warning(f"Mensaje WebSocket recibido no es JSON válido: {data}")
             except Exception as e:
-                log_error(e, f"Error en la conexión WebSocket: {str(e)}")
-                ws_manager.disconnect(websocket)
-                break
-                
-    except WebSocketDisconnect:
-        ws_manager.disconnect(websocket)
+                log_error(e, f"Error al procesar mensaje WebSocket: {str(e)}")
+                # Continuamos escuchando mensajes incluso si hay un error de procesamiento
+            
+        except WebSocketDisconnect:
+            # Cliente desconectado
+            ws_manager.disconnect(websocket)
+            break
+        except Exception as e:
+            # Error general en la conexión
+            log_error(e, f"Error en la conexión WebSocket: {str(e)}")
+            ws_manager.disconnect(websocket)
+            break
 
 @app.post("/api/machines")
 async def create_machine_endpoint(
@@ -1916,3 +1956,204 @@ async def delete_machine_endpoint(machine_id: int, db: Session = Depends(get_db)
     return create_response(
         message="Máquina eliminada con éxito"
     )
+
+@app.get("/api/vibration-data")
+def get_vibration_data_redirect(
+    time_range: str = "day",
+    data_type: Optional[str] = None,
+    sensor_id: Optional[int] = Depends(parse_optional_int),
+    machine_id: Optional[int] = Depends(parse_optional_int),
+    limit: int = 1000,
+    db: Session = Depends(get_db)
+):
+    """
+    Endpoint de redirección para mantener compatibilidad con el frontend.
+    Redirige peticiones de /api/vibration-data a /api/dashboard-data/vibration.
+    
+    - time_range: Rango de tiempo ('day', 'week', 'month', 'year')
+    - data_type: Tipo de datos ('raw', 'aggregated', default: 'raw')
+    - sensor_id: ID del sensor para filtrar datos (opcional)
+    - machine_id: ID de la máquina para filtrar datos (opcional)
+    - limit: Límite de registros a retornar
+    """
+    # Registrar la redirección en el log
+    log_info(f"Redirección de /api/vibration-data a /api/dashboard-data/vibration con parámetros: time_range={time_range}, data_type={data_type}, sensor_id={sensor_id}, machine_id={machine_id}, limit={limit}")
+    
+    # Llamar a la función que maneja el endpoint original, pasando los mismos parámetros
+    return get_dashboard_vibration(
+        time_range=time_range,
+        data_type=data_type,
+        sensor_id=sensor_id,
+        machine_id=machine_id,
+        limit=limit,
+        db=db
+    )
+
+# Endpoints para la configuración de límites
+@app.get("/api/limits")
+def get_limits(db: Session = Depends(get_db)):
+    """Obtiene la configuración actual de límites"""
+    try:
+        limit_config = crud.get_limit_config(db)
+        
+        # Si no existe la configuración, crear una con valores por defecto
+        if not limit_config:
+            limit_config = crud.get_or_create_limit_config(db)
+        
+        # Transformar a diccionario para la respuesta
+        result = {
+            "limit_config_id": limit_config.limit_config_id,
+            "x_2inf": limit_config.x_2inf,
+            "x_2sup": limit_config.x_2sup,
+            "x_3inf": limit_config.x_3inf,
+            "x_3sup": limit_config.x_3sup,
+            "y_2inf": limit_config.y_2inf,
+            "y_2sup": limit_config.y_2sup,
+            "y_3inf": limit_config.y_3inf,
+            "y_3sup": limit_config.y_3sup,
+            "z_2inf": limit_config.z_2inf,
+            "z_2sup": limit_config.z_2sup,
+            "z_3inf": limit_config.z_3inf,
+            "z_3sup": limit_config.z_3sup,
+            "update_limits": limit_config.update_limits.isoformat() if limit_config.update_limits else None
+        }
+        
+        return create_response(
+            success=True,
+            data=result,
+            message="Configuración de límites obtenida correctamente"
+        )
+    except Exception as e:
+        error_msg = log_error(e, "Error al obtener la configuración de límites")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al obtener la configuración de límites: {error_msg}"
+        )
+
+@app.put("/api/limits")
+async def update_limits(
+    x_2inf: float = Form(None),
+    x_2sup: float = Form(None),
+    x_3inf: float = Form(None),
+    x_3sup: float = Form(None),
+    y_2inf: float = Form(None),
+    y_2sup: float = Form(None),
+    y_3inf: float = Form(None),
+    y_3sup: float = Form(None),
+    z_2inf: float = Form(None),
+    z_2sup: float = Form(None),
+    z_3inf: float = Form(None),
+    z_3sup: float = Form(None),
+    db: Session = Depends(get_db)
+):
+    """Actualiza la configuración de límites"""
+    try:
+        # Obtener la configuración actual o crear una nueva si no existe
+        limit_config = crud.get_or_create_limit_config(db)
+        
+        # Actualizar solo los campos que se proporcionaron
+        if x_2inf is not None: limit_config.x_2inf = x_2inf
+        if x_2sup is not None: limit_config.x_2sup = x_2sup
+        if x_3inf is not None: limit_config.x_3inf = x_3inf
+        if x_3sup is not None: limit_config.x_3sup = x_3sup
+        if y_2inf is not None: limit_config.y_2inf = y_2inf
+        if y_2sup is not None: limit_config.y_2sup = y_2sup
+        if y_3inf is not None: limit_config.y_3inf = y_3inf
+        if y_3sup is not None: limit_config.y_3sup = y_3sup
+        if z_2inf is not None: limit_config.z_2inf = z_2inf
+        if z_2sup is not None: limit_config.z_2sup = z_2sup
+        if z_3inf is not None: limit_config.z_3inf = z_3inf
+        if z_3sup is not None: limit_config.z_3sup = z_3sup
+        
+        # Guardar los cambios
+        updated_config = crud.update_limit_config(db, limit_config)
+        
+        # Notificar a clientes conectados si hay un administrador de WebSockets
+        if 'ws_manager' in globals():
+            await ws_manager.broadcast_update("limits_update")
+        
+        return create_response(
+            success=True,
+            data={
+                "limit_config_id": updated_config.limit_config_id,
+                "x_2inf": updated_config.x_2inf,
+                "x_2sup": updated_config.x_2sup,
+                "x_3inf": updated_config.x_3inf,
+                "x_3sup": updated_config.x_3sup,
+                "y_2inf": updated_config.y_2inf,
+                "y_2sup": updated_config.y_2sup,
+                "y_3inf": updated_config.y_3inf,
+                "y_3sup": updated_config.y_3sup,
+                "z_2inf": updated_config.z_2inf,
+                "z_2sup": updated_config.z_2sup,
+                "z_3inf": updated_config.z_3inf,
+                "z_3sup": updated_config.z_3sup,
+                "update_limits": updated_config.update_limits.isoformat() if updated_config.update_limits else None
+            },
+            message="Configuración de límites actualizada correctamente"
+        )
+    except Exception as e:
+        error_msg = log_error(e, "Error al actualizar la configuración de límites")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al actualizar la configuración de límites: {error_msg}"
+        )
+
+@app.post("/api/limits/reset")
+async def reset_limits(db: Session = Depends(get_db)):
+    """Restablece los límites a valores predeterminados"""
+    try:
+        # Eliminar la configuración actual
+        crud.delete_limit_config(db)
+        
+        # Crear una nueva configuración con valores predeterminados
+        new_config = crud.get_or_create_limit_config(db)
+        
+        # Notificar a clientes conectados si hay un administrador de WebSockets
+        if 'ws_manager' in globals():
+            await ws_manager.broadcast_update("limits_update")
+        
+        return create_response(
+            success=True,
+            data={
+                "limit_config_id": new_config.limit_config_id,
+                "x_2inf": new_config.x_2inf,
+                "x_2sup": new_config.x_2sup,
+                "x_3inf": new_config.x_3inf,
+                "x_3sup": new_config.x_3sup,
+                "y_2inf": new_config.y_2inf,
+                "y_2sup": new_config.y_2sup,
+                "y_3inf": new_config.y_3inf,
+                "y_3sup": new_config.y_3sup,
+                "z_2inf": new_config.z_2inf,
+                "z_2sup": new_config.z_2sup,
+                "z_3inf": new_config.z_3inf,
+                "z_3sup": new_config.z_3sup,
+                "update_limits": new_config.update_limits.isoformat() if new_config.update_limits else None
+            },
+            message="Configuración de límites restablecida a valores predeterminados"
+        )
+    except Exception as e:
+        error_msg = log_error(e, "Error al restablecer la configuración de límites")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al restablecer la configuración de límites: {error_msg}"
+        )
+
+# Endpoint para obtener máquinas
+@app.get("/api/machines")
+def get_machines_endpoint(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    """Obtiene la lista de máquinas con sus sensores asociados"""
+    try:
+        machines = crud.get_machines_with_status(db, skip, limit)
+        return create_response(
+            success=True,
+            data=machines,
+            message=f"Se encontraron {len(machines)} máquinas"
+        )
+    except Exception as e:
+        error_msg = log_error(e, f"Error al obtener lista de máquinas")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al obtener lista de máquinas: {error_msg}"
+        )

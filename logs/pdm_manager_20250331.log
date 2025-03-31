@@ -1,0 +1,25 @@
+[2025-03-31 02:28:31] [INFO] [logger:65] - Modelo cargado correctamente desde: C:\Users\nicol\Documentos\GitHub\PdM-Manager\Modelo\modeloRNN_multiclase_v3_finetuned.h5
+[2025-03-31 02:28:31] [INFO] [logger:65] - Escalador cargado correctamente con joblib desde: C:\Users\nicol\Documentos\GitHub\PdM-Manager\Scaler\scaler_RNN_joblib.pkl
+[2025-03-31 02:28:31] [INFO] [logger:65] - Iniciando aplicación PdM-Manager API
+[2025-03-31 02:28:33] [INFO] [logger:65] - Solicitud GET / desde 127.0.0.1
+[2025-03-31 02:28:33] [INFO] [logger:65] - Respuesta 200 para GET / procesada en 0.0653s
+[2025-03-31 02:28:33] [INFO] [logger:65] - Solicitud GET /static/css/style.css desde 127.0.0.1
+[2025-03-31 02:28:33] [INFO] [logger:65] - Respuesta 304 para GET /static/css/style.css procesada en 0.0040s
+[2025-03-31 02:28:33] [INFO] [logger:65] - Solicitud GET /static/js/utils.js desde 127.0.0.1
+[2025-03-31 02:28:33] [INFO] [logger:65] - Solicitud GET /static/js/app-logger.js desde 127.0.0.1
+[2025-03-31 02:28:33] [INFO] [logger:65] - Respuesta 200 para GET /static/js/utils.js procesada en 0.0040s
+[2025-03-31 02:28:33] [INFO] [logger:65] - Solicitud GET /static/js/config.js desde 127.0.0.1
+[2025-03-31 02:28:33] [INFO] [logger:65] - Solicitud GET /static/js/navigation.js desde 127.0.0.1
+[2025-03-31 02:28:33] [INFO] [logger:65] - Solicitud GET /static/js/dashboard.js desde 127.0.0.1
+[2025-03-31 02:28:33] [INFO] [logger:65] - Solicitud GET /static/js/realtime-updates.js desde 127.0.0.1
+[2025-03-31 02:28:33] [INFO] [logger:65] - Respuesta 304 para GET /static/js/app-logger.js procesada en 0.0120s
+[2025-03-31 02:28:33] [INFO] [logger:65] - Respuesta 200 para GET /static/js/config.js procesada en 0.0090s
+[2025-03-31 02:28:33] [INFO] [logger:65] - Respuesta 200 para GET /static/js/navigation.js procesada en 0.0090s
+[2025-03-31 02:28:33] [INFO] [logger:65] - Solicitud GET /static/js/logs-ui.js desde 127.0.0.1
+[2025-03-31 02:28:33] [INFO] [logger:65] - Respuesta 200 para GET /static/js/dashboard.js procesada en 0.0110s
+[2025-03-31 02:28:33] [INFO] [logger:65] - Respuesta 200 para GET /static/js/realtime-updates.js procesada en 0.0110s
+[2025-03-31 02:28:33] [INFO] [logger:65] - Solicitud GET /static/js/charts.js desde 127.0.0.1
+[2025-03-31 02:28:33] [INFO] [logger:65] - Respuesta 304 para GET /static/js/logs-ui.js procesada en 0.0110s
+[2025-03-31 02:28:33] [INFO] [logger:65] - Respuesta 304 para GET /static/js/charts.js procesada en 0.0090s
+[2025-03-31 02:28:33] [INFO] [logger:65] - Solicitud GET /static/js/app.js desde 127.0.0.1
+[2025-03-31 02:28:33] [INFO] [logger:65] - Respuesta 200 para GET /static/js/app.js procesada en 0.0030s

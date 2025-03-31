@@ -1,10 +1,3 @@
-/**
- * PdM-Manager - JavaScript Utilidades v2.0.0
- * Funciones de utilidad y componentes UI comunes
- * 
- * Última actualización: 2024-03-29
- */
-
 // Colores para severidades
 const SEVERITY_COLORS = {
     0: '#10b981', // Normal - Verde
@@ -19,6 +12,183 @@ const cache = {
     sensors: {},
     lastUpdate: null
 };
+
+// ==========================================================================
+// SISTEMA CENTRALIZADO DE GESTIÓN DE EVENT LISTENERS
+// ==========================================================================
+
+// Mapa global para almacenar todos los event listeners
+const globalEventListeners = new Map();
+
+/**
+ * Registra un event listener y lo almacena para limpieza posterior
+ * @param {HTMLElement|Window|Document} element - El elemento al que se añade el listener
+ * @param {string} event - El tipo de evento (click, change, etc.)
+ * @param {Function} handler - La función manejadora del evento
+ * @param {string} [category='global'] - Categoría para agrupar listeners (ej: 'navigation', 'dashboard')
+ * @param {Object|boolean} [options=false] - Opciones para addEventListener
+ * @returns {string} - Clave única para el listener
+ */
+function addManagedEventListener(element, event, handler, category = 'global', options = false) {
+    if (!element) {
+        AppLogger.warn('eventlisteners', 'addManagedEventListener: Elemento no válido');
+        return null;
+    }
+    
+    // Crear identificador único para el elemento
+    const elementId = element.id || 
+                     (element === document ? 'document' : 
+                     (element === window ? 'window' : 'anonymous'));
+    
+    // Crear clave única para el registro
+    const key = `${category}-${elementId}-${event}`;
+    
+    // Remover listener existente si existe
+    removeManagedEventListener(key);
+    
+    // Agregar nuevo listener
+    element.addEventListener(event, handler, options);
+    
+    // Almacenar en el mapa global
+    globalEventListeners.set(key, { element, event, handler, options, category });
+    
+    AppLogger.debug('eventlisteners', `Listener registrado: ${key}`);
+    return key;
+}
+
+/**
+ * Elimina un event listener específico por su clave
+ * @param {string} key - Clave única del listener a eliminar
+ * @returns {boolean} - true si se eliminó correctamente, false si no existía
+ */
+function removeManagedEventListener(key) {
+    if (globalEventListeners.has(key)) {
+        const { element, event, handler, options } = globalEventListeners.get(key);
+        
+        try {
+            element.removeEventListener(event, handler, options);
+            globalEventListeners.delete(key);
+            AppLogger.debug('eventlisteners', `Listener eliminado: ${key}`);
+            return true;
+        } catch (error) {
+            AppLogger.warn('eventlisteners', `Error al eliminar listener ${key}:`, error);
+            return false;
+        }
+    }
+    return false;
+}
+
+/**
+ * Limpia todos los event listeners registrados
+ * @returns {number} - Número de listeners eliminados
+ */
+function cleanupAllEventListeners() {
+    AppLogger.info('eventlisteners', `Limpiando ${globalEventListeners.size} event listeners`);
+    const startTime = performance.now();
+    
+    let successCount = 0;
+    let errorCount = 0;
+    
+    globalEventListeners.forEach((data, key) => {
+        try {
+            const { element, event, handler, options } = data;
+            element.removeEventListener(event, handler, options);
+            successCount++;
+            AppLogger.debug('eventlisteners', `Listener removido: ${key}`);
+        } catch (error) {
+            errorCount++;
+            AppLogger.warn('eventlisteners', `Error al remover listener ${key}:`, error);
+        }
+    });
+    
+    globalEventListeners.clear();
+    
+    AppLogger.info('eventlisteners', `Limpieza completada: ${successCount} correctos, ${errorCount} errores`, null, startTime);
+    return successCount;
+}
+
+/**
+ * Limpia los event listeners de una categoría específica
+ * @param {string} category - Categoría de listeners a limpiar
+ * @returns {number} - Número de listeners eliminados
+ */
+function cleanupEventListenersByCategory(category) {
+    if (!category) {
+        AppLogger.warn('eventlisteners', 'Se intentó limpiar listeners sin especificar categoría');
+        return 0;
+    }
+    
+    // Recopilar las claves que coinciden con la categoría
+    const keysToRemove = [];
+    globalEventListeners.forEach((data, key) => {
+        if (data.category === category) {
+            keysToRemove.push(key);
+        }
+    });
+    
+    AppLogger.info('eventlisteners', `Limpiando ${keysToRemove.length} event listeners de categoría: ${category}`);
+    const startTime = performance.now();
+    
+    let successCount = 0;
+    let errorCount = 0;
+    
+    // Eliminar los listeners
+    keysToRemove.forEach(key => {
+        try {
+            const { element, event, handler, options } = globalEventListeners.get(key);
+            element.removeEventListener(event, handler, options);
+            globalEventListeners.delete(key);
+            successCount++;
+            AppLogger.debug('eventlisteners', `Listener removido: ${key}`);
+        } catch (error) {
+            errorCount++;
+            AppLogger.warn('eventlisteners', `Error al remover listener ${key}:`, error);
+        }
+    });
+    
+    AppLogger.info('eventlisteners', `Limpieza de categoría ${category} completada: ${successCount} correctos, ${errorCount} errores`, null, startTime);
+    return successCount;
+}
+
+/**
+ * Obtiene información sobre todos los event listeners registrados
+ * @returns {Object} - Información sobre los listeners registrados
+ */
+function getEventListenersInfo() {
+    const info = {
+        total: globalEventListeners.size,
+        byCategory: {},
+        byElement: {},
+        byEvent: {}
+    };
+    
+    globalEventListeners.forEach((data) => {
+        const { category, element, event } = data;
+        
+        // Agrupar por categoría
+        if (!info.byCategory[category]) {
+            info.byCategory[category] = 0;
+        }
+        info.byCategory[category]++;
+        
+        // Agrupar por elemento
+        const elementId = element.id || 
+                         (element === document ? 'document' : 
+                         (element === window ? 'window' : 'anonymous'));
+        if (!info.byElement[elementId]) {
+            info.byElement[elementId] = 0;
+        }
+        info.byElement[elementId]++;
+        
+        // Agrupar por tipo de evento
+        if (!info.byEvent[event]) {
+            info.byEvent[event] = 0;
+        }
+        info.byEvent[event]++;
+    });
+    
+    return info;
+}
 
 // ==========================================================================
 // GESTIÓN DE VARIABLES GLOBALES
@@ -619,4 +789,383 @@ window.showLoadingIndicator = showLoadingIndicator;
 window.hideLoadingIndicator = hideLoadingIndicator;
 window.showLoadingToast = showLoadingToast;
 window.hideLoadingToast = hideLoadingToast;
-window.updateLastUpdateTime = updateLastUpdateTime; 
+window.updateLastUpdateTime = updateLastUpdateTime;
+
+// ==========================================================================
+// SISTEMA DE LOGGING
+// ==========================================================================
+
+// Configuración del sistema de logs
+const LOG_CONFIG = {
+    ENABLED: true,
+    LEVEL: 'debug', // 'debug', 'info', 'warn', 'error'
+    SHOW_TIMESTAMP: true,
+    SHOW_DURATION: true,
+    MODULES: {
+        NAVIGATION: true,
+        DASHBOARD: true,
+        CONFIG: true,
+        WEBSOCKET: true,
+        AJAX: true
+    }
+};
+
+// Colores para los distintos módulos
+const LOG_COLORS = {
+    NAVIGATION: '#4f46e5', // Índigo
+    DASHBOARD: '#0ea5e9',  // Celeste
+    CONFIG: '#10b981',     // Verde
+    WEBSOCKET: '#ec4899',  // Rosa
+    AJAX: '#f59e0b',       // Ámbar
+    PERFORMANCE: '#ef4444' // Rojo
+};
+
+// Función de compatibilidad que redirecciona a AppLogger
+function appLog(module, level, message, data = null, startTime = null) {
+    // Convertir módulo a formato esperado por AppLogger (minúsculas)
+    const component = module.toLowerCase();
+    
+    // Verificar que el nivel sea válido
+    if (!['debug', 'info', 'warn', 'error'].includes(level)) {
+        console.error(`Nivel de log inválido: ${level}`);
+        level = 'info'; // Nivel por defecto
+    }
+    
+    // Redireccionar al AppLogger centralizado
+    AppLogger[level](component, message, data, startTime);
+    
+    // Mantener la misma interfaz de retorno por compatibilidad
+    return new Date();
+}
+
+// Funciones específicas por módulo para simplificar uso
+const logNavigation = (level, message, data = null, startTime = null) => 
+    AppLogger[level]('navigation', message, data, startTime);
+
+const logDashboard = (level, message, data = null, startTime = null) => 
+    AppLogger[level]('dashboard', message, data, startTime);
+
+const logConfig = (level, message, data = null, startTime = null) => 
+    AppLogger[level]('config', message, data, startTime);
+
+const logWebSocket = (level, message, data = null, startTime = null) => 
+    AppLogger[level]('websocket', message, data, startTime);
+
+const logAjax = (level, message, data = null, startTime = null) => 
+    AppLogger[level]('ajax', message, data, startTime);
+
+const logPerformance = (level, message, data = null, startTime = null) => 
+    AppLogger[level]('performance', message, data, startTime);
+
+// Medición de rendimiento
+function measurePerformance(functionName, callback) {
+    const startTime = performance.now();
+    logPerformance('debug', `Iniciando medición: ${functionName}`);
+    
+    try {
+        return callback();
+    } finally {
+        const endTime = performance.now();
+        const duration = endTime - startTime;
+        
+        // Clasificar según duración
+        let level = 'debug';
+        if (duration > 1000) {
+            level = 'warn';
+        } else if (duration > 3000) {
+            level = 'error';
+        }
+        
+        logPerformance(level, `${functionName} completado en ${duration.toFixed(2)}ms`);
+    }
+}
+
+// Función para crear un logger de bucles que evita spam de logs
+function createLoopLogger(module, loopName, totalItems) {
+    let lastLogTime = 0;
+    const MIN_LOG_INTERVAL = 500; // ms mínimo entre logs
+    
+    return {
+        start: () => {
+            AppLogger.debug(module.toLowerCase(), `Iniciando bucle: ${loopName} con ${totalItems} elementos`);
+            return performance.now();
+        },
+        
+        progress: (index, item = null) => {
+            const now = performance.now();
+            // Evitar logging excesivo, solo registrar periódicamente
+            if (now - lastLogTime > MIN_LOG_INTERVAL || index === totalItems - 1 || index === 0) {
+                const percentage = ((index + 1) / totalItems * 100).toFixed(1);
+                lastLogTime = now;
+                AppLogger.debug(module.toLowerCase(), `Bucle ${loopName}: ${percentage}% completado (${index + 1}/${totalItems})`, item);
+            }
+        },
+        
+        end: (startTime) => {
+            const duration = performance.now() - startTime;
+            AppLogger.debug(module.toLowerCase(), `Bucle ${loopName} completado en ${duration.toFixed(2)}ms`);
+        },
+        
+        error: (error, index) => {
+            AppLogger.error(module.toLowerCase(), `Error en bucle ${loopName} en índice ${index}:`, error);
+        }
+    };
+}
+
+// Exportar funciones para uso global
+window.appLog = appLog;
+window.logNavigation = logNavigation;
+window.logDashboard = logDashboard;
+window.logConfig = logConfig;
+window.logWebSocket = logWebSocket;
+window.logAjax = logAjax;
+window.logPerformance = logPerformance;
+window.measurePerformance = measurePerformance;
+window.createLoopLogger = createLoopLogger; 
+
+// Exportar funciones de gestión de event listeners
+window.addManagedEventListener = addManagedEventListener;
+window.removeManagedEventListener = removeManagedEventListener;
+window.cleanupAllEventListeners = cleanupAllEventListeners;
+window.cleanupEventListenersByCategory = cleanupEventListenersByCategory;
+window.getEventListenersInfo = getEventListenersInfo;
+
+/**
+ * Función de ayuda para migrar addEventListener a addManagedEventListener
+ * Esta función reemplaza todos los event listeners directos por el sistema centralizado
+ * @param {HTMLElement} element - Elemento a procesar
+ * @param {string} category - Categoría para los event listeners
+ */
+function migrateElementEventListeners(element, category = 'global') {
+    if (!element || typeof element.addEventListener !== 'function') {
+        AppLogger.warn('eventlisteners', 'Elemento no válido para migración de listeners');
+        return;
+    }
+    
+    // Guardar la función original
+    if (!element._originalAddEventListener) {
+        element._originalAddEventListener = element.addEventListener;
+        
+        // Reemplazar con nuestra versión que usa el sistema centralizado
+        element.addEventListener = function(event, handler, options) {
+            return addManagedEventListener(this, event, handler, category, options);
+        };
+        
+        AppLogger.debug('eventlisteners', `Migración de addEventListener completada para ${element.tagName || 'document/window'}`);
+    }
+}
+
+// Función para migrar event listeners globales
+function migrateGlobalEventListeners() {
+    migrateElementEventListeners(window, 'global');
+    migrateElementEventListeners(document, 'global');
+    
+    AppLogger.info('eventlisteners', 'Migración de listeners globales completada');
+}
+
+// Exportar función de migración para uso global
+window.migrateElementEventListeners = migrateElementEventListeners;
+window.migrateGlobalEventListeners = migrateGlobalEventListeners; 
+
+// ==========================================================================
+// SISTEMA UNIFICADO DE THROTTLING Y DEBOUNCING
+// ==========================================================================
+
+// Configuración global de throttling/debouncing
+const THROTTLE_CONFIG = {
+    DEFAULT_DEBOUNCE_DELAY: 300,         // ms para debounce
+    DEFAULT_THROTTLE_INTERVAL: 2000,     // ms para throttle
+    MIN_UPDATE_INTERVAL: 5000,           // Intervalo mínimo entre actualizaciones
+    LOG_SKIPPED_UPDATES: true,           // Registrar actualizaciones ignoradas
+    USE_IDLE_CALLBACK: true              // Usar requestIdleCallback si está disponible
+};
+
+// Registro de timers para control centralizado
+const timers = {
+    debounce: new Map(),
+    throttle: new Map(),
+    lastExecution: new Map()
+};
+
+/**
+ * Crear una función con debounce 
+ * @param {Function} func - Función a ejecutar con debounce
+ * @param {number} wait - Tiempo de espera en ms
+ * @param {Object} options - Opciones adicionales
+ * @returns {Function} - Función con debounce aplicado
+ */
+function debounce(func, wait = THROTTLE_CONFIG.DEFAULT_DEBOUNCE_DELAY, options = {}) {
+    const { leading = false, maxWait = null, context = 'global' } = options;
+    const key = func.toString().slice(0, 100) + context;
+    let lastArgs;
+    
+    return function(...args) {
+        lastArgs = args;
+        
+        // Si se solicita ejecución inmediata al inicio y no hay timer pendiente
+        if (leading && !timers.debounce.has(key)) {
+            AppLogger.debug('performance', `Debounce (${context}): ejecución inmediata por leading=true`);
+            func.apply(this, args);
+            // Guardar timestamp de la última ejecución
+            timers.lastExecution.set(key, Date.now());
+        }
+        
+        // Cancelar timer anterior si existe
+        if (timers.debounce.has(key)) {
+            clearTimeout(timers.debounce.get(key));
+            AppLogger.debug('performance', `Debounce (${context}): reset de timer`);
+        }
+        
+        // Crear nuevo timer
+        const timer = setTimeout(() => {
+            // Ejecutar la función con los últimos argumentos
+            AppLogger.debug('performance', `Debounce (${context}): ejecutando función después de ${wait}ms`);
+            func.apply(this, lastArgs);
+            // Limpiar el timer
+            timers.debounce.delete(key);
+            // Guardar timestamp de la última ejecución
+            timers.lastExecution.set(key, Date.now());
+        }, wait);
+        
+        // Almacenar el timer para poder cancelarlo
+        timers.debounce.set(key, timer);
+        
+        // Si hay un tiempo máximo de espera, configurar maxWait timer
+        if (maxWait !== null && maxWait > wait) {
+            // Verificar si ya pasó el tiempo máximo de espera desde la última ejecución
+            const lastExec = timers.lastExecution.get(key) || 0;
+            const timeSinceLastExec = Date.now() - lastExec;
+            
+            if (timeSinceLastExec >= maxWait) {
+                // Si ya pasó el tiempo máximo, ejecutar inmediatamente
+                clearTimeout(timers.debounce.get(key));
+                timers.debounce.delete(key);
+                AppLogger.debug('performance', `Debounce (${context}): ejecución forzada por maxWait (${maxWait}ms)`);
+                func.apply(this, lastArgs);
+                timers.lastExecution.set(key, Date.now());
+            }
+        }
+    };
+}
+
+/**
+ * Crear una función con throttle
+ * @param {Function} func - Función a ejecutar con throttle
+ * @param {number} limit - Tiempo mínimo entre ejecuciones en ms
+ * @param {Object} options - Opciones adicionales
+ * @returns {Function} - Función con throttle aplicado
+ */
+function throttle(func, limit = THROTTLE_CONFIG.DEFAULT_THROTTLE_INTERVAL, options = {}) {
+    const { leading = true, trailing = true, context = 'global' } = options;
+    const key = func.toString().slice(0, 100) + context;
+    let lastArgs;
+    let lastThis;
+    
+    return function(...args) {
+        const now = Date.now();
+        const lastTime = timers.lastExecution.get(key) || 0;
+        const timeSinceLastExec = now - lastTime;
+        
+        // Guardar argumentos y contexto para posible ejecución posterior
+        lastArgs = args;
+        lastThis = this;
+        
+        // Si ha pasado suficiente tiempo, ejecutar inmediatamente
+        if (timeSinceLastExec >= limit) {
+            if (leading) {
+                AppLogger.debug('performance', `Throttle (${context}): ejecución inmediata`);
+                func.apply(lastThis, lastArgs);
+                timers.lastExecution.set(key, now);
+                return;
+            }
+        }
+        
+        // Si no hay un timer pendiente y se permite trailing, programarlo
+        if (!timers.throttle.has(key) && trailing) {
+            const nextExecTime = Math.max(limit - timeSinceLastExec, 0);
+            
+            if (THROTTLE_CONFIG.LOG_SKIPPED_UPDATES) {
+                AppLogger.debug('performance', `Throttle (${context}): ejecución diferida para ${nextExecTime}ms`);
+            }
+            
+            const timer = setTimeout(() => {
+                // Solo ejecutar si se permite trailing o no se ha ejecutado recientemente
+                if (trailing || Date.now() - timers.lastExecution.get(key) >= limit) {
+                    AppLogger.debug('performance', `Throttle (${context}): ejecutando función diferida después de ${limit}ms`);
+                    func.apply(lastThis, lastArgs);
+                    timers.lastExecution.set(key, Date.now());
+                }
+                timers.throttle.delete(key);
+            }, nextExecTime);
+            
+            timers.throttle.set(key, timer);
+        } else if (THROTTLE_CONFIG.LOG_SKIPPED_UPDATES) {
+            AppLogger.debug('performance', `Throttle (${context}): actualización ignorada (throttled)`);
+        }
+    };
+}
+
+/**
+ * Cancelar todos los timers pendientes de debounce y throttle
+ * @param {string} [context] - Contexto opcional para filtrar (e.g., 'dashboard', 'websocket')
+ */
+function cancelPendingTimers(context = null) {
+    const startTime = performance.now();
+    let countDebounce = 0;
+    let countThrottle = 0;
+    
+    // Cancelar timers de debounce
+    timers.debounce.forEach((timer, key) => {
+        if (!context || key.includes(context)) {
+            clearTimeout(timer);
+            timers.debounce.delete(key);
+            countDebounce++;
+        }
+    });
+    
+    // Cancelar timers de throttle
+    timers.throttle.forEach((timer, key) => {
+        if (!context || key.includes(context)) {
+            clearTimeout(timer);
+            timers.throttle.delete(key);
+            countThrottle++;
+        }
+    });
+    
+    AppLogger.info('performance', `Timers cancelados: ${countDebounce} debounce, ${countThrottle} throttle`, 
+        { context: context || 'todos' }, startTime);
+    
+    return { debounce: countDebounce, throttle: countThrottle };
+}
+
+/**
+ * Comprobar si se debe permitir una actualización basada en un intervalo mínimo
+ * @param {string} key - Clave única para identificar el tipo de actualización
+ * @param {number} minInterval - Intervalo mínimo entre actualizaciones en ms
+ * @param {boolean} updateTimestamp - Si se actualiza el timestamp en caso positivo
+ * @returns {boolean} - true si se debe permitir la actualización
+ */
+function shouldUpdate(key, minInterval = THROTTLE_CONFIG.MIN_UPDATE_INTERVAL, updateTimestamp = true) {
+    const now = Date.now();
+    const lastTime = timers.lastExecution.get(key) || 0;
+    const elapsed = now - lastTime;
+    
+    if (elapsed >= minInterval) {
+        if (updateTimestamp) {
+            timers.lastExecution.set(key, now);
+        }
+        return true;
+    }
+    
+    if (THROTTLE_CONFIG.LOG_SKIPPED_UPDATES) {
+        AppLogger.debug('performance', `Actualización ignorada para '${key}' (${elapsed}ms < ${minInterval}ms)`);
+    }
+    
+    return false;
+}
+
+// Exportar funciones para uso global
+window.debounce = debounce;
+window.throttle = throttle;
+window.cancelPendingTimers = cancelPendingTimers;
+window.shouldUpdate = shouldUpdate; 

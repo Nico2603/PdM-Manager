@@ -87,6 +87,13 @@
               <span>Actualizar Datos</span>
             </button>
           </div>
+          
+          <div class="sidebar-action-item">
+            <button id="showLogsBtn" class="btn btn-block">
+              <i class="fas fa-list-alt mr-2"></i>
+              <span>Ver Logs</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -95,6 +102,79 @@
     <div class="main-content">
       <!-- Contenido -->
       <div class="content">
+        <!-- Modal para mostrar logs -->
+        <div id="logsModal" class="modal">
+          <div class="modal-content logs-modal-content">
+            <div class="modal-header">
+              <h3><i class="fas fa-list-alt mr-2"></i> Logs del Sistema</h3>
+              <button class="modal-close"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body">
+              <div class="logs-filter">
+                <div class="filter-group">
+                  <label for="logComponentFilter">Componente:</label>
+                  <select id="logComponentFilter">
+                    <option value="">Todos</option>
+                    <option value="dashboard">Dashboard</option>
+                    <option value="navigation">Navegación</option>
+                    <option value="websocket">WebSocket</option>
+                    <option value="system">Sistema</option>
+                    <option value="performance">Rendimiento</option>
+                  </select>
+                </div>
+                <div class="filter-group">
+                  <label for="logLevelFilter">Nivel:</label>
+                  <select id="logLevelFilter">
+                    <option value="">Todos</option>
+                    <option value="debug">Debug</option>
+                    <option value="info">Info</option>
+                    <option value="warn">Advertencia</option>
+                    <option value="error">Error</option>
+                  </select>
+                </div>
+                <div class="filter-group">
+                  <label for="logSearchFilter">Buscar:</label>
+                  <input type="text" id="logSearchFilter" placeholder="Filtrar por texto...">
+                </div>
+                <div class="filter-actions">
+                  <button id="clearLogsBtn" class="btn btn-danger btn-sm">
+                    <i class="fas fa-trash-alt mr-1"></i> Limpiar
+                  </button>
+                  <button id="exportLogsBtn" class="btn btn-primary btn-sm">
+                    <i class="fas fa-download mr-1"></i> Exportar
+                  </button>
+                  <div class="custom-switch">
+                    <input type="checkbox" class="custom-control-input" id="debugModeToggle">
+                    <label class="custom-control-label" for="debugModeToggle">Modo Debug</label>
+                  </div>
+                </div>
+              </div>
+              <div class="logs-container">
+                <table class="logs-table">
+                  <thead>
+                    <tr>
+                      <th>Tiempo</th>
+                      <th>Componente</th>
+                      <th>Nivel</th>
+                      <th>Mensaje</th>
+                      <th>Duración</th>
+                    </tr>
+                  </thead>
+                  <tbody id="logsTableBody">
+                    <!-- Los logs se cargarán aquí dinámicamente -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <div class="logs-status">
+                <span id="logsCount">0 logs</span>
+              </div>
+              <button class="btn btn-secondary" id="closeLogsBtn">Cerrar</button>
+            </div>
+          </div>
+        </div>
+
         <!-- Dashboard Section -->
         <div id="dashboard-section" class="content-section active animate-fade-in">
           <div class="section-header">
@@ -880,18 +960,113 @@
     </div>
   </div>
   
+  <!-- Template para el loader -->
+  <div id="loadingOverlay" class="loading-overlay">
+    <div class="loading-content">
+      <div class="spinner">
+        <div class="bounce1"></div>
+        <div class="bounce2"></div>
+        <div class="bounce3"></div>
+      </div>
+      <h3 id="loadingMessage">Cargando...</h3>
+    </div>
+  </div>
+
+  <!-- Toast para notificaciones -->
+  <div id="toastContainer" class="toast-container"></div>
+
   <!-- Scripts -->
-  <!-- Funciones base y estado global primero -->
-  <script src="/static/js/utils.js"></script>
+  <script src="/static/js/utils.js" defer onerror="handleScriptError(this)"></script>
+  <script src="/static/js/app-logger.js" defer onerror="handleScriptError(this)"></script>
+  <script src="/static/js/navigation.js" defer onerror="handleScriptError(this)"></script>
+  <script src="/static/js/realtime-updates.js" defer onerror="handleScriptError(this)"></script>
+  <script src="/static/js/dashboard.js" defer onerror="handleScriptError(this)"></script>
+  <script src="/static/js/config.js" defer onerror="handleScriptError(this)"></script>
+  <script src="/static/js/logs-ui.js" defer onerror="handleScriptError(this)"></script>
+  <script src="/static/js/charts.js" defer onerror="handleScriptError(this)"></script>
+  <script src="/static/js/app.js" defer onerror="handleScriptError(this)"></script>
   
-  <!-- Sistema de navegación y UI -->
-  <script src="/static/js/navigation.js"></script>
+  <!-- Función para manejar errores de carga de scripts -->
+  <script>
+    function handleScriptError(scriptElement) {
+      const scriptSrc = scriptElement.src || 'script desconocido';
+      console.error(`Error al cargar el script: ${scriptSrc}`);
+      if (window.AppLogger) {
+        AppLogger.error('system', 'Error al cargar dependencia JavaScript', { script: scriptSrc });
+      }
+    }
+  </script>
   
-  <!-- Componentes específicos -->
-  <script src="/static/js/charts.js"></script>
-  <script src="/static/js/config.js"></script>
-  <script src="/static/js/dashboard.js"></script>
-  <script src="/static/js/realtime-updates.js"></script>
-  <script src="/static/js/app.js"></script>
+  <!-- Script de inicialización -->
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      try {
+        // Inicializar modo debug desde localStorage si existe
+        if (window.localStorage.getItem('debug_mode') === 'true') {
+          window.DEBUG_MODE = true;
+          console.log('%c[DEBUG MODE] Activado', 'color:#ff8800; font-weight:bold');
+        }
+        
+        // Verificar dependencias críticas
+        if (!window.AppLogger) {
+          throw new Error('Dependencia crítica no disponible: AppLogger');
+        }
+        
+        AppLogger.info('system', 'Iniciando aplicación');
+        
+        // Inicializar sistema centralizado de gestión de event listeners
+        if (typeof migrateGlobalEventListeners === 'function') {
+          migrateGlobalEventListeners();
+          AppLogger.info('system', 'Sistema centralizado de event listeners inicializado');
+        } else {
+          AppLogger.warn('system', 'Función migrateGlobalEventListeners no disponible');
+        }
+        
+        // Inicializar la navegación
+        if (typeof initNavigation === 'function') {
+          initNavigation();
+          AppLogger.info('system', 'Navegación inicializada');
+        } else {
+          AppLogger.error('system', 'Módulo de navegación no disponible');
+        }
+        
+        // Inicializar la conexión WebSocket
+        if (typeof initWebSocket === 'function') {
+          initWebSocket();
+          AppLogger.info('system', 'Conexión WebSocket inicializada');
+        } else {
+          AppLogger.warn('system', 'Función initWebSocket no disponible');
+        }
+        
+        // Ocultar pantalla de carga
+        const loadingOverlay = document.getElementById('loadingOverlay');
+        if (loadingOverlay) {
+          setTimeout(() => {
+            loadingOverlay.classList.add('hidden');
+            setTimeout(() => {
+              loadingOverlay.style.display = 'none';
+            }, 500);
+          }, 500);
+        }
+        
+        AppLogger.info('system', 'Aplicación inicializada correctamente');
+      } catch (error) {
+        console.error('Error durante la inicialización:', error);
+        if (window.AppLogger) {
+          AppLogger.error('system', 'Error durante la inicialización', error);
+        }
+        
+        // Mostrar mensaje de error al usuario
+        const loadingOverlay = document.getElementById('loadingOverlay');
+        if (loadingOverlay) {
+          const loadingMessage = document.getElementById('loadingMessage');
+          if (loadingMessage) {
+            loadingMessage.innerHTML = `Error al iniciar la aplicación:<br>${error.message}`;
+            loadingMessage.style.color = '#ff3333';
+          }
+        }
+      }
+    });
+  </script>
 </body>
 </html>

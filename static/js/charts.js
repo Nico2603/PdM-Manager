@@ -1,10 +1,3 @@
-/**
- * PdM-Manager - JavaScript Gráficos v2.0.0
- * Funciones para la inicialización y actualización de gráficos
- * 
- * Última actualización: 2024-03-29
- */
-
 // ==========================================================================
 // VARIABLES GLOBALES PARA GRÁFICOS
 // ==========================================================================

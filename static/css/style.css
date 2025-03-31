@@ -1408,3 +1408,144 @@ p {
 .row-updated {
     animation: highlightUpdate 2s ease-out;
 }
+
+/* ==========================================================================
+   Estilos para el modal de logs
+   ========================================================================== */
+
+.logs-modal-content {
+  max-width: 90%;
+  width: 1200px;
+  max-height: 90vh;
+}
+
+.logs-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 15px;
+  margin-bottom: 15px;
+  padding: 12px;
+  background-color: #f5f7fa;
+  border-radius: 6px;
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  min-width: 160px;
+}
+
+.filter-group label {
+  font-size: 0.85rem;
+  margin-bottom: 5px;
+  font-weight: 500;
+}
+
+.filter-group select,
+.filter-group input {
+  padding: 6px 10px;
+  border: 1px solid #dbe0e9;
+  border-radius: 4px;
+  font-size: 0.9rem;
+}
+
+.filter-actions {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  margin-left: auto;
+}
+
+.logs-container {
+  max-height: calc(90vh - 230px);
+  overflow-y: auto;
+  border: 1px solid #dbe0e9;
+  border-radius: 6px;
+}
+
+.logs-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.logs-table th {
+  position: sticky;
+  top: 0;
+  background-color: #f0f3f8;
+  padding: 10px 15px;
+  text-align: left;
+  font-weight: 600;
+  color: #3e4b5b;
+  border-bottom: 2px solid #dbe0e9;
+  z-index: 10;
+}
+
+.logs-table td {
+  padding: 8px 15px;
+  border-bottom: 1px solid #ebeef4;
+  vertical-align: top;
+}
+
+.logs-table th:nth-child(1),
+.logs-table td:nth-child(1) {
+  width: 100px;
+}
+
+.logs-table th:nth-child(2),
+.logs-table td:nth-child(2) {
+  width: 120px;
+}
+
+.logs-table th:nth-child(3),
+.logs-table td:nth-child(3) {
+  width: 90px;
+}
+
+.logs-table th:nth-child(5),
+.logs-table td:nth-child(5) {
+  width: 80px;
+  text-align: right;
+}
+
+.log-row {
+  transition: background-color 0.2s;
+}
+
+.log-row:hover {
+  background-color: #f5faff;
+}
+
+.log-row.has-details {
+  cursor: pointer;
+}
+
+.log-row.has-details:hover {
+  background-color: #edf6ff;
+}
+
+.log-level-error {
+  background-color: rgba(255, 205, 210, 0.3);
+}
+
+.log-level-error:hover {
+  background-color: rgba(255, 205, 210, 0.5);
+}
+
+.log-level-warn {
+  background-color: rgba(255, 236, 179, 0.3);
+}
+
+.log-level-warn:hover {
+  background-color: rgba(255, 236, 179, 0.5);
+}
+
+.log-level-debug {
+  color: #6b7280;
+  font-size: 0.85rem;
+}
+
+.logs-status {
+  color: #6b7280;
+  font-size: 0.9rem;
+}

@@ -1,10 +1,3 @@
-/**
- * PdM-Manager - JavaScript Dashboard v2.0.0
- * Funciones específicas para el dashboard principal
- * 
- * Última actualización: 2023-09-15
- */
-
 // ==========================================================================
 // VARIABLES GLOBALES DEL DASHBOARD
 // ==========================================================================
@@ -14,95 +7,199 @@ let monitoringInterval = null;
 let isMonitoring = false;
 let hasValidConfiguration = false;
 
+// Control de actualizaciones del dashboard
+const DASHBOARD_UPDATE_INTERVAL = 5000; // 5 segundos entre actualizaciones
+let isDashboardUpdating = false;
+
+// Variables para control de peticiones
+let currentFetchController = null;
+
+// Registro de event listeners para limpieza
+const dashboardListeners = new Map();
+
+// ==========================================================================
+// MANEJO CENTRALIZADO DE ERRORES
+// ==========================================================================
+
+/**
+ * Función centralizada para manejar errores en peticiones AJAX
+ * @param {Error} error - El objeto de error capturado
+ * @param {string} context - Contexto donde ocurrió el error (nombre de la operación)
+ * @param {boolean} showNotification - Indica si se debe mostrar una notificación al usuario
+ * @param {Object} extraData - Datos adicionales a registrar con el error
+ */
+function handleAjaxError(error, context, showNotification = true, extraData = {}) {
+    // Evitar errores de AbortError causados por cancelaciones intencionales
+    if (error.name === 'AbortError') {
+        logDashboard('debug', `Solicitud cancelada: ${context}`);
+        return;
+    }
+    
+    // Registrar error en el sistema de logs 
+    AppLogger.error('ajax', `Error en ${context}`, {
+        message: error.message,
+        stack: error.stack,
+        context: context,
+        ...extraData
+    });
+    
+    // Mostrar notificación al usuario si es necesario
+    if (showNotification) {
+        showToast(`Error en ${context}: ${error.message}`, 'error');
+    }
+    
+    // Registrar evento para analíticas
+    if (typeof trackEvent === 'function') {
+        trackEvent('error', 'ajax_error', { context });
+    }
+}
+
 // ==========================================================================
 // INICIALIZACIÓN DEL DASHBOARD
 // ==========================================================================
 
 function initDashboard() {
+    logDashboard('info', 'Iniciando inicialización del dashboard');
+    const startTime = performance.now();
+    
     try {
-        // Inicializar componentes de UI y gráficos
+        // Limpiar listeners previos para evitar duplicación
+        cleanupDashboardListeners();
+        
+        // Cancelar cualquier actualización pendiente 
+        cancelDashboardUpdates();
+        
+        logDashboard('debug', 'Inicializando componentes de UI');
         initCustomUIComponents();
+        
+        logDashboard('debug', 'Inicializando filtros visuales');
         initVisualFilters();
+        
+        logDashboard('debug', 'Inicializando botones de exportación');
         initExportButtons();
+        
+        logDashboard('debug', 'Inicializando botón de ajuste de límites');
         initAdjustLimitsButton();
         
         // Inicializar nueva funcionalidad de monitoreo
+        logDashboard('debug', 'Inicializando botón de monitoreo');
         initMonitoringButton();
         
         // Ocultar gráficos hasta que se carguen datos
+        logDashboard('debug', 'Ocultando gráficos inicialmente');
         hideCharts();
         
         // Inicializar botones de filtros
+        logDashboard('debug', 'Inicializando filtros');
         initApplyFiltersButton();
         
-        // Leer valores iniciales de filtros
-        const initialFilters = getVibrationFilters();
+        // Comprobar si hay configuración válida
+        logDashboard('debug', 'Verificando configuración inicial');
+        hasValidConfiguration = checkValidConfiguration();
         
-        // Establecer valores iniciales en el estado global
-        setGlobalState('selectedMachine', initialFilters.machineId || '');
-        setGlobalState('selectedSensor', initialFilters.sensorId || '');
-        setGlobalState('timeRange', initialFilters.timeRange || '24h');
+        // Cargar datos iniciales
+        if (hasValidConfiguration) {
+            logDashboard('debug', 'Configuración válida encontrada, cargando datos iniciales');
+            hideNoConfigurationMessage();
+            loadInitialData();
+        } else {
+            logDashboard('warn', 'No se encontró configuración válida, mostrando mensaje');
+            showNoConfigurationMessage();
+        }
         
-        // Configurar opciones de visualización de gráficos
-        setGlobalState('chartOptions', {
-            showMean: false,
-            show2Sigma: true,
-            show3Sigma: true
-        });
+        // Verificar estado de simulación
+        logDashboard('debug', 'Verificando estado de simulación');
+        checkSimulationStatus();
         
-        // Crear objeto para cachear las respuestas (evita llamadas redundantes)
-        setGlobalState('dashboardCache', {});
+        // Inicializar alertas simplificadas
+        logDashboard('debug', 'Cargando alertas iniciales');
+        loadSimplifiedAlerts();
         
-        // Mostrar indicador de carga mientras se inicializa
-        showLoadingIndicator('Inicializando panel de control...');
-        
-        // Cargar datos en secuencia para optimizar rendimiento
-        Promise.resolve()
-            .then(() => {
-                // Cargar máquinas primero
-                return loadMachines();
-            })
-            .then(() => {
-                // Cargar sensores después de que se hayan cargado las máquinas
-                const selectedMachine = getGlobalState('selectedMachine');
-                if (selectedMachine) {
-                    return loadSensors(selectedMachine);
-                }
-                return Promise.resolve([]);
-            })
-            .then(() => {
-                // Comprobar si hay una configuración válida antes de cargar datos
-                hasValidConfiguration = checkValidConfiguration();
-                if (!hasValidConfiguration) {
-                    hideLoadingIndicator();
-                    showNoConfigurationMessage();
-                    return Promise.reject('No hay configuración válida');
-                }
-                
-                // Una vez cargados los datos de configuración, cargar datos del dashboard
-                return updateDashboardData();
-            })
-            .then(() => {
-                // Cargar historial de alertas
-                loadSimplifiedAlerts();
-                
-                console.log('Dashboard inicializado correctamente');
-                hideLoadingIndicator();
-                showToast('Panel de control inicializado', 'success');
-            })
-            .catch(error => {
-                if (error !== 'No hay configuración válida') {
-                    console.error('Error al inicializar dashboard:', error);
-                    showToast('Error al inicializar el panel', 'error');
-                }
-                hideLoadingIndicator();
-            });
-        
+        logDashboard('info', 'Inicialización del dashboard completada', null, startTime);
     } catch (error) {
-        console.error('Error catastrófico al inicializar dashboard:', error);
-        showToast('Error crítico al inicializar el panel', 'error');
-        hideLoadingIndicator();
+        logDashboard('error', 'Error durante la inicialización del dashboard:', error);
+        showNoConfigurationMessage(`Error: ${error.message}`);
     }
+}
+
+// ==========================================================================
+// INICIALIZACIÓN DE LA SECCIÓN DE CONFIGURACIÓN
+// ==========================================================================
+
+// Inicializar la sección de configuración
+function initConfig() {
+    logConfig('info', 'Inicializando sección de configuración');
+    
+    try {
+        // Inicializar sistema de pestañas de configuración
+        initConfigTabs();
+        
+        // Inicializar formularios y tablas
+        initMachineTab();
+        initSensorTab();
+        initModelTab();
+        initLimitsTab();
+        
+        showToast('Sección de configuración inicializada', 'success');
+        logConfig('info', 'Sección de configuración inicializada correctamente');
+    } catch (error) {
+        logConfig('error', 'Error al inicializar sección de configuración', error);
+        showToast('Error al inicializar configuración', 'error');
+    }
+}
+
+// Inicializar sistema de pestañas de la sección de configuración
+function initConfigTabs() {
+    const tabItems = document.querySelectorAll('.config-tabs .tab-item');
+    const tabContents = document.querySelectorAll('.tab-content');
+    
+    // Manejar clic en pestañas
+    tabItems.forEach(tab => {
+        addDashboardListener(tab, 'click', () => {
+            const tabId = tab.getAttribute('data-tab');
+            
+            // Actualizar clases activas en pestañas
+            tabItems.forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+            
+            // Actualizar contenido visible
+            tabContents.forEach(content => {
+                if (content.id === tabId + 'Content') {
+                    content.classList.add('active');
+                } else {
+                    content.classList.remove('active');
+                }
+            });
+            
+            // Actualizar hash en la URL para navegar correctamente
+            const newHash = 'configuracion:' + tabId;
+            navigateTo(newHash);
+        });
+    });
+}
+
+// Inicializar pestaña de máquinas
+function initMachineTab() {
+    // La funcionalidad específica para la pestaña de máquinas
+    logConfig('debug', 'Inicializando pestaña de máquinas');
+}
+
+// Inicializar pestaña de sensores
+function initSensorTab() {
+    // La funcionalidad específica para la pestaña de sensores
+    logConfig('debug', 'Inicializando pestaña de sensores');
+}
+
+// Inicializar pestaña de modelos
+function initModelTab() {
+    // La funcionalidad específica para la pestaña de modelos
+    logConfig('debug', 'Inicializando pestaña de modelos');
+}
+
+// Inicializar pestaña de límites
+function initLimitsTab() {
+    // La funcionalidad específica para la pestaña de límites
+    logConfig('debug', 'Inicializando pestaña de límites');
 }
 
 // Manejar cambios en el estado global
@@ -135,40 +232,38 @@ function initCustomUIComponents() {
     initChartDropdowns();
 }
 
-// Inicializar dropdowns personalizados
-function initCustomDropdowns() {
-    // Suscribirse al evento de cambio de dropdown
-    document.addEventListener('dropdown-change', (e) => {
-        const { dropdownId, value } = e.detail;
-        handleDropdownChange(dropdownId, value);
-    });
+// Manejar eventos de cambio en dropdowns
+function handleDropdownChangeEvent(e) {
+    const { dropdownId, value, text } = e.detail;
+    logDashboard('debug', `Dropdown changed: ${dropdownId} - ${value}`);
+    
+    // Actualizar estado global según el dropdown
+    if (dropdownId === 'machineDropdown') {
+        setGlobalState('selectedMachine', value);
+        loadSensors(value);
+    } else if (dropdownId === 'sensorDropdown') {
+        setGlobalState('selectedSensor', value);
+    } else if (dropdownId === 'timeRangeDropdown') {
+        setGlobalState('timeRange', value);
+    }
+    
+    // Actualizar datos del dashboard si están disponibles los filtros
+    updateDashboardData();
 }
 
-// Manejar cambio en dropdown
-function handleDropdownChange(dropdownId, value) {
-    switch (dropdownId) {
-        case 'machineDropdown':
-            setGlobalState('selectedMachine', value);
-            // Actualizar lista de sensores si cambia la máquina
-            loadSensors(value);
-            break;
-        case 'sensorDropdown':
-            setGlobalState('selectedSensor', value);
-            break;
-        case 'timeRangeDropdown':
-            setGlobalState('timeRange', value);
-            break;
-    }
+// Inicializar dropdowns personalizados
+function initCustomDropdowns() {
+    // Registrar el listener para dropdown-change
+    addDashboardListener(document, 'dropdown-change', handleDropdownChangeEvent);
 }
 
 // Inicializar colapso de filtros
 function initCollapseFilters() {
     const expandBtn = document.getElementById('expandFiltersBtn');
     const filterPanel = document.querySelector('.filter-panel');
-    const filterCard = document.querySelector('.filter-card');
     
     if (expandBtn && filterPanel) {
-        expandBtn.addEventListener('click', () => {
+        addDashboardListener(expandBtn, 'click', () => {
             filterPanel.classList.toggle('show');
             
             // Cambiar icono
@@ -194,7 +289,7 @@ function initChartDropdowns() {
         const toggle = dropdown.querySelector('.chart-dropdown-toggle');
         
         if (toggle) {
-            toggle.addEventListener('click', (e) => {
+            addDashboardListener(toggle, 'click', (e) => {
                 e.stopPropagation();
                 dropdown.classList.toggle('active');
                 
@@ -209,7 +304,7 @@ function initChartDropdowns() {
     });
     
     // Cerrar dropdowns al hacer clic en cualquier parte
-    document.addEventListener('click', () => {
+    addDashboardListener(document, 'click', () => {
         chartDropdowns.forEach(dropdown => {
             dropdown.classList.remove('active');
         });
@@ -234,7 +329,7 @@ function initVisualFilters() {
         show3SigmaToggle.checked = chartOptions.show3Sigma;
         
         // Añadir evento change que actualiza los gráficos en tiempo real
-        show2SigmaToggle.addEventListener('change', () => {
+        addDashboardListener(show2SigmaToggle, 'change', () => {
             // Actualizar estado global
             const chartOptions = getGlobalState('chartOptions') || {};
             chartOptions.show2Sigma = show2SigmaToggle.checked;
@@ -250,7 +345,7 @@ function initVisualFilters() {
             showToast(`Líneas 2σ ${status}`, 'info', 1000);
         });
         
-        show3SigmaToggle.addEventListener('change', () => {
+        addDashboardListener(show3SigmaToggle, 'change', () => {
             // Actualizar estado global
             const chartOptions = getGlobalState('chartOptions') || {};
             chartOptions.show3Sigma = show3SigmaToggle.checked;
@@ -274,33 +369,62 @@ function initVisualFilters() {
 
 // Cargar datos iniciales
 function loadInitialData() {
-    showLoadingIndicator('Cargando datos iniciales...');
+    logDashboard('info', 'Cargando datos iniciales');
+    const startTime = performance.now();
     
-    // Cargar máquinas primero
+    logDashboard('debug', 'Iniciando carga de máquinas');
+    const machinesStartTime = performance.now();
+    
+    // Cargar lista de máquinas
     loadMachines()
-        .then(() => {
-            // Comprobar si hay una configuración válida
-            if (cache.machines && cache.machines.length === 0) {
-                hideLoadingIndicator();
-                showNoConfigurationMessage();
-                return Promise.reject('No hay máquinas configuradas');
-            }
+        .then(machines => {
+            logDashboard('debug', `${machines.length} máquinas cargadas correctamente`, null, machinesStartTime);
             
-            // Cargar sensores para la máquina seleccionada (o primera máquina)
-            return loadSensors(getGlobalState('selectedMachine'));
-        })
-        .then(() => {
-            // Actualizar datos del dashboard
-            return updateDashboardData();
+            if (machines && machines.length > 0) {
+                // Seleccionar primera máquina por defecto
+                const firstMachine = machines[0].machine_id;
+                setGlobalState('selectedMachine', firstMachine);
+                
+                // Cargar sensores asociados a la primera máquina
+                logDashboard('debug', `Cargando sensores para máquina ${firstMachine}`);
+                const sensorsStartTime = performance.now();
+                
+                return loadSensors(firstMachine)
+                    .then(sensors => {
+                        logDashboard('debug', `${sensors.length} sensores cargados correctamente`, null, sensorsStartTime);
+                        
+                        if (sensors && sensors.length > 0) {
+                            // Seleccionar primer sensor por defecto
+                            const firstSensor = sensors[0].sensor_id;
+                            setGlobalState('selectedSensor', firstSensor);
+                            
+                            // Comprobar nuevamente si hay configuración válida
+                            logDashboard('debug', 'Verificando configuración después de cargar datos iniciales');
+                            hasValidConfiguration = checkValidConfiguration();
+                            
+                            if (hasValidConfiguration) {
+                                logDashboard('debug', 'Configuración válida, actualizando datos del dashboard');
+                                return updateDashboardData();
+                            } else {
+                                logDashboard('warn', 'No se encontró configuración válida después de cargar datos iniciales');
+                                showNoConfigurationMessage();
+                            }
+                        } else {
+                            logDashboard('warn', 'No se encontraron sensores asociados a la máquina');
+                            showNoConfigurationMessage('No hay sensores configurados para esta máquina');
+                        }
+                    });
+            } else {
+                logDashboard('warn', 'No se encontraron máquinas configuradas');
+                showNoConfigurationMessage('No hay máquinas configuradas en el sistema');
+            }
         })
         .catch(error => {
-            console.error('Error al cargar datos iniciales:', error);
-            if (error !== 'No hay máquinas configuradas') {
-                showToast('Error al cargar datos iniciales', 'error');
-            }
+            logDashboard('error', 'Error al cargar datos iniciales:', error);
+            showNoConfigurationMessage(`Error: ${error.message}`);
         })
         .finally(() => {
-            hideLoadingIndicator();
+            logDashboard('info', 'Proceso de carga de datos iniciales completado', null, startTime);
         });
 }
 
@@ -360,86 +484,54 @@ function hideNoConfigurationMessage() {
 
 // Cargar lista de máquinas
 function loadMachines() {
+    logDashboard('debug', 'Cargando lista de máquinas');
+    const startTime = performance.now();
+    
     return fetch('/api/machines')
-        .then(response => response.json())
-        .then(machines => {
-            // Guardar en caché
-            cache.machines = machines;
-            
-            // Obtener el dropdown de máquinas
-            const machineDropdownMenu = document.getElementById('machineDropdownMenu');
-            if (!machineDropdownMenu) return;
-            
-            // Limpiar opciones anteriores, manteniendo la opción "Todas"
-            const allOption = machineDropdownMenu.querySelector('.filter-dropdown-item[data-value=""]');
-            machineDropdownMenu.innerHTML = '';
-            
-            if (allOption) {
-                machineDropdownMenu.appendChild(allOption);
-            } else {
-                const newAllOption = document.createElement('div');
-                newAllOption.className = 'filter-dropdown-item selected';
-                newAllOption.setAttribute('data-value', '');
-                newAllOption.textContent = 'Todas las máquinas';
-                machineDropdownMenu.appendChild(newAllOption);
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`Error al cargar máquinas: ${response.status}`);
             }
-            
-            // Añadir máquinas al dropdown
-            machines.forEach(machine => {
-                const option = document.createElement('div');
-                option.className = 'filter-dropdown-item';
-                option.setAttribute('data-value', machine.machine_id);
-                option.textContent = machine.name;
-                machineDropdownMenu.appendChild(option);
-            });
-            
-            // Si hay máquinas y no hay selección previa, seleccionar la primera
-            if (machines.length > 0 && !getGlobalState('selectedMachine')) {
-                setGlobalState('selectedMachine', machines[0].machine_id);
-                
-                // Actualizar texto del dropdown
-                const machineDropdownText = document.getElementById('selectedMachineText');
-                if (machineDropdownText) {
-                    machineDropdownText.textContent = machines[0].name;
-                }
-            }
+            return response.json();
+        })
+        .then(data => {
+            logDashboard('debug', `${data.length} máquinas cargadas correctamente`, null, startTime);
+            return data;
         })
         .catch(error => {
-            console.error('Error al cargar máquinas:', error);
-            return Promise.reject(error);
+            logDashboard('error', 'Error al cargar máquinas:', error);
+            throw error;
         });
 }
 
 // Cargar sensores para una máquina
 function loadSensors(machineId) {
-    // Si no hay máquina seleccionada y hay máquinas disponibles, seleccionar la primera
-    if (!machineId && cache.machines && cache.machines.length > 0) {
-        machineId = cache.machines[0].machine_id;
-        setGlobalState('selectedMachine', machineId);
-    }
-    
-    // Si no hay máquina, detener
     if (!machineId) {
+        logDashboard('warn', 'Se intentó cargar sensores sin proporcionar ID de máquina');
         return Promise.resolve([]);
     }
     
-    // Si ya tenemos los sensores en caché, usarlos
-    if (cache.sensors[machineId]) {
-        updateSensorDropdown(cache.sensors[machineId]);
-        return Promise.resolve(cache.sensors[machineId]);
-    }
+    logDashboard('debug', `Cargando sensores para máquina ${machineId}`);
+    const startTime = performance.now();
     
-    // Obtener sensores de la API
     return fetch(`/api/machines/${machineId}/sensors`)
-        .then(response => response.json())
-        .then(sensors => {
-            // Guardar en caché
-            cache.sensors[machineId] = sensors;
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`Error al cargar sensores: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            logDashboard('debug', `${data.length} sensores cargados correctamente para máquina ${machineId}`, null, startTime);
             
-            // Actualizar dropdown
-            updateSensorDropdown(sensors);
+            // Actualizar dropdown de sensores
+            updateSensorDropdown(data);
             
-            return sensors;
+            return data;
+        })
+        .catch(error => {
+            logDashboard('error', `Error al cargar sensores para máquina ${machineId}:`, error);
+            throw error;
         });
 }
 
@@ -504,98 +596,279 @@ function updateSensorDropdown(sensors) {
 }
 
 // Actualizar datos del dashboard
-function updateDashboardData() {
-    showLoadingIndicator('Actualizando dashboard...');
+async function updateDashboardData() {
+    logDashboard('debug', 'Solicitud de actualización de datos del dashboard');
     
-    // Obtener filtros actuales
-    const selectedMachine = getGlobalState('selectedMachine');
-    const selectedSensor = getGlobalState('selectedSensor');
-    const timeRange = getGlobalState('timeRange');
-    
-    // Construir objeto de filtros
-    const filters = {
-        sensor_id: selectedSensor || '',
-        machine_id: selectedMachine || '',
-        time_range: timeRange || '24h'
-    };
-    
-    // Generar clave para el caché
-    const cacheKey = `dashboard_${filters.sensor_id}_${filters.machine_id}_${filters.time_range}`;
-    const dashboardCache = getGlobalState('dashboardCache') || {};
-    
-    // Verificar si hay datos en caché y si son recientes (menos de 30 segundos)
-    const cachedData = dashboardCache[cacheKey];
-    const now = Date.now();
-    if (cachedData && (now - cachedData.timestamp < 30000)) {
-        console.log('Usando datos en caché para el dashboard');
-        processVibrationData(cachedData.data);
-        updateAlertCounters(cachedData.alerts);
-        hideLoadingIndicator();
-        return Promise.resolve(cachedData);
+    // Si ya hay una actualización en curso, no iniciar otra
+    if (isDashboardUpdating) {
+        logDashboard('debug', 'Actualización del dashboard ya en curso, ignorando solicitud');
+        return;
     }
     
-    // Si no hay datos en caché o son antiguos, obtener nuevos datos
-    return fetch(`/api/vibration-data?${new URLSearchParams(filters)}`)
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`Error al obtener datos de vibración: ${response.status}`);
-            }
-            return response.json();
-        })
-        .then(vibrationData => {
-            // Si no hay datos, mostrar mensaje apropiado
-            if (!vibrationData || vibrationData.length === 0) {
+    // Ejecutar la actualización
+    await executeDashboardUpdate();
+    
+    // Función para ejecutar la actualización del dashboard
+    async function executeDashboardUpdate() {
+        // Marcar como actualizando
+        isDashboardUpdating = true;
+        
+        // Cancelar cualquier petición anterior
+        if (currentFetchController) {
+            currentFetchController.abort();
+        }
+        
+        // Crear un nuevo controlador para esta petición
+        currentFetchController = new AbortController();
+        const signal = currentFetchController.signal;
+        
+        logDashboard('debug', 'Iniciando actualización del dashboard');
+        const startTime = performance.now();
+        
+        try {
+            // Obtener los filtros actuales
+            const filters = getVibrationFilters();
+            
+            // Verificar que tengamos filtros válidos
+            if (!filters.machine_id || !filters.sensor_id) {
+                logDashboard('debug', 'Filtros incompletos, no se puede actualizar');
+                // Ocultar gráficos cuando no hay selección
                 hideCharts();
-                showNoConfigurationMessage();
-                hideLoadingIndicator();
-                return Promise.reject('No hay datos disponibles');
+                return;
             }
             
-            // Mostrar gráficos si estaban ocultos
+            // Mostrar indicador de carga
+            showLoadingIndicator();
+            
+            // Obtener datos de vibración
+            const vibrationData = await fetchVibrationData(filters, signal);
+            
+            // Mostrar los gráficos (antes ocultos)
             showCharts();
-            hideNoConfigurationMessage();
             
-            // Procesar datos de vibración
-            processVibrationData(vibrationData);
-            
-            // Cargar alertas correspondientes a estos mismos filtros
-            return fetch(`/api/alerts?${new URLSearchParams(filters)}`)
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error(`Error al obtener alertas: ${response.status}`);
-                    }
-                    return response.json();
-                })
-                .then(alertData => {
-                    // Actualizar contadores de alertas
-                    updateAlertCounters(alertData);
-                    
-                    // Guardar en caché
-                    const newCacheData = {
-                        data: vibrationData,
-                        alerts: alertData,
-                        timestamp: now
-                    };
-                    
-                    // Actualizar caché global
-                    dashboardCache[cacheKey] = newCacheData;
-                    setGlobalState('dashboardCache', dashboardCache);
-                    
-                    hideLoadingIndicator();
-                    return {
-                        vibrationData,
-                        alertData
-                    };
-                });
-        })
-        .catch(error => {
-            console.error('Error al actualizar dashboard:', error);
-            if (error !== 'No hay datos disponibles') {
-                showToast('Error al cargar datos del dashboard', 'error');
+            // Procesar y mostrar datos
+            if (vibrationData && vibrationData.length > 0) {
+                logDashboard('debug', 'Procesando datos recibidos');
+                processVibrationData(vibrationData);
+            } else {
+                logDashboard('debug', 'No hay datos disponibles para los filtros seleccionados');
+                showToast('No hay datos disponibles para los filtros seleccionados', 'warning');
             }
+            
+            // Obtener y mostrar alertas recientes si hay datos
+            try {
+                const alerts = await fetchAlerts(signal);
+                if (alerts) {
+                    updateAlertsTable(alerts);
+                    updateAlertCounters(alerts);
+                }
+            } catch (alertError) {
+                // Usar el sistema centralizado de manejo de errores
+                handleAjaxError(alertError, 'obtención de alertas recientes', false);
+            }
+            
+            logDashboard('debug', 'Actualización del dashboard completada', null, startTime);
+        } catch (error) {
+            // Si no es un error de cancelación, lo manejamos
+            if (error.name !== 'AbortError') {
+                // Usar el sistema centralizado de manejo de errores
+                handleAjaxError(error, 'actualización del dashboard', true, {
+                    filters: getVibrationFilters(),
+                    elapsedTime: performance.now() - startTime
+                });
+                
+                // Ocultar gráficos en caso de error
+                hideCharts();
+            } else {
+                logDashboard('debug', 'Actualización del dashboard cancelada');
+            }
+        } finally {
+            // Ocultar indicador de carga
             hideLoadingIndicator();
-            return Promise.reject(error);
-        });
+            
+            // Marcar como no actualizando
+            isDashboardUpdating = false;
+            currentFetchController = null;
+        }
+    }
+}
+
+// Crear una versión debounced de la actualización del dashboard con el sistema unificado
+const debouncedDashboardUpdate = debounce(
+    async function executeDashboardUpdate() {
+        const startTime = performance.now();
+        logDashboard('debug', 'Ejecutando actualización de dashboard debounced');
+        
+        // Verificar si debemos permitir esta actualización basada en el tiempo transcurrido
+        if (!shouldUpdate('dashboard_update', DASHBOARD_UPDATE_INTERVAL)) {
+            logDashboard('debug', `Actualización demasiado frecuente, ignorando`);
+            return;
+        }
+        
+        // Evitar actualizaciones simultáneas
+        if (isDashboardUpdating) {
+            logDashboard('debug', 'Ya hay una actualización en curso, ignorando esta solicitud');
+            return;
+        }
+        
+        // Cancelar solicitud anterior si existe
+        if (currentFetchController) {
+            logDashboard('debug', 'Cancelando petición anterior');
+            currentFetchController.abort();
+            currentFetchController = null;
+        }
+        
+        isDashboardUpdating = true;
+        
+        // Crear nuevo controlador para esta petición
+        currentFetchController = new AbortController();
+        const signal = currentFetchController.signal;
+        
+        try {
+            // Verificar si hay una configuración válida
+            if (!hasValidConfiguration) {
+                logDashboard('warn', 'No hay configuración válida, omitiendo actualización');
+                showNoConfigurationMessage();
+                return;
+            }
+            
+            // Obtener filtros actuales
+            const filters = getVibrationFilters();
+            logDashboard('debug', 'Filtros actuales:', filters);
+            
+            // Verificar si los filtros han cambiado
+            const cacheKey = JSON.stringify(filters);
+            const cache = getGlobalState('dashboardCache') || {};
+            const now = Date.now();
+            
+            if (cache[cacheKey] && now - cache[cacheKey].timestamp < DASHBOARD_UPDATE_INTERVAL) {
+                logDashboard('debug', 'Usando datos en caché para evitar solicitud repetida');
+                updateDashboardUI(cache[cacheKey].data);
+                isDashboardUpdating = false;
+                logDashboard('info', 'Actualización desde caché completada', null, startTime);
+                return;
+            }
+            
+            // Mostrar indicador de carga
+            logDashboard('debug', 'Mostrando indicador de carga');
+            showLoadingIndicator('Actualizando datos...');
+            
+            // Realizar peticiones en paralelo con señal de cancelación
+            logDashboard('debug', 'Iniciando peticiones de datos');
+            const fetchStartTime = performance.now();
+            
+            Promise.all([
+                fetchVibrationData(filters, signal),
+                fetchAlerts(signal)
+            ])
+            .then(([vibrationData, alerts]) => {
+                logDashboard('debug', 'Peticiones completadas correctamente', null, fetchStartTime);
+                logDashboard('debug', `Datos recibidos: ${vibrationData ? vibrationData.length : 0} registros de vibración, ${alerts ? alerts.length : 0} alertas`);
+                
+                // Procesar datos
+                logDashboard('debug', 'Procesando datos de vibración');
+                const processStartTime = performance.now();
+                const processedData = processVibrationData(vibrationData);
+                logDashboard('debug', 'Procesamiento de datos completado', null, processStartTime);
+                
+                // Actualizar caché
+                logDashboard('debug', 'Actualizando caché de datos');
+                cache[cacheKey] = {
+                    data: processedData,
+                    timestamp: now
+                };
+                setGlobalState('dashboardCache', cache);
+                
+                // Actualizar UI
+                logDashboard('debug', 'Actualizando interfaz de usuario');
+                const uiUpdateStartTime = performance.now();
+                updateDashboardUI(processedData);
+                logDashboard('debug', 'Actualización de UI completada', null, uiUpdateStartTime);
+                
+                // Actualizar alertas
+                if (alerts) {
+                    logDashboard('debug', 'Actualizando contadores de alertas');
+                    updateAlertCounters(alerts);
+                    logDashboard('debug', 'Actualizando tabla de alertas');
+                    updateAlertsTable(alerts);
+                }
+                
+                logDashboard('info', 'Actualización del dashboard completada', null, startTime);
+            })
+            .catch(error => {
+                // No mostrar errores por cancelación intencional
+                if (error.name !== 'AbortError') {
+                    logDashboard('error', 'Error durante la actualización del dashboard:', error);
+                    showToast('Error al actualizar datos', 'error');
+                } else {
+                    logDashboard('debug', 'Petición cancelada intencionalmente');
+                }
+            })
+            .finally(() => {
+                isDashboardUpdating = false;
+                hideLoadingIndicator();
+                currentFetchController = null;
+            });
+            
+        } catch (error) {
+            logDashboard('error', 'Error al iniciar la actualización del dashboard:', error);
+            isDashboardUpdating = false;
+            hideLoadingIndicator();
+            currentFetchController = null;
+        }
+    }, 
+    300, // Debounce de 300ms
+    { 
+        context: 'dashboard', 
+        maxWait: 1000 // Esperar máximo 1 segundo antes de forzar la actualización
+    }
+);
+
+// Cancelar todas las actualizaciones pendientes del dashboard
+function cancelDashboardUpdates() {
+    logDashboard('info', 'Cancelando actualizaciones del dashboard');
+    const startTime = performance.now();
+    
+    // Cancelar timers relacionados con dashboard
+    cancelPendingTimers('dashboard');
+    
+    // Cancelar solicitud en curso
+    if (currentFetchController) {
+        currentFetchController.abort();
+        currentFetchController = null;
+    }
+    
+    isDashboardUpdating = false;
+    
+    logDashboard('info', 'Actualizaciones del dashboard canceladas', null, startTime);
+}
+
+// Función auxiliar para actualizar la UI del dashboard
+function updateDashboardUI(data) {
+    console.log('updateDashboardUI: Iniciando actualización de UI');
+    
+    try {
+        // Actualizar gráficos
+        if (data.charts) {
+            Object.entries(data.charts).forEach(([axis, chartData]) => {
+                updateChart(axis, chartData);
+            });
+        }
+        
+        // Actualizar valores estadísticos
+        if (data.stats) {
+            updateStatisticalDisplayValues(data.stats);
+        }
+        
+        // Mostrar gráficos si hay datos
+        if (Object.keys(data.charts || {}).length > 0) {
+            showCharts();
+        }
+        
+        console.log('updateDashboardUI: Actualización completada');
+    } catch (error) {
+        console.error('updateDashboardUI: Error al actualizar UI:', error);
+    }
 }
 
 // Función para verificar si hay una configuración válida
@@ -627,33 +900,126 @@ function checkValidConfiguration() {
     return hasValidSetup;
 }
 
-// Procesamiento de datos de vibración actualizado
+// Procesamiento de datos de vibración
 function processVibrationData(vibrationData) {
+    logDashboard('info', 'Procesando datos de vibración');
+    const startTime = performance.now();
+    
     if (!vibrationData || vibrationData.length === 0) {
-        console.warn('No hay datos de vibración para procesar');
-        return;
+        logDashboard('warn', 'No hay datos de vibración para procesar');
+        return { charts: {}, stats: {} };
     }
     
-    console.log('Procesando datos de vibración:', vibrationData.length);
+    logDashboard('debug', `Procesando ${vibrationData.length} registros de vibración`);
     
-    // Asegurarse de que los datos estén ordenados por timestamp
-    vibrationData.sort((a, b) => new Date(a.date) - new Date(b.date));
-    
-    // Actualizar datos de gráficos
-    chartData.timestamps = vibrationData.map(item => new Date(item.date).toLocaleTimeString());
-    
-    // Preparar datos para cada eje
-    chartData.x = vibrationData.map(item => item.acceleration_x !== undefined ? parseFloat(item.acceleration_x) : null);
-    chartData.y = vibrationData.map(item => item.acceleration_y !== undefined ? parseFloat(item.acceleration_y) : null);
-    chartData.z = vibrationData.map(item => item.acceleration_z !== undefined ? parseFloat(item.acceleration_z) : null);
-    chartData.status = vibrationData.map(item => item.severity !== undefined ? parseInt(item.severity) : 0);
-    
-    console.log('Datos procesados para gráficas', {
-        timestamps: chartData.timestamps.length,
-        x: chartData.x.length,
-        y: chartData.y.length,
-        z: chartData.z.length
-    });
+    try {
+        // Asegurarse de que los datos estén ordenados por timestamp
+        logDashboard('debug', 'Ordenando datos por timestamp');
+        vibrationData.sort((a, b) => new Date(a.date) - new Date(b.date));
+        
+        // Crear un logger de bucle para monitorear el progreso
+        const loopLogger = createLoopLogger('DASHBOARD', 'procesamiento-datos', vibrationData.length);
+        const loopStartTime = loopLogger.start();
+        
+        // Actualizar datos de gráficos
+        const timestamps = [];
+        const xValues = [];
+        const yValues = [];
+        const zValues = [];
+        const statusValues = [];
+        
+        // Recorrer los datos (monitoreando el rendimiento)
+        for (let i = 0; i < vibrationData.length; i++) {
+            const item = vibrationData[i];
+            
+            // Registrar progreso periódicamente
+            loopLogger.progress(i, item);
+            
+            // Procesar item
+            timestamps.push(new Date(item.date).toLocaleTimeString());
+            xValues.push(item.acceleration_x !== undefined ? parseFloat(item.acceleration_x) : null);
+            yValues.push(item.acceleration_y !== undefined ? parseFloat(item.acceleration_y) : null);
+            zValues.push(item.acceleration_z !== undefined ? parseFloat(item.acceleration_z) : null);
+            statusValues.push(item.severity !== undefined ? parseInt(item.severity) : 0);
+        }
+        
+        // Registrar finalización del bucle
+        loopLogger.end(loopStartTime);
+        
+        // Calcular estadísticas (valores mínimos, máximos, medios)
+        logDashboard('debug', 'Calculando estadísticas de los datos');
+        const statsStartTime = performance.now();
+        
+        const calculateStats = (values) => {
+            if (!values || values.length === 0) return null;
+            
+            // Filtrar valores null o undefined
+            const filteredValues = values.filter(v => v !== null && v !== undefined);
+            if (filteredValues.length === 0) return null;
+            
+            const min = Math.min(...filteredValues);
+            const max = Math.max(...filteredValues);
+            const sum = filteredValues.reduce((acc, val) => acc + val, 0);
+            const mean = sum / filteredValues.length;
+            
+            // Calcular desviación estándar
+            const squaredDiffs = filteredValues.map(val => Math.pow(val - mean, 2));
+            const avgSquaredDiff = squaredDiffs.reduce((acc, val) => acc + val, 0) / filteredValues.length;
+            const stdDev = Math.sqrt(avgSquaredDiff);
+            
+            // Calcular límites 2-sigma y 3-sigma
+            return {
+                min,
+                max,
+                mean,
+                stdDev,
+                sigma2: {
+                    lower: mean - 2 * stdDev,
+                    upper: mean + 2 * stdDev
+                },
+                sigma3: {
+                    lower: mean - 3 * stdDev,
+                    upper: mean + 3 * stdDev
+                }
+            };
+        };
+        
+        const stats = {
+            x: calculateStats(xValues),
+            y: calculateStats(yValues),
+            z: calculateStats(zValues)
+        };
+        
+        logDashboard('debug', 'Cálculo de estadísticas completado', null, statsStartTime);
+        
+        // Preparar datos de retorno
+        const result = {
+            charts: {
+                x: {
+                    timestamps,
+                    values: xValues,
+                    status: statusValues
+                },
+                y: {
+                    timestamps,
+                    values: yValues,
+                    status: statusValues
+                },
+                z: {
+                    timestamps,
+                    values: zValues,
+                    status: statusValues
+                }
+            },
+            stats
+        };
+        
+        logDashboard('info', 'Procesamiento de datos completado', null, startTime);
+        return result;
+    } catch (error) {
+        logDashboard('error', 'Error durante el procesamiento de datos:', error);
+        return { charts: {}, stats: {} };
+    }
 }
 
 // Obtener texto según la severidad
@@ -800,7 +1166,7 @@ function initMonitoringButton() {
     });
     
     // Evento de clic para iniciar/detener monitoreo
-    startMonitoringBtn.addEventListener('click', () => {
+    addDashboardListener(startMonitoringBtn, 'click', () => {
         if (!hasValidConfiguration) {
             showToast('Configure al menos una máquina con sensor y modelo para iniciar el monitoreo', 'warning');
             
@@ -828,34 +1194,59 @@ function initMonitoringButton() {
 
 // Iniciar monitoreo
 function startMonitoring() {
-    if (monitoringInterval !== null) {
-        clearInterval(monitoringInterval);
-    }
+    if (isMonitoring) return;
+    
+    logDashboard('info', 'Iniciando monitoreo');
+    
+    // Actualizar estado
+    isMonitoring = true;
+    setGlobalState('monitoring', true);
+    
+    // Configurar intervalo de monitoreo usando throttling para evitar sobrecarga
+    const throttledUpdateFunction = throttle(
+        updateDashboardData,
+        10000, // 10 segundos entre actualizaciones throttled
+        { context: 'dashboard_monitoring' }
+    );
+    
+    // Iniciar intervalo
+    monitoringInterval = setInterval(throttledUpdateFunction, 5000);
+    
+    // Actualizar UI
+    document.getElementById('startMonitoringBtn').innerHTML = '<i class="fas fa-stop-circle mr-2"></i> Detener Monitoreo';
+    document.getElementById('startMonitoringBtn').classList.replace('btn-primary', 'btn-danger');
     
     // Realizar una actualización inmediata
     updateDashboardData();
     
-    // Establecer intervalo de actualización (cada 5 segundos)
-    monitoringInterval = setInterval(() => {
-        updateDashboardData();
-    }, 5000);
-    
-    // Actualizar estado
-    isMonitoring = true;
-    
-    showToast('Monitoreo iniciado correctamente', 'success');
+    logDashboard('info', 'Monitoreo iniciado');
+    showToast('Monitoreo iniciado', 'success');
 }
 
 // Detener monitoreo
 function stopMonitoring() {
-    if (monitoringInterval !== null) {
+    if (!isMonitoring) return;
+    
+    logDashboard('info', 'Deteniendo monitoreo');
+    
+    // Limpiar intervalo
+    if (monitoringInterval) {
         clearInterval(monitoringInterval);
         monitoringInterval = null;
     }
     
+    // Cancelar cualquier actualización pendiente
+    cancelDashboardUpdates();
+    
     // Actualizar estado
     isMonitoring = false;
+    setGlobalState('monitoring', false);
     
+    // Actualizar UI
+    document.getElementById('startMonitoringBtn').innerHTML = '<i class="fas fa-play-circle mr-2"></i> Iniciar Monitoreo';
+    document.getElementById('startMonitoringBtn').classList.replace('btn-danger', 'btn-primary');
+    
+    logDashboard('info', 'Monitoreo detenido');
     showToast('Monitoreo detenido', 'info');
 }
 
@@ -957,21 +1348,21 @@ function initExportButtons() {
     // Exportación a PDF para cada eje
     const exportPdfXBtn = document.getElementById('exportPdfX');
     if (exportPdfXBtn) {
-        exportPdfXBtn.addEventListener('click', () => {
+        addDashboardListener(exportPdfXBtn, 'click', () => {
             exportAxisToPDF('x');
         });
     }
     
     const exportPdfYBtn = document.getElementById('exportPdfY');
     if (exportPdfYBtn) {
-        exportPdfYBtn.addEventListener('click', () => {
+        addDashboardListener(exportPdfYBtn, 'click', () => {
             exportAxisToPDF('y');
         });
     }
     
     const exportPdfZBtn = document.getElementById('exportPdfZ');
     if (exportPdfZBtn) {
-        exportPdfZBtn.addEventListener('click', () => {
+        addDashboardListener(exportPdfZBtn, 'click', () => {
             exportAxisToPDF('z');
         });
     }
@@ -1065,7 +1456,7 @@ function initAdjustLimitsButton() {
     const adjustLimitsBtn = document.getElementById('adjustLimitsBtn');
     
     if (adjustLimitsBtn) {
-        adjustLimitsBtn.addEventListener('click', (event) => {
+        addDashboardListener(adjustLimitsBtn, 'click', (event) => {
             event.preventDefault();
             console.log('Redirigiendo a configuración de límites');
             
@@ -1078,9 +1469,6 @@ function initAdjustLimitsButton() {
             }
         });
     }
-    
-    // Eliminado código redundante de manejo modal
-    // El modal de límites ahora se maneja solo en la sección de configuración
 }
 
 // Inicializar botón de aplicar filtros
@@ -1094,7 +1482,7 @@ function initApplyFiltersButton() {
     }
     
     // Evento de clic para aplicar filtros
-    applyFiltersBtn.addEventListener('click', () => {
+    addDashboardListener(applyFiltersBtn, 'click', () => {
         // Leer valores de los filtros desde los elementos del DOM
         const selectedMachine = document.getElementById('selectedMachineText').getAttribute('data-value') || '';
         const selectedSensor = document.getElementById('selectedSensorText').getAttribute('data-value') || '';
@@ -1154,7 +1542,7 @@ function initDropdown(dropdownId, callback) {
     if (!toggle || !menu || !selectedText) return;
     
     // Toggle del menú
-    toggle.addEventListener('click', (e) => {
+    addDashboardListener(toggle, 'click', (e) => {
         e.stopPropagation();
         menu.classList.toggle('show');
         
@@ -1166,34 +1554,34 @@ function initDropdown(dropdownId, callback) {
         });
     });
     
-    // Selección de items
-    const items = menu.querySelectorAll('.filter-dropdown-item');
-    items.forEach(item => {
-        item.addEventListener('click', () => {
-            // Obtener valor seleccionado
-            const value = item.getAttribute('data-value');
-            const text = item.textContent;
-            
-            // Actualizar texto visible
-            selectedText.textContent = text;
-            selectedText.setAttribute('data-value', value);
-            
-            // Marcar item seleccionado
-            items.forEach(i => i.classList.remove('selected'));
-            item.classList.add('selected');
-            
-            // Cerrar dropdown
-            menu.classList.remove('show');
-            
-            // Ejecutar callback si existe
-            if (typeof callback === 'function') {
-                callback(value, text);
-            }
-        });
+    // Selección de items usando delegación de eventos
+    addDashboardListener(menu, 'click', (e) => {
+        const item = e.target.closest('.filter-dropdown-item');
+        if (!item) return;
+        
+        // Obtener valor seleccionado
+        const value = item.getAttribute('data-value');
+        const text = item.textContent;
+        
+        // Actualizar texto visible
+        selectedText.textContent = text;
+        selectedText.setAttribute('data-value', value);
+        
+        // Marcar item seleccionado
+        menu.querySelectorAll('.filter-dropdown-item').forEach(i => i.classList.remove('selected'));
+        item.classList.add('selected');
+        
+        // Cerrar dropdown
+        menu.classList.remove('show');
+        
+        // Ejecutar callback si existe
+        if (typeof callback === 'function') {
+            callback(value, text);
+        }
     });
     
     // Cerrar dropdown al hacer clic fuera
-    document.addEventListener('click', (e) => {
+    addDashboardListener(document, 'click', (e) => {
         if (!dropdown.contains(e.target)) {
             menu.classList.remove('show');
         }
@@ -1392,22 +1780,28 @@ function updateAlertsTable(alerts) {
         errorTypeCell.innerHTML = `<span class="status-level${errorType}">${severityText}</span>`;
     }
     
-    // Añadir manejadores de eventos para ver datos de vibración
-    const vibrationLinks = document.querySelectorAll('.view-vibration-data');
-    vibrationLinks.forEach(link => {
-        link.addEventListener('click', (e) => {
-            e.preventDefault();
-            const alertId = link.getAttribute('data-alert-id');
-            const dataId = link.getAttribute('data-id');
-            viewAlertDetails(alertId, dataId);
-        });
-    });
+    // Añadir manejadores de eventos para ver datos de vibración usando delegación
+    const alertsTable = document.getElementById('alertsTable');
+    if (alertsTable) {
+        // Remover listener previo si existe
+        const tableWrapper = alertsTable.closest('.table-wrapper') || alertsTable.parentElement;
+        if (tableWrapper) {
+            addDashboardListener(tableWrapper, 'click', (e) => {
+                const link = e.target.closest('.view-vibration-data');
+                if (!link) return;
+                
+                e.preventDefault();
+                const alertId = link.getAttribute('data-alert-id');
+                const dataId = link.getAttribute('data-id');
+                viewAlertDetails(alertId, dataId);
+            });
+        }
+    }
     
     // Inicializar el botón de actualizar
     const refreshBtn = document.getElementById('refreshAlertsTable');
     if (refreshBtn) {
-        refreshBtn.removeEventListener('click', loadSimplifiedAlerts);
-        refreshBtn.addEventListener('click', loadSimplifiedAlerts);
+        addDashboardListener(refreshBtn, 'click', loadSimplifiedAlerts);
     }
 }
 
@@ -1443,11 +1837,26 @@ function updateDashboardAlertCounts() {
 
 // Obtener filtros actuales para los datos de vibración
 function getVibrationFilters() {
-    return {
-        machine_id: getGlobalState('selectedMachine'),
-        sensor_id: getGlobalState('selectedSensor'),
-        timeRange: getGlobalState('timeRange')
+    const machineId = getGlobalState('selectedMachine');
+    const sensorId = getGlobalState('selectedSensor');
+    const timeRange = getGlobalState('timeRange');
+    
+    // Crear objeto de filtros con solo valores válidos
+    const filters = {
+        timeRange: timeRange
     };
+    
+    // Añadir machine_id solo si no es null, undefined o string vacío
+    if (machineId !== null && machineId !== undefined && machineId !== "") {
+        filters.machine_id = machineId;
+    }
+    
+    // Añadir sensor_id solo si no es null, undefined o string vacío
+    if (sensorId !== null && sensorId !== undefined && sensorId !== "") {
+        filters.sensor_id = sensorId;
+    }
+    
+    return filters;
 }
 
 // Ocultar gráficos hasta que se apliquen filtros
@@ -1543,4 +1952,115 @@ window.viewAlertDetails = viewAlertDetails;
 window.acknowledgeAlert = acknowledgeAlert;
 window.getVibrationFilters = getVibrationFilters;
 window.getSeverityText = getSeverityText;
-window.updateDashboardAlertCounts = updateDashboardAlertCounts; 
+window.updateDashboardAlertCounts = updateDashboardAlertCounts;
+window.cleanupDashboardListeners = cleanupDashboardListeners;
+
+// Modificar las funciones de fetch para aceptar señal de cancelación
+function fetchVibrationData(filters, signal) {
+    logDashboard('debug', 'Solicitando datos de vibración');
+    const startTime = performance.now();
+    
+    const url = new URL('/api/vibration-data', window.location.origin);
+    
+    // Añadir filtros a la URL
+    if (filters) {
+        Object.keys(filters).forEach(key => {
+            if (filters[key] !== null && filters[key] !== undefined) {
+                url.searchParams.append(key, filters[key]);
+            }
+        });
+    }
+    
+    logDashboard('debug', `URL de solicitud: ${url.toString()}`);
+    
+    return fetch(url, { signal })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`Error HTTP: ${response.status} ${response.statusText}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            logDashboard('debug', `Datos de vibración recibidos (${data.length} registros)`, null, startTime);
+            return data;
+        })
+        .catch(error => {
+            // Usar el sistema centralizado de manejo de errores
+            handleAjaxError(error, 'obtención de datos de vibración', true, {
+                url: url.toString(),
+                filters: filters,
+                elapsedTime: performance.now() - startTime
+            });
+            throw error; // Re-lanzar el error para manejo adicional
+        });
+}
+
+function fetchAlerts(signal) {
+    logDashboard('debug', 'Solicitando datos de alertas');
+    const startTime = performance.now();
+    
+    const selectedMachine = getGlobalState('selectedMachine');
+    const selectedSensor = getGlobalState('selectedSensor');
+    
+    if (!selectedMachine || !selectedSensor) {
+        logDashboard('warn', 'No se pueden obtener alertas sin máquina y sensor seleccionados');
+        return Promise.resolve(null);
+    }
+    
+    const url = `/api/alerts?machine_id=${selectedMachine}&sensor_id=${selectedSensor}`;
+    logDashboard('debug', `URL de solicitud de alertas: ${url}`);
+    
+    return fetch(url, { signal })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`Error HTTP: ${response.status} ${response.statusText}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            logDashboard('debug', `Alertas recibidas (${data.length} registros)`, null, startTime);
+            return data;
+        })
+        .catch(error => {
+            // Usar el sistema centralizado de manejo de errores
+            handleAjaxError(error, 'obtención de alertas', true, {
+                url: url,
+                machine: selectedMachine,
+                sensor: selectedSensor,
+                elapsedTime: performance.now() - startTime
+            });
+            throw error; // Re-lanzar el error para manejo adicional
+        });
+}
+
+// Función para gestionar event listeners
+function addDashboardListener(element, event, handler, options = false) {
+    if (!element) {
+        logDashboard('warn', 'addDashboardListener: Elemento no válido');
+        return null;
+    }
+    
+    return addManagedEventListener(element, event, handler, 'dashboard', options);
+}
+
+// Función para limpiar todos los listeners del dashboard
+function cleanupDashboardListeners() {
+    logDashboard('info', 'Limpiando event listeners del dashboard');
+    
+    // Cancelar actualizaciones pendientes
+    cancelDashboardUpdates();
+    
+    // Limpiar todos los event listeners de la categoría dashboard
+    const count = cleanupEventListenersByCategory('dashboard');
+    
+    logDashboard('info', `${count} event listeners del dashboard eliminados`);
+    return count;
+}
+
+// Limpiar listeners al desmontar la página del dashboard
+addManagedEventListener(document, 'pageChanged', function(event) {
+    if (event.detail && event.detail.from === 'dashboard') {
+        logDashboard('info', 'Saliendo del dashboard, limpiando listeners...');
+        cleanupDashboardListeners();
+    }
+}, 'navigation'); 
