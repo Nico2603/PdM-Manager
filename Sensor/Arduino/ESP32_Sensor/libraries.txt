@@ -1,0 +1,25 @@
+# Bibliotecas requeridas para ESP32_Sensor
+
+# Incluidas con ESP32 (no requieren instalación manual)
+- WiFi
+- Wire
+- HTTPClient
+
+# Instalar desde el Gestor de Bibliotecas de Arduino IDE
+- Adafruit MPU6050 (versión 2.0.0 o superior)
+- Adafruit Unified Sensor (versión 1.1.4 o superior)
+- Adafruit BusIO (automáticamente instalado como dependencia)
+- ArduinoJson (versión 6.19.4 o superior)
+
+# Configuración de la placa
+- ESP32 Dev Module
+- CPU Frequency: 240MHz
+- Flash Frequency: 80MHz
+- Flash Mode: QIO
+- Flash Size: 4MB
+- Partition Scheme: Default 4MB with spiffs
+- Upload Speed: 921600
+- Core Debug Level: None
+
+# Notas de compatibilidad
+Las versiones de biblioteca se han probado con Arduino IDE 1.8.19 y paquete ESP32 versión 2.0.2 
