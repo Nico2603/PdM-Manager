@@ -278,7 +278,19 @@ function initCollapseFilters() {
     const filterPanel = document.querySelector('.filter-panel');
     
     if (expandBtn && filterPanel) {
+        // Restaurar estado anterior si existe
+        const savedState = localStorage.getItem('filterPanelState');
+        if (savedState === 'collapsed') {
+            filterPanel.classList.remove('show');
+            const icon = expandBtn.querySelector('i');
+            if (icon) {
+                icon.className = 'fas fa-chevron-down';
+                expandBtn.setAttribute('title', 'Expandir filtros');
+            }
+        }
+        
         addDashboardListener(expandBtn, 'click', () => {
+            // Toggle de la clase show
             filterPanel.classList.toggle('show');
             
             // Cambiar icono
@@ -287,11 +299,20 @@ function initCollapseFilters() {
                 if (filterPanel.classList.contains('show')) {
                     icon.className = 'fas fa-chevron-up';
                     expandBtn.setAttribute('title', 'Minimizar filtros');
+                    // Guardar estado en localStorage
+                    localStorage.setItem('filterPanelState', 'expanded');
                 } else {
                     icon.className = 'fas fa-chevron-down';
                     expandBtn.setAttribute('title', 'Expandir filtros');
+                    // Guardar estado en localStorage
+                    localStorage.setItem('filterPanelState', 'collapsed');
                 }
             }
+            
+            // Disparar evento para que otros componentes puedan reaccionar
+            document.dispatchEvent(new CustomEvent('filterPanelToggled', {
+                detail: { isExpanded: filterPanel.classList.contains('show') }
+            }));
         });
     }
 }
@@ -1413,16 +1434,21 @@ function initAdjustLimitsButton() {
             event.preventDefault();
             console.log('Redirigiendo a configuración de límites');
             
-            // La forma correcta es usar esta sintaxis para dirigir a la subpestaña de límites
+            // Usar la notación correcta para configuración y subpestaña de límites
             window.location.hash = 'configuracion:limites';
             
-            // También podemos forzar específicamente la activación de la pestaña
-            setTimeout(() => {
-                const limiteTab = document.querySelector('.tab-item[data-tab="limites"]');
-                if (limiteTab) {
-                    limiteTab.click();
+            // Eliminar el timeout innecesario y usar un enfoque más directo
+            // para activar la pestaña cuando la navegación esté completa
+            document.addEventListener('pageChanged', function activateTab(e) {
+                if (e.detail.to === 'configuracion:limites') {
+                    const limiteTab = document.querySelector('.tab-item[data-tab="limites"]');
+                    if (limiteTab && !limiteTab.classList.contains('active')) {
+                        limiteTab.click();
+                    }
+                    // Remover el listener después de usarlo para evitar duplicados
+                    document.removeEventListener('pageChanged', activateTab);
                 }
-            }, 100);
+            }, { once: true });
         });
     }
 }

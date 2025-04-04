@@ -3,9 +3,10 @@
 from sqlalchemy.orm import Session
 from datetime import datetime
 from app.models import Sensor, VibrationData, Machine, Model, Alert, LimitConfig
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Type
 from app.logger import log_warning
 from app.serializers import remove_sa_instance as serializer_remove_sa_instance
+from app.database import cached_query, invalidate_cache
 
 def remove_sa_instance(obj_dict):
     """
@@ -16,48 +17,91 @@ def remove_sa_instance(obj_dict):
     log_warning("Función remove_sa_instance en crud.py está obsoleta. Usar app.serializers.remove_sa_instance")
     return serializer_remove_sa_instance(obj_dict)
 
+# --- Funciones CRUD genéricas ---
+
+@cached_query(ttl=30)
+def get_items(db: Session, model_class: Type, skip: int = 0, limit: int = 100) -> List[Dict[str, Any]]:
+    """Obtiene una lista de elementos de un modelo específico"""
+    items = db.query(model_class).offset(skip).limit(limit).all()
+    return [serializer_remove_sa_instance(item.__dict__) for item in items]
+
+def get_item_by_id(db: Session, model_class: Type, id_field, id_value: int) -> Optional[Any]:
+    """Obtiene un elemento por su ID"""
+    return db.query(model_class).filter(id_field == id_value).first()
+
+@cached_query(ttl=30)
+def get_item_dict(db: Session, model_class: Type, id_field, id_value: int) -> Optional[Dict[str, Any]]:
+    """Obtiene un elemento por su ID (como diccionario)"""
+    item = get_item_by_id(db, model_class, id_field, id_value)
+    if item:
+        return serializer_remove_sa_instance(item.__dict__)
+    return None
+
+def create_item(db: Session, item: Any) -> Dict[str, Any]:
+    """Crea un nuevo elemento"""
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    
+    # Invalidar caché relacionada con este tipo de elemento
+    model_name = item.__class__.__name__.lower()
+    invalidate_cache(f"get_items_{model_name}")
+    invalidate_cache(f"get_item_dict_{model_name}")
+    
+    return serializer_remove_sa_instance(item.__dict__)
+
+def update_item(db: Session, item: Any) -> Dict[str, Any]:
+    """Actualiza un elemento existente"""
+    db.commit()
+    db.refresh(item)
+    
+    # Invalidar caché relacionada con este tipo de elemento
+    model_name = item.__class__.__name__.lower()
+    invalidate_cache(f"get_items_{model_name}")
+    invalidate_cache(f"get_item_dict_{model_name}")
+    
+    return serializer_remove_sa_instance(item.__dict__)
+
+def delete_item(db: Session, model_class: Type, id_field, id_value: int) -> bool:
+    """Elimina un elemento"""
+    item = get_item_by_id(db, model_class, id_field, id_value)
+    if item:
+        db.delete(item)
+        db.commit()
+        
+        # Invalidar caché relacionada con este tipo de elemento
+        model_name = model_class.__name__.lower()
+        invalidate_cache(f"get_items_{model_name}")
+        invalidate_cache(f"get_item_dict_{model_name}")
+        
+        return True
+    return False
+
 # --- Funciones CRUD para Sensores ---
 
 def get_sensors(db: Session, skip: int = 0, limit: int = 100) -> List[Dict[str, Any]]:
     """Obtiene la lista de todos los sensores"""
-    sensors = db.query(Sensor).offset(skip).limit(limit).all()
-    return [serializer_remove_sa_instance(sensor.__dict__) for sensor in sensors]
+    return get_items(db, Sensor, skip, limit)
 
 def get_sensor_by_id(db: Session, sensor_id: int) -> Optional[Sensor]:
     """Obtiene un sensor por su ID"""
-    return db.query(Sensor).filter(Sensor.sensor_id == sensor_id).first()
+    return get_item_by_id(db, Sensor, Sensor.sensor_id, sensor_id)
 
 def get_sensor(db: Session, sensor_id: int) -> Optional[Dict[str, Any]]:
     """Obtiene un sensor por su ID (como diccionario)"""
-    sensor = get_sensor_by_id(db, sensor_id)
-    if sensor:
-        return serializer_remove_sa_instance(sensor.__dict__)
-    return None
+    return get_item_dict(db, Sensor, Sensor.sensor_id, sensor_id)
 
 def create_sensor(db: Session, sensor: Sensor) -> Dict[str, Any]:
     """Crea un nuevo sensor"""
-    # model_id debe estar presente pero no lanzamos error si es None
-    # ya que el nuevo esquema lo permite como nullable
-    
-    db.add(sensor)
-    db.commit()
-    db.refresh(sensor)
-    return serializer_remove_sa_instance(sensor.__dict__)
+    return create_item(db, sensor)
 
 def update_sensor(db: Session, sensor: Sensor) -> Dict[str, Any]:
     """Actualiza un sensor existente"""
-    db.commit()
-    db.refresh(sensor)
-    return serializer_remove_sa_instance(sensor.__dict__)
+    return update_item(db, sensor)
 
 def delete_sensor(db: Session, sensor_id: int) -> bool:
     """Elimina un sensor"""
-    sensor = get_sensor_by_id(db, sensor_id)
-    if sensor:
-        db.delete(sensor)
-        db.commit()
-        return True
-    return False
+    return delete_item(db, Sensor, Sensor.sensor_id, sensor_id)
 
 def get_machines_by_sensor(db: Session, sensor_id: int) -> List[Dict[str, Any]]:
     """Obtiene todas las máquinas asociadas a un sensor"""
@@ -167,12 +211,11 @@ def get_alerts_by_sensor_and_dates(
 
 def get_machines(db: Session, skip: int = 0, limit: int = 100) -> List[Dict[str, Any]]:
     """Obtiene la lista de todas las máquinas"""
-    machines = db.query(Machine).offset(skip).limit(limit).all()
-    return [serializer_remove_sa_instance(machine.__dict__) for machine in machines]
+    return get_items(db, Machine, skip, limit)
 
 def get_machine_by_id(db: Session, machine_id: int) -> Optional[Machine]:
     """Obtiene una máquina por su ID"""
-    return db.query(Machine).filter(Machine.machine_id == machine_id).first()
+    return get_item_by_id(db, Machine, Machine.machine_id, machine_id)
 
 def get_machines_with_status(db: Session, skip: int = 0, limit: int = 100) -> List[Dict[str, Any]]:
     """Obtiene las máquinas con información de estado"""
@@ -220,60 +263,37 @@ def get_machines_with_status(db: Session, skip: int = 0, limit: int = 100) -> Li
 
 def create_machine(db: Session, machine: Machine) -> Dict[str, Any]:
     """Crea una nueva máquina"""
-    # El sensor_id ya no es obligatorio para crear una máquina
-    
-    db.add(machine)
-    db.commit()
-    db.refresh(machine)
-    return serializer_remove_sa_instance(machine.__dict__)
+    return create_item(db, machine)
 
 def update_machine(db: Session, machine: Machine) -> Dict[str, Any]:
     """Actualiza una máquina existente"""
-    db.commit()
-    db.refresh(machine)
-    return serializer_remove_sa_instance(machine.__dict__)
+    return update_item(db, machine)
 
 def delete_machine(db: Session, machine_id: int) -> bool:
     """Elimina una máquina"""
-    machine = get_machine_by_id(db, machine_id)
-    if machine:
-        db.delete(machine)
-        db.commit()
-        return True
-    return False
+    return delete_item(db, Machine, Machine.machine_id, machine_id)
 
 # --- Funciones CRUD para Modelos ---
 
 def get_models(db: Session, skip: int = 0, limit: int = 100) -> List[Dict[str, Any]]:
     """Obtiene la lista de todos los modelos"""
-    models_list = db.query(Model).offset(skip).limit(limit).all()
-    return [serializer_remove_sa_instance(model.__dict__) for model in models_list]
+    return get_items(db, Model, skip, limit)
 
 def get_model_by_id(db: Session, model_id: int) -> Optional[Model]:
     """Obtiene un modelo por su ID"""
-    return db.query(Model).filter(Model.model_id == model_id).first()
+    return get_item_by_id(db, Model, Model.model_id, model_id)
 
 def create_model(db: Session, model: Model) -> Dict[str, Any]:
     """Crea un nuevo modelo"""
-    db.add(model)
-    db.commit()
-    db.refresh(model)
-    return serializer_remove_sa_instance(model.__dict__)
+    return create_item(db, model)
 
 def update_model(db: Session, model: Model) -> Dict[str, Any]:
     """Actualiza un modelo existente"""
-    db.commit()
-    db.refresh(model)
-    return serializer_remove_sa_instance(model.__dict__)
+    return update_item(db, model)
 
 def delete_model(db: Session, model_id: int) -> bool:
     """Elimina un modelo"""
-    model = get_model_by_id(db, model_id)
-    if model:
-        db.delete(model)
-        db.commit()
-        return True
-    return False
+    return delete_item(db, Model, Model.model_id, model_id)
 
 # --- Funciones adicionales para la vista unificada ---
 
