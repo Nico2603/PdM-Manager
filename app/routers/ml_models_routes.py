@@ -1,4 +1,4 @@
-# app/routers/models.py
+# app/routers/ml_models_routes.py
 
 import os
 import shutil
@@ -6,36 +6,16 @@ import hashlib
 from fastapi import APIRouter, Depends, HTTPException, Form, File, UploadFile
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any, Optional
-from pydantic import BaseModel
 from werkzeug.utils import secure_filename
 
 from app.database import get_db
 from app import crud, models
 from app.serializers import create_response
 from app.logger import log_error, log_info
-from app.config import pydantic_config
-
-# Definir rutas base
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-MODELO_DIR = os.path.join(BASE_DIR, "Modelo")
-SCALER_DIR = os.path.join(BASE_DIR, "Scaler")
+from app.schemas import ModelCreate, ModelUpdate
+from app.utils.model_loader import MODELO_DIR, SCALER_DIR
 
 router = APIRouter(prefix="/api/models", tags=["models"])
-
-class ModelBase(BaseModel):
-    name: str
-    description: Optional[str] = None
-    
-    model_config = pydantic_config
-
-class ModelCreate(ModelBase):
-    pass
-
-class ModelUpdate(BaseModel):
-    name: Optional[str] = None
-    description: Optional[str] = None
-    
-    model_config = pydantic_config
 
 def save_uploaded_file(upload_file: UploadFile, directory: str) -> str:
     """
@@ -256,43 +236,36 @@ async def delete_model_endpoint(model_id: int, db: Session = Depends(get_db)):
                 success=False
             )
         
-        # Guardar las rutas de los archivos
-        model_h5_path = model.route_h5
-        scaler_path = model.route_pkl
+        # Eliminar archivos asociados
+        if model.route_h5 and os.path.exists(model.route_h5):
+            try:
+                os.remove(model.route_h5)
+                log_info(f"Archivo de modelo eliminado: {model.route_h5}")
+            except Exception as e:
+                log_error(e, f"No se pudo eliminar el archivo de modelo: {model.route_h5}")
+        
+        if model.route_pkl and os.path.exists(model.route_pkl):
+            try:
+                os.remove(model.route_pkl)
+                log_info(f"Archivo de escalador eliminado: {model.route_pkl}")
+            except Exception as e:
+                log_error(e, f"No se pudo eliminar el archivo de escalador: {model.route_pkl}")
         
         # Eliminar el modelo de la base de datos
-        result = crud.delete_model(db, model_id)
-        if not result:
+        success = crud.delete_model(db, model_id)
+        
+        if success:
+            return create_response(
+                data=None,
+                message=f"Modelo con ID {model_id} eliminado correctamente",
+                success=True
+            )
+        else:
             return create_response(
                 data=None,
                 message=f"No se pudo eliminar el modelo con ID {model_id}",
                 success=False
             )
-        
-        # Eliminar los archivos si existen
-        files_deleted = []
-        
-        if model_h5_path and os.path.exists(model_h5_path):
-            try:
-                os.remove(model_h5_path)
-                files_deleted.append(model_h5_path)
-                log_info(f"Archivo de modelo eliminado: {model_h5_path}")
-            except Exception as e:
-                log_error(e, f"No se pudo eliminar el archivo de modelo: {model_h5_path}")
-        
-        if scaler_path and os.path.exists(scaler_path):
-            try:
-                os.remove(scaler_path)
-                files_deleted.append(scaler_path)
-                log_info(f"Archivo de escalador eliminado: {scaler_path}")
-            except Exception as e:
-                log_error(e, f"No se pudo eliminar el archivo de escalador: {scaler_path}")
-        
-        return create_response(
-            data={"files_deleted": files_deleted},
-            message="Modelo eliminado correctamente",
-            success=True
-        )
     except Exception as e:
         log_error(e, "Error al eliminar modelo")
         return create_response(

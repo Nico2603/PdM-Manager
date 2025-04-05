@@ -689,8 +689,8 @@ function refreshModelsTable() {
     if (!shouldUpdate()) {
         logWebSocket('debug', 'Actualizaciones demasiado frecuentes, encolando actualización de modelos');
         queueUpdate(() => {
-            if (typeof loadModelsTable === 'function') {
-                loadModelsTable();
+            if (typeof window.refreshModelsTable === 'function' && window.refreshModelsTable !== refreshModelsTable) {
+                window.refreshModelsTable();
             }
         });
         return;
@@ -699,15 +699,79 @@ function refreshModelsTable() {
     logWebSocket('debug', 'Ejecutando actualización inmediata de tabla de modelos');
     const startTime = performance.now();
     
-    if (typeof loadModelsTable === 'function') {
-        try {
-            loadModelsTable();
+    try {
+        // Intentar usar la función en el espacio global
+        if (typeof window.refreshModelsTable === 'function' && window.refreshModelsTable !== refreshModelsTable) {
+            window.refreshModelsTable();
             logWebSocket('debug', 'Actualización de tabla de modelos completada', null, startTime);
-        } catch (error) {
-            handleWebSocketError(error, 'actualización de tabla de modelos');
+        } else {
+            // Si no está disponible, realizar solicitud HTTP directamente
+            const modelsTable = document.getElementById('modelsTable');
+            if (modelsTable) {
+                const tbody = modelsTable.querySelector('tbody');
+                if (tbody) {
+                    fetch(`${API_CONFIG.BASE_URL}/api/models`)
+                        .then(response => response.ok ? response.json() : Promise.reject('Error en la respuesta'))
+                        .then(data => {
+                            if (Array.isArray(data) || (data && Array.isArray(data.data))) {
+                                const models = Array.isArray(data) ? data : data.data;
+                                
+                                // Limpiar tabla
+                                tbody.innerHTML = '';
+                                
+                                if (models.length === 0) {
+                                    const emptyRow = document.createElement('tr');
+                                    emptyRow.innerHTML = `<td colspan="4" class="text-center">No hay modelos configurados</td>`;
+                                    tbody.appendChild(emptyRow);
+                                } else {
+                                    // Poblar tabla con datos
+                                    models.forEach(model => {
+                                        const row = document.createElement('tr');
+                                        row.innerHTML = `
+                                            <td>${model.model_id}</td>
+                                            <td>${model.name || 'Sin nombre'}</td>
+                                            <td>${model.description || 'Sin descripción'}</td>
+                                            <td class="table-actions">
+                                                <button class="btn btn-sm btn-icon edit-model" data-id="${model.model_id}">
+                                                    <i class="fas fa-edit"></i>
+                                                </button>
+                                                <button class="btn btn-sm btn-icon delete-model" data-id="${model.model_id}">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            </td>
+                                        `;
+                                        tbody.appendChild(row);
+                                    });
+                                }
+                                
+                                // Reinicializar listeners si está disponible
+                                if (typeof window.setupModelTableActions === 'function') {
+                                    window.setupModelTableActions();
+                                }
+                                
+                                // Actualizar selectores si está disponible
+                                if (typeof window.updateModelSelectors === 'function') {
+                                    window.updateModelSelectors(models);
+                                }
+                                
+                                // Disparar evento para otros módulos
+                                const event = new CustomEvent('modelsTableUpdated', {
+                                    detail: { count: models.length, action: 'refresh' }
+                                });
+                                document.dispatchEvent(event);
+                            }
+                            logWebSocket('debug', 'Actualización directa de tabla de modelos completada', null, startTime);
+                        })
+                        .catch(error => {
+                            handleWebSocketError(error, 'actualización directa de tabla de modelos');
+                        });
+                }
+            } else {
+                logWebSocket('debug', 'Tabla de modelos no encontrada en el DOM actual');
+            }
         }
-    } else {
-        logWebSocket('warn', 'Función loadModelsTable no disponible');
+    } catch (error) {
+        handleWebSocketError(error, 'actualización de tabla de modelos');
     }
 }
 

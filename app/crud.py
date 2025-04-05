@@ -87,6 +87,10 @@ def get_sensor_by_id(db: Session, sensor_id: int) -> Optional[Sensor]:
     """Obtiene un sensor por su ID"""
     return get_item_by_id(db, Sensor, Sensor.sensor_id, sensor_id)
 
+def get_sensor_by_name(db: Session, sensor_name: str) -> Optional[Sensor]:
+    """Obtiene un sensor por su nombre"""
+    return db.query(Sensor).filter(Sensor.name == sensor_name).first()
+
 def get_sensor(db: Session, sensor_id: int) -> Optional[Dict[str, Any]]:
     """Obtiene un sensor por su ID (como diccionario)"""
     return get_item_dict(db, Sensor, Sensor.sensor_id, sensor_id)
@@ -132,6 +136,43 @@ def create_vibration_data(
     if custom_date:
         db_data.date = custom_date
     
+    db.add(db_data)
+    db.commit()
+    db.refresh(db_data)
+    return db_data
+
+def create_vibration_data_with_date(
+    db: Session,
+    sensor_id: int,
+    acceleration_x: float,
+    acceleration_y: float,
+    acceleration_z: float,
+    severity: int = 0,
+    date: datetime = None
+) -> VibrationData:
+    """
+    Crea un nuevo registro de datos de vibración con fecha específica
+    Si no se proporciona fecha, se usa la fecha actual
+    """
+    # Verificar si el sensor existe
+    sensor = get_sensor_by_id(db, sensor_id)
+    if not sensor:
+        raise ValueError(f"El sensor con ID {sensor_id} no existe")
+    
+    # Crear objeto de datos
+    db_data = VibrationData(
+        sensor_id=sensor_id,
+        acceleration_x=acceleration_x,
+        acceleration_y=acceleration_y,
+        acceleration_z=acceleration_z,
+        severity=severity
+    )
+    
+    # Establecer fecha personalizada si se proporcionó
+    if date:
+        db_data.date = date
+    
+    # Guardar en la base de datos
     db.add(db_data)
     db.commit()
     db.refresh(db_data)
@@ -216,6 +257,10 @@ def get_machines(db: Session, skip: int = 0, limit: int = 100) -> List[Dict[str,
 def get_machine_by_id(db: Session, machine_id: int) -> Optional[Machine]:
     """Obtiene una máquina por su ID"""
     return get_item_by_id(db, Machine, Machine.machine_id, machine_id)
+
+def get_machine_by_sensor_id(db: Session, sensor_id: int) -> Optional[Machine]:
+    """Obtiene una máquina asociada a un sensor específico"""
+    return db.query(Machine).filter(Machine.sensor_id == sensor_id).first()
 
 def get_machines_with_status(db: Session, skip: int = 0, limit: int = 100) -> List[Dict[str, Any]]:
     """Obtiene las máquinas con información de estado"""

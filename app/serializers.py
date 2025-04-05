@@ -4,6 +4,7 @@ Utilidades para serializar objetos SQLAlchemy a formatos JSON seguros
 import datetime
 import decimal
 from typing import Any, Dict, List, Union, Optional
+from fastapi.responses import JSONResponse
 
 def remove_sa_instance(obj_dict: Dict[str, Any]) -> Dict[str, Any]:
     """
@@ -18,7 +19,7 @@ def remove_sa_instance(obj_dict: Dict[str, Any]) -> Dict[str, Any]:
     """
     if not isinstance(obj_dict, dict):
         return obj_dict
-        
+    
     # Eliminar atributos SQLAlchemy
     if '_sa_instance_state' in obj_dict:
         obj_dict.pop('_sa_instance_state')
@@ -41,33 +42,32 @@ def remove_sa_instance(obj_dict: Dict[str, Any]) -> Dict[str, Any]:
     return obj_dict
 
 def serialize_model(
-    model: Any, 
-    exclude_fields: Optional[List[str]] = None
+    model_instance: Any,
+    exclude: List[str] = None
 ) -> Dict[str, Any]:
     """
-    Serializa un modelo SQLAlchemy a un diccionario JSON seguro
+    Serializa un modelo SQLAlchemy a un diccionario
+    excluyendo campos específicos
     
     Args:
-        model: Modelo SQLAlchemy a serializar
-        exclude_fields: Lista de campos a excluir
+        model_instance: Instancia del modelo SQLAlchemy
+        exclude: Lista de campos a excluir
         
     Returns:
-        Diccionario listo para serializar a JSON
+        Diccionario serializado
     """
-    if model is None:
+    if not model_instance:
         return {}
     
-    exclude_fields = exclude_fields or []
+    exclude = exclude or []
     
-    # Convertir modelo a diccionario
-    model_dict = model.__dict__.copy()
+    # Convertir a diccionario
+    model_dict = {}
+    for column in model_instance.__table__.columns:
+        if column.name not in exclude:
+            model_dict[column.name] = getattr(model_instance, column.name)
     
-    # Eliminar campos excluidos
-    for field in exclude_fields:
-        if field in model_dict:
-            model_dict.pop(field)
-    
-    # Limpiar atributos SQLAlchemy y convertir tipos
+    # Limpiar atributos SQLAlchemy
     return remove_sa_instance(model_dict)
 
 def serialize_list(
@@ -87,37 +87,33 @@ def serialize_list(
     return [serialize_model(item, exclude_fields) for item in model_list]
 
 def create_response(
-    success: bool = True,
     data: Any = None,
-    message: str = "",
-    error: Optional[str] = None,
-    status_code: int = 200
+    message: str = "OK",
+    success: bool = True,
+    status_code: int = 200,
+    error: str = None
 ) -> Dict[str, Any]:
     """
-    Crea una respuesta estandarizada para las APIs
+    Crea una respuesta JSON estándar para la API
     
     Args:
+        data: Los datos a devolver
+        message: Un mensaje informativo
         success: Indica si la operación fue exitosa
-        data: Datos a incluir en la respuesta
-        message: Mensaje informativo
-        error: Mensaje de error (si hubo uno)
-        status_code: Código de estado HTTP
-        
+        status_code: Código de estado HTTP opcional (por defecto 200)
+        error: Mensaje de error opcional
+    
     Returns:
-        Diccionario con la respuesta estandarizada
+        Dict: Un diccionario con formato estándar para respuestas
     """
+    
     response = {
-        "success": success,
-        "status_code": status_code
+        "data": data,
+        "message": message,
+        "success": success
     }
     
-    if data is not None:
-        response["data"] = data
-        
-    if message:
-        response["message"] = message
-        
     if error:
         response["error"] = error
-        
+    
     return response 

@@ -4,61 +4,83 @@ import os
 import numpy as np
 import pandas as pd
 from datetime import datetime, timedelta
-from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any, Optional
-from pydantic import BaseModel
 
 from app.database import get_db
 from app import crud, models
 from app.serializers import create_response, remove_sa_instance
-from app.logger import log_error, log_info, log_warning
-from app.config import pydantic_config
-
-# Definir rutas base
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-MODELO_DIR = os.path.join(BASE_DIR, "Modelo")
-SCALER_DIR = os.path.join(BASE_DIR, "Scaler")
+from app.logger import log_error, log_info, log_warning, log_scaling
+from app.schemas import SensorData, ESP32SensorData, SensorDataBatch, AlertResponse
+from app.utils.model_loader import MODELO_DIR, SCALER_DIR, load_model_safely, load_scaler_safely
+from app.utils.data_analysis import sample_data_adaptive, sample_data_uniform, process_vibration_data, detect_severity_pattern
+from app.utils.notifications import notify_alert
 
 router = APIRouter(tags=["vibration_data"])
 
-class SensorData(BaseModel):
-    sensor_id: int
-    acceleration_x: float
-    acceleration_y: float
-    acceleration_z: float
-    
-    model_config = pydantic_config
-
-class SensorDataBatch(BaseModel):
-    registros: List[SensorData]
-    
-    model_config = pydantic_config
-
-@router.get("/get_vibration_data")
+# Endpoint unificado para obtener datos de vibración (combina /get_vibration_data y /api/vibration-data)
+@router.get("/api/vibration-data")
 def get_vibration_data(
-    sensor_id: int,
-    start_date: str,
-    end_date: str,
-    limit: Optional[int] = None,
-    sample_method: Optional[str] = "adaptive",  # 'adaptive', 'uniform', 'none'
+    sensor_id: Optional[int] = Query(None, description="ID del sensor"),
+    machine_id: Optional[int] = Query(None, description="ID de la máquina"),
+    start_date: Optional[str] = Query(None, description="Fecha de inicio (YYYY-MM-DDTHH:MM:SS)"),
+    end_date: Optional[str] = Query(None, description="Fecha de fin (YYYY-MM-DDTHH:MM:SS)"),
+    time_range: Optional[str] = Query("day", description="Rango de tiempo predefinido: hour, day, week, month"),
+    sample_method: Optional[str] = Query("adaptive", description="Método de muestreo: adaptive, uniform, none"),
+    limit: int = Query(1000, description="Número máximo de registros a devolver"),
     db: Session = Depends(get_db)
 ):
     """
-    Obtiene los datos de vibración para un sensor en un rango de fechas, 
-    con diferentes métodos de muestreo para optimización de visualización.
+    Obtiene los datos de vibración para un sensor en un rango de fechas.
+    Soporta dos modos de operación:
+    1. Con start_date y end_date específicos
+    2. Con time_range predefinido
     """
     try:
-        # Convertir fechas de strings a objetos datetime
-        try:
-            start_date_obj = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
-            end_date_obj = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
-        except ValueError:
+        # Si se proporciona machine_id pero no sensor_id, obtener el sensor asociado
+        if machine_id is not None and sensor_id is None:
+            machine = crud.get_machine_by_id(db, machine_id)
+            if machine and machine.sensor_id:
+                sensor_id = machine.sensor_id
+            else:
+                return create_response(
+                    data=[],
+                    message=f"La máquina con ID {machine_id} no tiene un sensor asociado",
+                    success=True
+                )
+        
+        # Validar que tenemos un sensor_id
+        if sensor_id is None:
             return create_response(
                 data=None,
-                message="Formato de fecha inválido. Use ISO format (YYYY-MM-DDTHH:MM:SS)",
+                message="Se requiere sensor_id o machine_id con sensor asociado",
                 success=False
             )
+            
+        # Si no se proporcionan fechas específicas, usar time_range
+        if not start_date or not end_date:
+            end_date_obj = datetime.now()
+            
+            if time_range == "hour":
+                start_date_obj = end_date_obj - timedelta(hours=1)
+            elif time_range == "week":
+                start_date_obj = end_date_obj - timedelta(weeks=1)
+            elif time_range == "month":
+                start_date_obj = end_date_obj - timedelta(days=30)
+            else:  # default: day
+                start_date_obj = end_date_obj - timedelta(days=1)
+        else:
+            # Convertir fechas de strings a objetos datetime
+            try:
+                start_date_obj = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
+                end_date_obj = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
+            except ValueError:
+                return create_response(
+                    data=None,
+                    message="Formato de fecha inválido. Use ISO format (YYYY-MM-DDTHH:MM:SS)",
+                    success=False
+                )
         
         # Obtener datos de vibración sin procesar
         vibration_data = crud.get_vibration_data_by_sensor_and_dates(
@@ -78,61 +100,9 @@ def get_vibration_data(
         # Aplicar muestreo si es necesario
         if sample_method != "none" and limit and len(data_list) > limit:
             if sample_method == "uniform":
-                # Muestreo uniforme
-                indices = np.linspace(0, len(data_list) - 1, limit, dtype=int)
-                data_list = [data_list[i] for i in indices]
+                data_list = sample_data_uniform(data_list, limit)
             elif sample_method == "adaptive":
-                # Muestreo adaptativo que conserva extremos
-                # Convertir a DataFrame para facilitar el procesamiento
-                df = pd.DataFrame(data_list)
-                
-                # Calcular el "interés" de cada punto basado en la severidad y valores extremos
-                df['interest'] = df['severity']
-                
-                for col in ['acceleration_x', 'acceleration_y', 'acceleration_z']:
-                    if col in df.columns:
-                        # Normalizar al rango [0,1]
-                        min_val = df[col].min()
-                        max_val = df[col].max()
-                        range_val = max_val - min_val
-                        
-                        if range_val > 0:
-                            normalized = (df[col] - min_val) / range_val
-                            # Aumentar interés para valores extremos (cerca de 0 o 1)
-                            df['interest'] += abs(normalized - 0.5) * 2
-                
-                # Ordenar por interés descendente
-                df = df.sort_values('interest', ascending=False)
-                
-                # Tomar los top_n puntos más interesantes
-                top_n = min(limit // 3, len(df))
-                if top_n > 0:
-                    most_interesting = df.head(top_n)
-                    remaining = df.iloc[top_n:].copy()
-                else:
-                    most_interesting = pd.DataFrame()
-                    remaining = df.copy()
-                
-                # Para los puntos restantes, hacer un muestreo uniforme
-                remaining_samples = limit - len(most_interesting)
-                if remaining_samples > 0 and len(remaining) > remaining_samples:
-                    # Reordenar por fecha
-                    remaining = remaining.sort_values('date')
-                    indices = np.linspace(0, len(remaining) - 1, remaining_samples, dtype=int)
-                    uniform_samples = remaining.iloc[indices]
-                else:
-                    uniform_samples = remaining
-                
-                # Combinar los puntos interesantes con el muestreo uniforme
-                combined = pd.concat([most_interesting, uniform_samples])
-                # Reordenar por fecha
-                combined = combined.sort_values('date')
-                
-                # Eliminar la columna de interés y convertir de nuevo a lista de diccionarios
-                if 'interest' in combined.columns:
-                    combined = combined.drop('interest', axis=1)
-                
-                data_list = combined.to_dict(orient='records')
+                data_list = sample_data_adaptive(data_list, limit)
         
         # Ordenar por fecha
         data_list.sort(key=lambda x: x['date'])
@@ -151,6 +121,7 @@ def get_vibration_data(
             success=False
         )
 
+# Endpoint unificado para recibir datos de sensores (combina /api/sensor_data y /api/vibration-data POST)
 @router.post("/api/sensor_data")
 def receive_sensor_data(sensor_data: SensorData, db: Session = Depends(get_db)):
     """
@@ -176,93 +147,79 @@ def receive_sensor_data(sensor_data: SensorData, db: Session = Depends(get_db)):
         scaler = None
         
         if sensor.model_id:
-            model_record = crud.get_model_by_id(db, sensor.model_id)
-            if model_record and model_record.route_h5 and model_record.route_pkl:
-                # Intentar cargar el modelo y el escalador
-                try:
-                    from app.main import load_model_safely, load_scaler_safely
-                    modelo = load_model_safely(model_record.route_h5)
-                    scaler = load_scaler_safely(model_record.route_pkl)
-                except ImportError:
-                    log_warning("No se pudo importar las funciones de carga de modelos")
+            # Obtener rutas de modelo y escalador
+            ml_model = crud.get_model_by_id(db, sensor.model_id)
+            if ml_model and ml_model.route_h5 and ml_model.route_pkl:
+                # Cargar modelo y escalador
+                modelo = load_model_safely(ml_model.route_h5)
+                scaler = load_scaler_safely(ml_model.route_pkl)
         
-        # Predicción inicial (por defecto: normal)
-        severity = 0
+        # Si no hay modelo específico para el sensor, usar modelos por defecto
+        if modelo is None or scaler is None:
+            # Aquí va la lógica para cargar modelos por defecto
+            model_path = os.path.join(MODELO_DIR, "modeloRNN_multiclase_v3_finetuned.h5")
+            scaler_path = os.path.join(SCALER_DIR, "scaler_RNN.pkl")
+            scaler_joblib_path = os.path.join(SCALER_DIR, "scaler_RNN_joblib.pkl")
+            
+            if modelo is None:
+                modelo = load_model_safely(model_path)
+            
+            if scaler is None:
+                # Intentar primero con joblib
+                scaler = load_scaler_safely(scaler_joblib_path)
+                if scaler is None:
+                    scaler = load_scaler_safely(scaler_path)
         
         # Obtener los límites de alerta
-        try:
-            limit_config = crud.get_limit_config(db)
-            if not limit_config:
-                # Crear configuración por defecto si no existe
-                from app.main import init_default_limits
-                limit_config = init_default_limits()
-        except Exception as e:
-            log_error(e, "Error al obtener límites de alerta")
-            # Usar valores por defecto
-            limit_config = None
+        limit_config = crud.get_limit_config(db)
         
-        # Evaluar condición básica basada en límites (sin modelo ML)
-        error_type = None
-        
-        if limit_config:
-            # Verificar eje X
-            if accel_x < limit_config.x_3inf or accel_x > limit_config.x_3sup:
-                severity = 3
-                error_type = 3
-            elif accel_x < limit_config.x_2inf or accel_x > limit_config.x_2sup:
-                severity = max(severity, 2)
-                error_type = 2 if severity == 2 else error_type
+        # Evaluar condición basada en límites
+        severity, error_type = process_vibration_data(accel_x, accel_y, accel_z, limit_config)
             
-            # Verificar eje Y
-            if accel_y < limit_config.y_3inf or accel_y > limit_config.y_3sup:
-                severity = 3
-                error_type = 3
-            elif accel_y < limit_config.y_2inf or accel_y > limit_config.y_2sup:
-                severity = max(severity, 2)
-                error_type = 2 if severity == 2 else error_type
-            
-            # Verificar eje Z
-            if accel_z < limit_config.z_3inf or accel_z > limit_config.z_3sup:
-                severity = 3
-                error_type = 3
-            elif accel_z < limit_config.z_2inf or accel_z > limit_config.z_2sup:
-                severity = max(severity, 2)
-                error_type = 2 if severity == 2 else error_type
-        
-        # Guardar datos de vibración
-        db_data = crud.create_vibration_data(
-            db=db,
-            sensor_id=sensor_id,
-            acceleration_x=accel_x,
-            acceleration_y=accel_y,
+        # Guardar los datos de vibración con la severidad calculada
+        vibration_data = crud.create_vibration_data(
+            db, 
+            sensor_id=sensor_id, 
+            acceleration_x=accel_x, 
+            acceleration_y=accel_y, 
             acceleration_z=accel_z,
             severity=severity
         )
         
         # Crear alerta si es necesario
+        alert_created = False
+        alert_id = None
         if error_type:
             alert = models.Alert(
                 sensor_id=sensor_id,
                 error_type=error_type,
-                data_id=db_data.data_id
+                data_id=vibration_data.data_id
             )
-            crud.create_alert(db, alert)
-        
+            db.add(alert)
+            db.commit()
+            db.refresh(alert)
+            alert_id = alert.log_id
+            alert_created = True
+            
+            # Notificar sobre la alerta generada
+            notify_alert(db, alert_id, error_type, str(sensor_id))
+            
         return create_response(
             data={
-                "data_id": db_data.data_id,
+                "sensor_id": sensor_id,
+                "data_id": vibration_data.data_id,
                 "severity": severity,
-                "alert_generated": error_type is not None
+                "alert_generated": alert_created
             },
-            message="Datos recibidos y procesados correctamente",
+            message="Datos de vibración recibidos y procesados correctamente",
             success=True
         )
-    
+        
     except Exception as e:
-        log_error(e, "Error al procesar datos del sensor")
+        log_error(e, "Error al recibir datos del sensor")
         return create_response(
             data=None,
-            message=f"Error al procesar datos del sensor: {str(e)}",
+            message=f"Error al procesar los datos: {str(e)}",
             success=False
         )
 
@@ -306,55 +263,372 @@ def receive_sensor_data_batch(batch_data: SensorDataBatch, db: Session = Depends
             success=False
         )
 
-@router.get("/api/vibration-data")
-def get_vibration_data_redirect(
-    time_range: str = "day",
-    data_type: Optional[str] = None,
-    sensor_id: Optional[int] = Query(None),
-    machine_id: Optional[int] = Query(None),
-    limit: int = 1000,
+@router.post("/api/vibration-data")
+def receive_esp32_data(sensor_data: ESP32SensorData, db: Session = Depends(get_db)):
+    """
+    Recibe y procesa datos de un sensor ESP32, con formato específico que incluye sensor_id como string
+    y timestamp como Unix timestamp.
+    """
+    try:
+        # Extraer datos del payload
+        sensor_id_str = sensor_data.sensor_id
+        timestamp = sensor_data.timestamp
+        accel_x = sensor_data.acceleration_x
+        accel_y = sensor_data.acceleration_y
+        accel_z = sensor_data.acceleration_z
+        
+        # Logging de la recepción para auditoría
+        log_info(f"Recibidos datos del sensor {sensor_id_str}. Timestamp: {timestamp}, Aceleraciones: [{accel_x}, {accel_y}, {accel_z}]")
+        
+        # Buscar el sensor por nombre o identificador
+        sensor = crud.get_sensor_by_name(db, sensor_id_str)
+        
+        # Si no se encuentra, intentar convertir a ID numérico
+        if not sensor:
+            try:
+                # Verificar si el sensor_id contiene un número al final
+                import re
+                numeric_part = re.search(r'\d+$', sensor_id_str)
+                if numeric_part:
+                    sensor_id_int = int(numeric_part.group())
+                    sensor = crud.get_sensor_by_id(db, sensor_id_int)
+            except (ValueError, TypeError):
+                pass
+                
+        if not sensor:
+            log_warning(f"El sensor con ID {sensor_id_str} no existe en la base de datos")
+            return create_response(
+                data=None,
+                message=f"El sensor {sensor_id_str} no está registrado en el sistema",
+                success=False,
+                status_code=404
+            )
+            
+        # Ahora tenemos el ID numérico del sensor
+        numeric_sensor_id = sensor.sensor_id
+        
+        # Cargar el modelo y escalador según la configuración del sensor
+        model_to_use = None  
+        scaler_to_use = None
+        scaler_path = "No disponible"
+        
+        # Verificar si hay un modelo asociado al sensor
+        if sensor.model_id:
+            model_record = crud.get_model_by_id(db, sensor.model_id)
+            if model_record:
+                # Intentar cargar el modelo si está disponible
+                if model_record.route_h5:
+                    model_to_use = load_model_safely(model_record.route_h5)
+                    if model_to_use:
+                        log_info(f"Modelo cargado correctamente para sensor {sensor_id_str}: {model_record.route_h5}")
+                
+                # Intentar cargar el escalador si está disponible
+                if model_record.route_pkl:
+                    scaler_path = model_record.route_pkl
+                    scaler_to_use = load_scaler_safely(model_record.route_pkl)
+                    if scaler_to_use:
+                        log_info(f"Escalador cargado correctamente para sensor {sensor_id_str}: {model_record.route_pkl}")
+        
+        # Preparar los datos para el modelo (triaxial)
+        original_data = [accel_x, accel_y, accel_z]
+        data_array = np.array([original_data], dtype=np.float32)
+        
+        # Inicializar variables para resultados de predicción
+        severity = 0
+        error_type = None
+        confidence = 0
+        
+        # Si tenemos escalador, aplicarlo
+        if scaler_to_use:
+            try:
+                data_array_scaled = scaler_to_use.transform(data_array)
+                
+                # Registrar valores escalados usando la función especializada
+                scaled_data = data_array_scaled[0].tolist()
+                log_scaling(
+                    original_values=original_data,
+                    scaled_values=scaled_data,
+                    scaler_info=scaler_path,
+                    sensor_id=sensor_id_str,
+                    success=True
+                )
+                
+                # Si tenemos modelo, realizar predicción con datos escalados
+                if model_to_use:
+                    # Ajustar forma para el modelo (1, timesteps, features) - para RNN/LSTM
+                    rnn_input = data_array_scaled.reshape(1, 1, 3)
+                    
+                    try:
+                        prediction = model_to_use.predict(rnn_input, verbose=0)
+                        severity = int(np.argmax(prediction[0]))
+                        confidence = float(np.max(prediction)) * 100
+                        error_type = severity if severity > 0 else None
+                        
+                        log_info(f"[PREDICCIÓN] Resultado: clase={severity}, "
+                                 f"confianza={confidence:.2f}%, probabilidades={prediction[0]}")
+                    except Exception as e:
+                        log_error(e, f"Error al realizar la predicción para sensor {sensor_id_str}")
+            except Exception as e:
+                log_error(e, f"Error al aplicar el escalador para sensor {sensor_id_str}")
+                log_scaling(
+                    original_values=original_data,
+                    scaler_info=scaler_path,
+                    sensor_id=sensor_id_str,
+                    success=False
+                )
+                log_warning(f"Usando datos sin escalar debido a error con el escalador")
+        else:
+            log_warning(f"No hay escalador disponible para el sensor {sensor_id_str}")
+        
+        # Si no se realizó predicción con el modelo, evaluar con límites estáticos
+        if severity == 0 and not error_type:
+            # Obtener los límites de alerta
+            limit_config = crud.get_limit_config(db)
+            if limit_config:
+                # Usar la función de procesamiento de datos para evaluar los límites
+                severity, error_type = process_vibration_data(accel_x, accel_y, accel_z, limit_config)
+        
+        # Convertir timestamp Unix a datetime si está disponible
+        date = datetime.fromtimestamp(timestamp) if timestamp else None
+        
+        # Guardar datos de vibración
+        db_data = crud.create_vibration_data_with_date(
+            db=db,
+            sensor_id=numeric_sensor_id,
+            acceleration_x=accel_x,
+            acceleration_y=accel_y,
+            acceleration_z=accel_z,
+            severity=severity,
+            date=date
+        )
+        
+        # Crear alerta si es necesario
+        alert_created = False
+        alert_id = None
+        if error_type:
+            alert = models.Alert(
+                sensor_id=numeric_sensor_id,
+                error_type=error_type,
+                data_id=db_data.data_id,
+                timestamp=date
+            )
+            db.add(alert)
+            db.commit()
+            db.refresh(alert)
+            alert_id = alert.log_id
+            alert_created = True
+            log_info(f"Alerta generada para sensor {sensor_id_str} con severidad {error_type}")
+            
+            # Notificar sobre la alerta generada
+            notify_alert(db, alert_id, error_type, sensor_id_str)
+        
+        # Detectar patrones de severidad 2 en el tiempo
+        if severity == 2 and not alert_created:
+            # Verificar si hay un patrón de alertas de nivel 2 que justifique una alerta de nivel 3
+            alert_level3 = detect_severity_pattern(db, numeric_sensor_id, date)
+            if alert_level3:
+                # Crear una alerta de nivel 3 basada en el patrón
+                pattern_alert = models.Alert(
+                    sensor_id=numeric_sensor_id,
+                    error_type=3,  # Nivel 3 (crítico)
+                    data_id=db_data.data_id,
+                    timestamp=date
+                )
+                db.add(pattern_alert)
+                db.commit()
+                db.refresh(pattern_alert)
+                alert_id = pattern_alert.log_id
+                alert_created = True
+                log_info(f"ALERTA CRÍTICA (NIVEL 3) generada para sensor {sensor_id_str} basada en patrón de severidad")
+                
+                # Notificar sobre la alerta crítica generada
+                notify_alert(db, alert_id, 3, sensor_id_str)
+        
+        # Obtener máquina asociada con este sensor para información adicional
+        machine = None
+        try:
+            machine = crud.get_machine_by_sensor_id(db, numeric_sensor_id)
+        except Exception as e:
+            log_warning(f"No se pudo obtener la máquina asociada al sensor {numeric_sensor_id}: {str(e)}")
+        
+        # Crear respuesta con información completa
+        return create_response(
+            data={
+                "data_id": db_data.data_id,
+                "sensor_id": numeric_sensor_id,
+                "sensor_id_str": sensor_id_str,
+                "machine_id": machine.machine_id if machine else None,
+                "machine_name": machine.name if machine else None,
+                "severity": severity,
+                "confidence": confidence if confidence > 0 else None,
+                "alert_generated": alert_created,
+                "timestamp": timestamp,
+                "processed_datetime": datetime.now().isoformat(),
+                "preprocessing": {
+                    "scaler_applied": scaler_to_use is not None,
+                    "model_applied": model_to_use is not None,
+                    "scaler_path": scaler_path if scaler_to_use else None
+                }
+            },
+            message="Datos del ESP32 recibidos y procesados correctamente",
+            success=True,
+            status_code=201
+        )
+    
+    except Exception as e:
+        log_error(e, f"Error al procesar datos del sensor ESP32 {sensor_data.sensor_id}")
+        return create_response(
+            data=None,
+            message=f"Error al procesar datos del sensor: {str(e)}",
+            success=False,
+            status_code=500
+        )
+
+@router.get("/api/alerts")
+def get_alerts(
+    sensor_id: Optional[int] = None,
+    machine_id: Optional[int] = None,
+    error_type: Optional[int] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    limit: int = 100,
     db: Session = Depends(get_db)
 ):
     """
-    Redirige a la API adecuada para obtener datos de vibración según los parámetros
+    Obtiene alertas filtradas por diferentes criterios
+    
+    Args:
+        sensor_id: ID del sensor para filtrar
+        machine_id: ID de la máquina para filtrar (se obtiene el sensor asociado)
+        error_type: Tipo de error/severidad (1, 2 o 3)
+        start_date: Fecha de inicio (formato ISO: YYYY-MM-DDTHH:MM:SS)
+        end_date: Fecha de fin (formato ISO: YYYY-MM-DDTHH:MM:SS)
+        limit: Número máximo de alertas a devolver
     """
-    # Calcular fechas basadas en time_range
-    end_date = datetime.now()
-    
-    if time_range == "hour":
-        start_date = end_date - timedelta(hours=1)
-    elif time_range == "day":
-        start_date = end_date - timedelta(days=1)
-    elif time_range == "week":
-        start_date = end_date - timedelta(weeks=1)
-    elif time_range == "month":
-        start_date = end_date - timedelta(days=30)
-    else:
+    try:
+        # Si se proporciona machine_id pero no sensor_id, obtener el sensor asociado
+        if machine_id is not None and sensor_id is None:
+            machine = crud.get_machine_by_id(db, machine_id)
+            if machine and machine.sensor_id:
+                sensor_id = machine.sensor_id
+            else:
+                return create_response(
+                    data=[],
+                    message=f"La máquina con ID {machine_id} no tiene un sensor asociado",
+                    success=True
+                )
+        
+        # Convertir fechas si se proporcionan
+        start_datetime = None
+        end_datetime = None
+        
+        if start_date:
+            try:
+                start_datetime = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
+            except ValueError:
+                return create_response(
+                    data=None,
+                    message="Formato de fecha de inicio inválido. Use formato ISO (YYYY-MM-DDTHH:MM:SS)",
+                    success=False,
+                    status_code=400
+                )
+        
+        if end_date:
+            try:
+                end_datetime = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
+            except ValueError:
+                return create_response(
+                    data=None,
+                    message="Formato de fecha de fin inválido. Use formato ISO (YYYY-MM-DDTHH:MM:SS)",
+                    success=False,
+                    status_code=400
+                )
+        
+        # Construir la consulta base
+        query = db.query(models.Alert)
+        
+        # Aplicar filtros según los parámetros recibidos
+        if sensor_id is not None:
+            query = query.filter(models.Alert.sensor_id == sensor_id)
+        
+        if error_type is not None:
+            query = query.filter(models.Alert.error_type == error_type)
+            
+        if start_datetime:
+            query = query.filter(models.Alert.timestamp >= start_datetime)
+            
+        if end_datetime:
+            query = query.filter(models.Alert.timestamp <= end_datetime)
+        
+        # Ordenar por timestamp descendente y limitar resultados
+        alerts = query.order_by(models.Alert.timestamp.desc()).limit(limit).all()
+        
+        # Si no hay resultados, devolver lista vacía
+        if not alerts:
+            return create_response(
+                data=[],
+                message="No se encontraron alertas con los criterios especificados",
+                success=True
+            )
+        
+        # Procesar resultados para incluir información adicional
+        result_alerts = []
+        for alert in alerts:
+            # Obtener información del sensor
+            sensor = crud.get_sensor_by_id(db, alert.sensor_id)
+            sensor_name = sensor.name if sensor else f"Sensor {alert.sensor_id}"
+            
+            # Obtener información de la máquina
+            machine = None
+            if sensor:
+                machine = crud.get_machine_by_sensor_id(db, sensor.sensor_id)
+            
+            # Obtener datos de aceleración relacionados
+            accel_data = None
+            if alert.data_id:
+                vibration_data = crud.get_vibration_data_by_id(db, alert.data_id)
+                if vibration_data:
+                    accel_data = {
+                        "x": vibration_data.get("acceleration_x"),
+                        "y": vibration_data.get("acceleration_y"),
+                        "z": vibration_data.get("acceleration_z"),
+                        "date": vibration_data.get("date")
+                    }
+            
+            # Mapear tipo de error a descripción
+            error_descriptions = {
+                1: "Anomalía leve",
+                2: "Anomalía moderada",
+                3: "Anomalía crítica"
+            }
+            error_description = error_descriptions.get(alert.error_type, "Desconocido")
+            
+            # Crear objeto de respuesta
+            alert_response = {
+                "log_id": alert.log_id,
+                "sensor_id": alert.sensor_id,
+                "sensor_name": sensor_name,
+                "timestamp": alert.timestamp.isoformat(),
+                "error_type": alert.error_type,
+                "error_description": error_description,
+                "data_id": alert.data_id,
+                "acceleration_data": accel_data,
+                "machine_name": machine.name if machine else None
+            }
+            
+            result_alerts.append(alert_response)
+        
         return create_response(
-            data=None,
-            message=f"Rango de tiempo no válido: {time_range}",
-            success=False
+            data=result_alerts,
+            message=f"Se encontraron {len(result_alerts)} alertas",
+            success=True
         )
     
-    # Si se proporciona machine_id pero no sensor_id, obtener el sensor asociado
-    if machine_id is not None and sensor_id is None:
-        machine = crud.get_machine_by_id(db, machine_id)
-        if machine and machine.sensor_id:
-            sensor_id = machine.sensor_id
-    
-    # Validar que tenemos un sensor_id
-    if sensor_id is None:
+    except Exception as e:
+        log_error(e, "Error al obtener alertas")
         return create_response(
             data=None,
-            message="Se requiere sensor_id o machine_id con sensor asociado",
-            success=False
-        )
-    
-    # Llamar a la función existente con los parámetros adecuados
-    return get_vibration_data(
-        sensor_id=sensor_id,
-        start_date=start_date.isoformat(),
-        end_date=end_date.isoformat(),
-        limit=limit,
-        db=db
-    ) 
+            message=f"Error al obtener alertas: {str(e)}",
+            success=False,
+            status_code=500
+        ) 

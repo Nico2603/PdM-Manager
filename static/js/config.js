@@ -991,6 +991,13 @@ function setupSensorTableActions() {
     document.querySelectorAll('.delete-sensor').forEach(button => {
         button.addEventListener('click', function() {
             const sensorId = this.getAttribute('data-id');
+            
+            // Verificar que el ID sea válido antes de proceder
+            if (!sensorId || sensorId === 'undefined' || isNaN(parseInt(sensorId))) {
+                showToast('Error: ID de sensor inválido', 'error');
+                return;
+            }
+            
             if (confirm(`¿Está seguro que desea eliminar el sensor con ID ${sensorId}?`)) {
                 logConfig('debug', `Eliminando sensor con ID: ${sensorId}`);
                 
@@ -1083,6 +1090,13 @@ function initModelTab() {
         // Inicializar event listeners para los botones de edición y eliminación
         setupModelTableActions();
         
+        // Exponer funciones en el ámbito global para que sean accesibles desde otros módulos
+        window.refreshModelsTable = refreshModelsTable;
+        window.updateModelSelectors = updateModelSelectors;
+        window.setupModelTableActions = setupModelTableActions;
+        window.saveModel = saveModel;
+        window.resetModelForm = resetModelForm;
+        
         logConfig('debug', 'Pestaña de modelos inicializada correctamente');
     } catch (error) {
         logConfig('error', 'Error al inicializar pestaña de modelos', error);
@@ -1124,14 +1138,30 @@ function saveModel(modelData) {
         // Limpiar formulario
         resetModelForm();
         
+        // Extraer el ID del modelo desde la respuesta
+        const modelId = data.model_id || (data.data && data.data.model_id) || modelData.model_id;
+        
         // Actualizar la tabla de modelos
         refreshModelsTable();
+        
+        // Disparar evento para notificar a otros componentes
+        const event = new CustomEvent('modelsTableUpdated', {
+            detail: {
+                count: 1,
+                action: isUpdate ? 'update' : 'create',
+                model_id: modelId
+            }
+        });
+        document.dispatchEvent(event);
         
         // Si tenemos WebSockets activos, notificar a otros clientes
         if (typeof socket !== 'undefined' && socket && socket.readyState === WebSocket.OPEN) {
             socket.send(JSON.stringify({
                 type: 'model_update',
-                data: { model_id: data.model_id }
+                data: { 
+                    model_id: modelId,
+                    action: isUpdate ? 'update' : 'create'
+                }
             }));
         }
     })
@@ -1146,71 +1176,177 @@ function refreshModelsTable() {
     logConfig('debug', 'Actualizando tabla de modelos');
     
     const modelsTable = document.getElementById('modelsTable');
-    if (!modelsTable) return;
+    if (!modelsTable) {
+        logConfig('error', 'No se encontró la tabla de modelos en el DOM');
+        showToast('Error: No se encontró la tabla de modelos', 'error');
+        return;
+    }
     
     const tbody = modelsTable.querySelector('tbody');
-    if (!tbody) return;
+    if (!tbody) {
+        logConfig('error', 'No se encontró el tbody en la tabla de modelos');
+        showToast('Error: No se encontró el tbody en la tabla de modelos', 'error');
+        return;
+    }
+    
+    // Mostrar indicador de carga
+    tbody.innerHTML = '<tr><td colspan="4" class="text-center"><i class="fas fa-spinner fa-spin mr-2"></i>Cargando modelos...</td></tr>';
+    
+    // URL completa para la petición
+    const modelsUrl = `${API_CONFIG.BASE_URL}/api/models/`;
+    logConfig('debug', `Realizando petición a: ${modelsUrl}`);
     
     // Obtener modelos desde el servidor
-    fetch(`${API_CONFIG.BASE_URL}/api/models`)
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`Error: ${response.status} ${response.statusText}`);
+    fetch(modelsUrl, {
+        method: 'GET',
+        headers: {
+            'Accept': 'application/json',
+            'Cache-Control': 'no-cache'
+        },
+    })
+    .then(response => {
+        logConfig('debug', `Respuesta recibida con status: ${response.status}`);
+        if (!response.ok) {
+            throw new Error(`Error: ${response.status} ${response.statusText}`);
+        }
+        return response.json();
+    })
+    .then(response => {
+        // Log para depuración
+        logConfig('debug', 'Respuesta del servidor para modelos:', response);
+        console.log('Respuesta completa de modelos:', JSON.stringify(response));
+        
+        // Extraer los datos de cualquier formato de respuesta
+        let models = [];
+        if (response && typeof response === 'object') {
+            if (Array.isArray(response)) {
+                models = response;
+                logConfig('debug', 'La respuesta es un array directamente');
+            } else if (response.data && Array.isArray(response.data)) {
+                models = response.data;
+                logConfig('debug', `Extrayendo modelos de response.data, encontrados: ${models.length}`);
+            } else if (response.success !== undefined && response.data && Array.isArray(response.data)) {
+                models = response.data;
+                logConfig('debug', `Extrayendo modelos de response.success.data, encontrados: ${models.length}`);
+            } else {
+                // Intentar convertir cualquier objeto a array de modelos
+                const keys = Object.keys(response);
+                if (keys.length > 0 && typeof response[keys[0]] === 'object') {
+                    models = keys.map(key => response[key]);
+                    logConfig('debug', `Convertido objeto a array, encontrados: ${models.length}`);
+                }
             }
-            return response.json();
-        })
-        .then(data => {
-            // Limpiar tabla
-            tbody.innerHTML = '';
-            
-            if (data.length === 0) {
-                // No hay modelos, mostrar fila de "no hay datos"
-                const emptyRow = document.createElement('tr');
-                emptyRow.innerHTML = `<td colspan="4" class="text-center">No hay modelos configurados</td>`;
-                tbody.appendChild(emptyRow);
+        }
+        
+        if (!Array.isArray(models)) {
+            logConfig('error', 'No se pudo extraer un array de modelos válido', { response });
+            showToast('Error al procesar datos de modelos', 'error');
+            // Mostrar error en la tabla
+            tbody.innerHTML = `<tr><td colspan="4" class="text-center text-danger">Error al cargar modelos: formato de respuesta inválido</td></tr>`;
+            return;
+        }
+        
+        // Limpiar tabla
+        tbody.innerHTML = '';
+        
+        if (models.length === 0) {
+            // No hay modelos, mostrar fila de "no hay datos"
+            const emptyRow = document.createElement('tr');
+            emptyRow.innerHTML = `<td colspan="4" class="text-center">No hay modelos configurados</td>`;
+            tbody.appendChild(emptyRow);
+            logConfig('debug', 'No se encontraron modelos para mostrar');
+            return;
+        }
+        
+        // Log para depuración
+        logConfig('debug', `Se encontraron ${models.length} modelos para mostrar`);
+        console.log('Modelos encontrados:', models);
+        
+        // Poblar tabla con datos
+        models.forEach((model, index) => {
+            // Verificar que el objeto modelo tenga un ID válido
+            if (!model) {
+                logConfig('warn', `Modelo #${index} es nulo o indefinido`);
                 return;
             }
             
-            // Poblar tabla con datos
-            data.forEach(model => {
-                const row = document.createElement('tr');
-                row.innerHTML = `
-                    <td>${model.model_id}</td>
-                    <td>${model.name || 'Sin nombre'}</td>
-                    <td>${model.description || 'Sin descripción'}</td>
-                    <td class="table-actions">
-                        <button class="btn btn-sm btn-icon edit-model" data-id="${model.model_id}">
-                            <i class="fas fa-edit"></i>
-                        </button>
-                        <button class="btn btn-sm btn-icon delete-model" data-id="${model.model_id}">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                    </td>
-                `;
-                tbody.appendChild(row);
-            });
+            // Intentar obtener el ID de diferentes formas
+            const modelId = model.model_id || model.id || model._id;
             
-            // Reinicializar listeners
-            setupModelTableActions();
+            if (!modelId) {
+                logConfig('warn', 'Modelo sin ID encontrado:', model);
+                return;
+            }
             
-            // Actualizar selectores de modelos en los formularios de sensores
-            updateModelSelectors(data);
-            
-            logConfig('debug', `Tabla de modelos actualizada con ${data.length} registros`);
-        })
-        .catch(error => {
-            logConfig('error', 'Error al actualizar tabla de modelos', error);
-            showToast(`Error al cargar modelos: ${error.message}`, 'error');
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${modelId}</td>
+                <td>${model.name || 'Sin nombre'}</td>
+                <td>${model.description || 'Sin descripción'}</td>
+                <td class="table-actions">
+                    <button class="btn btn-sm btn-icon edit-model" data-id="${modelId}">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn btn-sm btn-icon delete-model" data-id="${modelId}">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(row);
         });
+        
+        // Reinicializar listeners
+        setupModelTableActions();
+        
+        // Actualizar selectores de modelos en los formularios de sensores
+        updateModelSelectors(models);
+        
+        // Disparar evento para notificar a otros componentes
+        const event = new CustomEvent('modelsTableUpdated', {
+            detail: {
+                count: models.length,
+                action: 'refresh'
+            }
+        });
+        document.dispatchEvent(event);
+        
+        logConfig('debug', `Tabla de modelos actualizada con ${models.length} registros`);
+    })
+    .catch(error => {
+        logConfig('error', 'Error al actualizar tabla de modelos', error);
+        showToast(`Error al cargar modelos: ${error.message}`, 'error');
+        
+        // Mostrar mensaje de error en la tabla
+        tbody.innerHTML = `<tr><td colspan="4" class="text-center text-danger">Error al cargar modelos: ${error.message}</td></tr>`;
+    });
 }
 
 // Función para configurar los event listeners de los botones de edición y eliminación
 function setupModelTableActions() {
+    // Eliminar listeners anteriores para evitar duplicados
+    document.querySelectorAll('.edit-model').forEach(button => {
+        const newButton = button.cloneNode(true);
+        button.parentNode.replaceChild(newButton, button);
+    });
+    
+    document.querySelectorAll('.delete-model').forEach(button => {
+        const newButton = button.cloneNode(true);
+        button.parentNode.replaceChild(newButton, button);
+    });
+    
     // Event listeners para botones de edición
     document.querySelectorAll('.edit-model').forEach(button => {
         button.addEventListener('click', function() {
             const modelId = this.getAttribute('data-id');
+            if (!modelId || modelId === 'undefined' || isNaN(parseInt(modelId))) {
+                showToast('Error: ID de modelo inválido', 'error');
+                return;
+            }
+            
             logConfig('debug', `Editando modelo con ID: ${modelId}`);
+            
+            // Mostrar indicador de carga
+            showToast('Cargando datos del modelo...', 'info');
             
             // Cargar datos del modelo
             fetch(`${API_CONFIG.BASE_URL}/api/models/${modelId}`)
@@ -1220,7 +1356,18 @@ function setupModelTableActions() {
                     }
                     return response.json();
                 })
-                .then(model => {
+                .then(response => {
+                    // Extraer datos del modelo
+                    let model = response;
+                    if (response.data) model = response.data;
+                    
+                    logConfig('debug', 'Datos del modelo recibidos:', model);
+                    
+                    // Validar que tenemos datos válidos
+                    if (!model || !model.model_id) {
+                        throw new Error('Datos del modelo incompletos o inválidos');
+                    }
+                    
                     // Llenar formulario con datos del modelo
                     document.getElementById('modelId').value = model.model_id;
                     document.getElementById('modelName').value = model.name || '';
@@ -1238,6 +1385,9 @@ function setupModelTableActions() {
                     
                     // Hacer scroll al formulario
                     document.getElementById('modelForm').scrollIntoView({ behavior: 'smooth' });
+                    
+                    // Mostrar notificación de éxito
+                    showToast('Modelo cargado para edición', 'success');
                 })
                 .catch(error => {
                     logConfig('error', `Error al cargar datos del modelo ${modelId}`, error);
@@ -1250,11 +1400,22 @@ function setupModelTableActions() {
     document.querySelectorAll('.delete-model').forEach(button => {
         button.addEventListener('click', function() {
             const modelId = this.getAttribute('data-id');
+            if (!modelId || modelId === 'undefined' || isNaN(parseInt(modelId))) {
+                showToast('Error: ID de modelo inválido', 'error');
+                return;
+            }
+            
             if (confirm(`¿Está seguro que desea eliminar el modelo con ID ${modelId}?`)) {
                 logConfig('debug', `Eliminando modelo con ID: ${modelId}`);
                 
+                // Mostrar notificación de carga
+                showToast('Eliminando modelo...', 'info');
+                
                 fetch(`${API_CONFIG.BASE_URL}/api/models/${modelId}`, {
-                    method: 'DELETE'
+                    method: 'DELETE',
+                    headers: {
+                        'Accept': 'application/json'
+                    }
                 })
                 .then(response => {
                     if (!response.ok) {
@@ -1269,11 +1430,25 @@ function setupModelTableActions() {
                     // Actualizar tabla
                     refreshModelsTable();
                     
+                    // Disparar evento para notificar a otros componentes
+                    const event = new CustomEvent('modelsTableUpdated', {
+                        detail: {
+                            count: 0,
+                            action: 'delete',
+                            model_id: modelId
+                        }
+                    });
+                    document.dispatchEvent(event);
+                    
                     // Si tenemos WebSockets activos, notificar a otros clientes
                     if (typeof socket !== 'undefined' && socket && socket.readyState === WebSocket.OPEN) {
                         socket.send(JSON.stringify({
                             type: 'model_update',
-                            data: { model_id: modelId, deleted: true }
+                            data: { 
+                                model_id: modelId, 
+                                action: 'delete',
+                                deleted: true 
+                            }
                         }));
                     }
                 })
@@ -1288,28 +1463,149 @@ function setupModelTableActions() {
 
 // Función para actualizar los selectores de modelos en los formularios de sensores
 function updateModelSelectors(models) {
+    logConfig('debug', `Actualizando selectores de modelos con ${models ? models.length : 0} modelos`);
+    
     const sensorModelSelects = [
         document.getElementById('sensorModel'),
         document.getElementById('sensorModalForm')?.querySelector('#sensorModel')
     ].filter(Boolean);
     
-    sensorModelSelects.forEach(select => {
+    if (sensorModelSelects.length === 0) {
+        logConfig('warn', 'No se encontraron selectores de modelos para actualizar');
+        return;
+    }
+    
+    // Si no se proporcionan modelos, obtenerlos desde el servidor
+    if (!models || !Array.isArray(models) || models.length === 0) {
+        logConfig('debug', 'No se proporcionaron modelos, obteniendo desde el servidor');
+        
+        // Mostrar estado de carga en los selectores
+        sensorModelSelects.forEach(select => {
+            if (!select) return;
+            
+            // Guardar el valor seleccionado actualmente
+            const currentValue = select.value;
+            
+            // Limpiar opciones actuales, excepto la primera
+            while (select.options.length > 1) {
+                select.remove(1);
+            }
+            
+            // Añadir opción de carga
+            const loadingOption = document.createElement('option');
+            loadingOption.value = '';
+            loadingOption.textContent = 'Cargando modelos...';
+            loadingOption.disabled = true;
+            select.appendChild(loadingOption);
+        });
+        
+        // Cargar modelos desde el servidor
+        fetch(`${API_CONFIG.BASE_URL}/api/models/`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`Error: ${response.status} ${response.statusText}`);
+                }
+                return response.json();
+            })
+            .then(response => {
+                // Extraer los datos de la respuesta
+                let modelsData = response;
+                if (response.data && Array.isArray(response.data)) {
+                    modelsData = response.data;
+                } else if (response.success && response.data && Array.isArray(response.data)) {
+                    modelsData = response.data;
+                }
+                
+                if (!Array.isArray(modelsData)) {
+                    throw new Error('Formato de respuesta no válido');
+                }
+                
+                // Actualizar selectores con los modelos obtenidos
+                updateSelectorsWithModels(sensorModelSelects, modelsData);
+            })
+            .catch(error => {
+                logConfig('error', 'Error al cargar modelos para selectores', error);
+                
+                // Mostrar mensaje de error en los selectores
+                sensorModelSelects.forEach(select => {
+                    if (!select) return;
+                    
+                    // Limpiar opciones de carga
+                    while (select.options.length > 1) {
+                        select.remove(1);
+                    }
+                    
+                    // Añadir mensaje de error
+                    const errorOption = document.createElement('option');
+                    errorOption.value = '';
+                    errorOption.textContent = 'Error al cargar modelos';
+                    errorOption.disabled = true;
+                    select.appendChild(errorOption);
+                });
+            });
+    } else {
+        // Usar los modelos proporcionados
+        updateSelectorsWithModels(sensorModelSelects, models);
+    }
+}
+
+// Función auxiliar para actualizar los selectores con los modelos proporcionados
+function updateSelectorsWithModels(selects, models) {
+    logConfig('debug', `Actualizando ${selects.length} selectores con ${models.length} modelos`);
+    
+    selects.forEach(select => {
         if (!select) return;
         
         // Guardar el valor seleccionado actualmente
         const currentValue = select.value;
         
-        // Limpiar opciones actuales, excepto la primera
+        // Limpiar opciones actuales, excepto la primera (que suele ser "Seleccione un modelo")
         while (select.options.length > 1) {
             select.remove(1);
         }
         
-        // Añadir opciones para cada modelo
-        models.forEach(model => {
+        // Si no hay modelos, mostrar mensaje
+        if (models.length === 0) {
             const option = document.createElement('option');
-            option.value = model.model_id;
-            option.textContent = model.name || `Modelo ${model.model_id}`;
+            option.value = '';
+            option.textContent = 'No hay modelos disponibles';
+            option.disabled = true;
             select.appendChild(option);
+            return;
+        }
+        
+        // Intentar ordenar modelos por ID pero manejar posibles errores
+        let sortedModels = [...models];
+        try {
+            sortedModels = [...models].sort((a, b) => {
+                const idA = a.model_id || a.id || 0;
+                const idB = b.model_id || b.id || 0;
+                return parseInt(idA) - parseInt(idB);
+            });
+        } catch (error) {
+            logConfig('warn', 'Error al ordenar modelos por ID, usando orden original', error);
+        }
+        
+        // Añadir opciones para cada modelo
+        sortedModels.forEach((model, index) => {
+            if (!model) {
+                logConfig('warn', `Modelo #${index} inválido para selector`, model);
+                return;
+            }
+            
+            const modelId = model.model_id || model.id || model._id;
+            
+            if (!modelId) {
+                logConfig('warn', 'Modelo sin ID encontrado para selector', model);
+                return;
+            }
+            
+            const option = document.createElement('option');
+            option.value = modelId;
+            option.textContent = model.name || `Modelo ${modelId}`;
+            select.appendChild(option);
+            
+            logConfig('debug', `Añadida opción para modelo: ${modelId} - ${option.textContent}`);
         });
         
         // Restaurar valor seleccionado si aún existe
@@ -1317,7 +1613,16 @@ function updateModelSelectors(models) {
             const exists = Array.from(select.options).some(option => option.value === currentValue);
             if (exists) {
                 select.value = currentValue;
+                logConfig('debug', `Restaurado valor previo en selector: ${currentValue}`);
+            } else {
+                // Si la opción anterior ya no existe, seleccionar la predeterminada
+                select.selectedIndex = 0;
+                logConfig('debug', 'Valor previo no encontrado, seleccionando opción predeterminada');
             }
+        } else {
+            // Si no había valor seleccionado, seleccionar la predeterminada
+            select.selectedIndex = 0;
+            logConfig('debug', 'No había valor previo, seleccionando opción predeterminada');
         }
     });
 }
@@ -1419,6 +1724,14 @@ function updateLimitsForm(limits) {
     if (document.getElementById('z_3sup')) document.getElementById('z_3sup').value = limits.z_3sup || '';
 }
 
+// Forzar una actualización inicial de la tabla de modelos y los selectores
+function forceRefreshModels() {
+    logConfig('info', 'Forzando actualización de modelos');
+    setTimeout(() => {
+        refreshModelsTable();
+    }, 500);
+}
+
 // Exportar funciones para uso global
 window.initConfig = initConfig;
 window.initConfigTabs = initConfigTabs;
@@ -1435,10 +1748,35 @@ window.refreshModelsTable = refreshModelsTable;
 window.loadMachinesTable = refreshMachinesTable;
 window.loadSensorsTable = refreshSensorsTable;
 window.loadModelsTable = refreshModelsTable;
+window.forceRefreshModels = forceRefreshModels;
 
 // Exportar funciones de actualización de selectores
 window.updateMachineSensorSelectors = updateMachineSensorSelectors;
 window.updateModelSelectors = updateModelSelectors;
 window.setupSensorTableActions = setupSensorTableActions;
 window.setupMachineTableActions = setupMachineTableActions;
-window.setupModelTableActions = setupModelTableActions; 
+window.setupModelTableActions = setupModelTableActions;
+
+// Ejecutar después de que se cargue la página
+(function() {
+    // Programar una actualización forzada después de 1 segundo
+    setTimeout(() => {
+        console.log('Forzando actualización inicial de modelos');
+        try {
+            if (document.getElementById('modelsTable')) {
+                forceRefreshModels();
+                
+                // Intentar actualizar de nuevo después de un tiempo si es necesario
+                setTimeout(() => {
+                    const tbody = document.getElementById('modelsTable')?.querySelector('tbody');
+                    if (tbody && (!tbody.children.length || tbody.children.length === 1 && tbody.children[0].textContent.includes('No hay modelos'))) {
+                        console.log('Segunda actualización forzada de modelos');
+                        forceRefreshModels();
+                    }
+                }, 3000);
+            }
+        } catch (e) {
+            console.error('Error al forzar actualización de modelos:', e);
+        }
+    }, 1000);
+})(); 

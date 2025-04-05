@@ -1509,45 +1509,163 @@ p {
 }
 
 .log-row {
-  transition: background-color 0.2s;
+    transition: background-color var(--transition-fast);
 }
 
 .log-row:hover {
-  background-color: #f5faff;
+    background-color: var(--color-background-hover);
 }
 
 .log-row.has-details {
-  cursor: pointer;
+    cursor: pointer;
 }
 
 .log-row.has-details:hover {
-  background-color: #edf6ff;
+    background-color: rgba(67, 97, 238, 0.1);
 }
 
 .log-level-error {
-  background-color: rgba(255, 205, 210, 0.3);
+    background-color: rgba(231, 76, 60, 0.15);
+    border-left: 3px solid #e74c3c;
+    font-weight: 500;
 }
 
 .log-level-error:hover {
-  background-color: rgba(255, 205, 210, 0.5);
+    background-color: rgba(231, 76, 60, 0.25);
 }
 
 .log-level-warn {
-  background-color: rgba(255, 236, 179, 0.3);
+    background-color: rgba(243, 156, 18, 0.15);
+    border-left: 3px solid #f39c12;
 }
 
 .log-level-warn:hover {
-  background-color: rgba(255, 236, 179, 0.5);
+    background-color: rgba(243, 156, 18, 0.25);
 }
 
 .log-level-debug {
-  color: #6b7280;
-  font-size: 0.85rem;
+    color: var(--color-text-secondary);
 }
 
-.logs-status {
-  color: #6b7280;
-  font-size: 0.9rem;
+/* Nuevos estilos para logs */
+.log-level-info {
+    background-color: rgba(52, 152, 219, 0.1);
+    border-left: 3px solid #3498db;
+}
+
+.log-level-info:hover {
+    background-color: rgba(52, 152, 219, 0.2);
+}
+
+.log-row .log-timestamp {
+    color: var(--color-text-muted);
+    font-size: 0.85em;
+    font-family: 'Roboto Mono', monospace;
+}
+
+.log-row .log-level {
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: bold;
+    text-transform: uppercase;
+    margin-right: 6px;
+}
+
+.log-row .log-level-text-error {
+    background-color: #e74c3c;
+    color: white;
+}
+
+.log-row .log-level-text-warn {
+    background-color: #f39c12;
+    color: #1e1e2d;
+}
+
+.log-row .log-level-text-info {
+    background-color: #3498db;
+    color: white;
+}
+
+.log-row .log-level-text-debug {
+    background-color: #7f8c8d;
+    color: white;
+}
+
+.log-row .log-message {
+    font-weight: 400;
+    line-height: 1.4;
+}
+
+.log-level-error .log-message {
+    color: #e74c3c;
+    font-weight: 500;
+}
+
+.log-level-warn .log-message {
+    color: #f39c12;
+}
+
+.log-filter-btn {
+    margin-right: 5px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    background-color: var(--color-background-light);
+    color: var(--color-text-secondary);
+    border: 1px solid var(--color-border);
+    cursor: pointer;
+    font-size: 12px;
+    transition: all var(--transition-fast);
+}
+
+.log-filter-btn:hover {
+    background-color: var(--color-background-hover);
+}
+
+.log-filter-btn.active {
+    background-color: var(--color-primary);
+    color: white;
+    border-color: var(--color-primary);
+}
+
+.log-filter-btn.error {
+    border-color: #e74c3c;
+}
+
+.log-filter-btn.error.active {
+    background-color: #e74c3c;
+}
+
+.log-filter-btn.warn {
+    border-color: #f39c12;
+}
+
+.log-filter-btn.warn.active {
+    background-color: #f39c12;
+}
+
+.log-filter-btn.info {
+    border-color: #3498db;
+}
+
+.log-filter-btn.info.active {
+    background-color: #3498db;
+}
+
+.log-filter-btn.debug {
+    border-color: #7f8c8d;
+}
+
+.log-filter-btn.debug.active {
+    background-color: #7f8c8d;
+}
+
+.logs-container {
+    max-height: 500px;
+    overflow-y: auto;
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius);
+    background-color: var(--color-background);
 }
 
 /* Estilos para botones de activación/desactivación de límites sigma */
