@@ -1,404 +1,672 @@
 # app/crud.py
-
 from sqlalchemy.orm import Session
+from sqlalchemy import desc, asc
+from app.models import VibrationData, Sensor, Model, Machine, Alert, LimitConfig
 from datetime import datetime
-from app.models import Sensor, VibrationData, Machine, Model, Alert, LimitConfig
-from typing import List, Dict, Any, Optional, Type
-from app.logger import log_warning
-from app.serializers import remove_sa_instance as serializer_remove_sa_instance
-from app.database import cached_query, invalidate_cache
+from typing import List, Optional, Dict, Any, Union
 
-def remove_sa_instance(obj_dict):
-    """
-    Elimina el atributo _sa_instance_state de un diccionario
-    
-    DEPRECATED: Usar app.serializers.remove_sa_instance en su lugar
-    """
-    log_warning("Función remove_sa_instance en crud.py está obsoleta. Usar app.serializers.remove_sa_instance")
-    return serializer_remove_sa_instance(obj_dict)
+# ---------------------------------------------------------
+# PdM-Manager - Sistema de Mantenimiento Predictivo
+# Módulo CRUD: Operaciones de acceso a la base de datos
+# ---------------------------------------------------------
 
-# --- Funciones CRUD genéricas ---
-
-@cached_query(ttl=30)
-def get_items(db: Session, model_class: Type, skip: int = 0, limit: int = 100) -> List[Dict[str, Any]]:
-    """Obtiene una lista de elementos de un modelo específico"""
-    items = db.query(model_class).offset(skip).limit(limit).all()
-    return [serializer_remove_sa_instance(item.__dict__) for item in items]
-
-def get_item_by_id(db: Session, model_class: Type, id_field, id_value: int) -> Optional[Any]:
-    """Obtiene un elemento por su ID"""
-    return db.query(model_class).filter(id_field == id_value).first()
-
-@cached_query(ttl=30)
-def get_item_dict(db: Session, model_class: Type, id_field, id_value: int) -> Optional[Dict[str, Any]]:
-    """Obtiene un elemento por su ID (como diccionario)"""
-    item = get_item_by_id(db, model_class, id_field, id_value)
-    if item:
-        return serializer_remove_sa_instance(item.__dict__)
-    return None
-
-def create_item(db: Session, item: Any) -> Dict[str, Any]:
-    """Crea un nuevo elemento"""
-    db.add(item)
-    db.commit()
-    db.refresh(item)
-    
-    # Invalidar caché relacionada con este tipo de elemento
-    model_name = item.__class__.__name__.lower()
-    invalidate_cache(f"get_items_{model_name}")
-    invalidate_cache(f"get_item_dict_{model_name}")
-    
-    return serializer_remove_sa_instance(item.__dict__)
-
-def update_item(db: Session, item: Any) -> Dict[str, Any]:
-    """Actualiza un elemento existente"""
-    db.commit()
-    db.refresh(item)
-    
-    # Invalidar caché relacionada con este tipo de elemento
-    model_name = item.__class__.__name__.lower()
-    invalidate_cache(f"get_items_{model_name}")
-    invalidate_cache(f"get_item_dict_{model_name}")
-    
-    return serializer_remove_sa_instance(item.__dict__)
-
-def delete_item(db: Session, model_class: Type, id_field, id_value: int) -> bool:
-    """Elimina un elemento"""
-    item = get_item_by_id(db, model_class, id_field, id_value)
-    if item:
-        db.delete(item)
-        db.commit()
-        
-        # Invalidar caché relacionada con este tipo de elemento
-        model_name = model_class.__name__.lower()
-        invalidate_cache(f"get_items_{model_name}")
-        invalidate_cache(f"get_item_dict_{model_name}")
-        
-        return True
-    return False
-
-# --- Funciones CRUD para Sensores ---
-
-def get_sensors(db: Session, skip: int = 0, limit: int = 100) -> List[Dict[str, Any]]:
-    """Obtiene la lista de todos los sensores"""
-    return get_items(db, Sensor, skip, limit)
-
-def get_sensor_by_id(db: Session, sensor_id: int) -> Optional[Sensor]:
-    """Obtiene un sensor por su ID"""
-    return get_item_by_id(db, Sensor, Sensor.sensor_id, sensor_id)
-
-def get_sensor_by_name(db: Session, sensor_name: str) -> Optional[Sensor]:
-    """Obtiene un sensor por su nombre"""
-    return db.query(Sensor).filter(Sensor.name == sensor_name).first()
-
-def get_sensor(db: Session, sensor_id: int) -> Optional[Dict[str, Any]]:
-    """Obtiene un sensor por su ID (como diccionario)"""
-    return get_item_dict(db, Sensor, Sensor.sensor_id, sensor_id)
-
-def create_sensor(db: Session, sensor: Sensor) -> Dict[str, Any]:
-    """Crea un nuevo sensor"""
-    return create_item(db, sensor)
-
-def update_sensor(db: Session, sensor: Sensor) -> Dict[str, Any]:
-    """Actualiza un sensor existente"""
-    return update_item(db, sensor)
-
-def delete_sensor(db: Session, sensor_id: int) -> bool:
-    """Elimina un sensor"""
-    return delete_item(db, Sensor, Sensor.sensor_id, sensor_id)
-
-def get_machines_by_sensor(db: Session, sensor_id: int) -> List[Dict[str, Any]]:
-    """Obtiene todas las máquinas asociadas a un sensor"""
-    machines = db.query(Machine).filter(Machine.sensor_id == sensor_id).all()
-    return [serializer_remove_sa_instance(machine.__dict__) for machine in machines]
-
-# --- Funciones CRUD para Datos de Vibración ---
+# ======== CRUD para VibrationData ========
 
 def create_vibration_data(
-    db: Session,
-    sensor_id: int,
-    acceleration_x: float,
-    acceleration_y: float,
-    acceleration_z: float,
+    db: Session, 
+    sensor_id: int, 
+    acceleration_x: float = None, 
+    acceleration_y: float = None, 
+    acceleration_z: float = None, 
+    date: Optional[datetime] = None, 
     severity: int = 0,
-    custom_date: datetime = None
+    is_anomaly: int = 0
 ) -> VibrationData:
-    """Crea un nuevo registro de datos de vibración"""
+    """
+    Inserta un nuevo registro de datos de vibración en la base de datos.
     
-    db_data = VibrationData(
+    Parámetros:
+    - db: Sesión de base de datos
+    - sensor_id: ID del sensor que generó los datos
+    - acceleration_x/y/z: Valores de aceleración en cada eje
+    - date: Fecha y hora de la medición (default: now())
+    - severity: Nivel de severidad asignado (0: normal, 1: leve, 2: grave)
+    - is_anomaly: Indicador de anomalía (0: normal, 1: anomalía)
+    
+    Retorna:
+    - Objeto VibrationData creado y guardado
+    
+    IMPORTANTE: Esta función debe ser transaccional; si ocurre un error,
+    asegúrate de hacer rollback() en el bloque try/except que la llama.
+    """
+    db_vibration = VibrationData(
         sensor_id=sensor_id,
         acceleration_x=acceleration_x,
         acceleration_y=acceleration_y,
         acceleration_z=acceleration_z,
-        severity=severity
+        date=date or datetime.now(),
+        severity=severity,
+        is_anomaly=is_anomaly
     )
-    
-    if custom_date:
-        db_data.date = custom_date
-    
-    db.add(db_data)
+    db.add(db_vibration)
     db.commit()
-    db.refresh(db_data)
-    return db_data
+    db.refresh(db_vibration)
+    return db_vibration
 
-def create_vibration_data_with_date(
+def get_vibration_data(db: Session, sensor_id: int = None, limit: int = 100, 
+                       skip: int = 0, start_date: datetime = None, end_date: datetime = None):
+    """
+    Obtiene datos de vibración filtrados por sensor_id y fechas.
+    
+    Esta función es clave para la API y la visualización de datos.
+    Permite filtrar por varios criterios y paginar resultados.
+    
+    Args:
+        db (Session): Sesión de base de datos
+        sensor_id (int, optional): ID del sensor para filtrar. Por defecto None.
+        limit (int, optional): Cantidad máxima de registros a devolver. Por defecto 100.
+        skip (int, optional): Cantidad de registros a omitir (para paginación). Por defecto 0.
+        start_date (datetime, optional): Fecha de inicio para filtrar. Por defecto None.
+        end_date (datetime, optional): Fecha de fin para filtrar. Por defecto None.
+        
+    Returns:
+        list: Lista de diccionarios con datos de vibración serializados
+        
+    NOTA IMPORTANTE: Esta función es compatible con dos estructuras de datos diferentes:
+    1. En producción: VibrationData con campos date, acceleration_x/y/z, severity
+    2. En pruebas: VibrationData con campos timestamp, value, axis
+    """
+    query = db.query(VibrationData)
+    
+    if sensor_id:
+        query = query.filter(VibrationData.sensor_id == sensor_id)
+    
+    # Determinar qué campo de fecha usar según el modelo (compatible con pruebas y producción)
+    date_field = VibrationData.date if hasattr(VibrationData, 'date') else VibrationData.timestamp
+    
+    if start_date:
+        query = query.filter(date_field >= start_date)
+    
+    if end_date:
+        query = query.filter(date_field <= end_date)
+        
+    # Ordenar por fecha descendente (más reciente primero)
+    query = query.order_by(date_field.desc())
+    
+    # Aplicar paginación
+    data = query.offset(skip).limit(limit).all()
+    
+    # Convertir a diccionarios para la serialización
+    result = []
+    for item in data:
+        # Determinar qué campos están disponibles y crear un diccionario adecuado
+        item_dict = {
+            "data_id": item.data_id,
+            "sensor_id": item.sensor_id
+        }
+        
+        # Manejar campos de fecha según el modelo
+        if hasattr(item, 'date'):
+            item_dict["timestamp"] = item.date.isoformat() if item.date else None
+        elif hasattr(item, 'timestamp'):
+            item_dict["timestamp"] = item.timestamp.isoformat() if item.timestamp else None
+        
+        # Manejar campo de valor/aceleración según el modelo
+        if hasattr(item, 'value'):
+            item_dict["value"] = item.value
+            item_dict["axis"] = item.axis
+        elif hasattr(item, 'acceleration_x'):
+            # Si el modelo tiene acceleration_x/y/z, necesitamos determinar qué eje usar
+            # Por ahora, simplemente incluimos los tres
+            item_dict["acceleration_x"] = item.acceleration_x
+            item_dict["acceleration_y"] = item.acceleration_y
+            item_dict["acceleration_z"] = item.acceleration_z
+        
+        # Incluir la severidad si está disponible
+        if hasattr(item, 'severity'):
+            item_dict["severity"] = item.severity
+        
+        result.append(item_dict)
+        
+    return result
+
+def update_vibration_data(
+    db: Session,
+    data_id: int,
+    update_data: Dict[str, Any]
+) -> Optional[VibrationData]:
+    """
+    Actualiza un registro de datos de vibración existente.
+    """
+    db_vibration = db.query(VibrationData).filter(VibrationData.data_id == data_id).first()
+    if not db_vibration:
+        return None
+    
+    for key, value in update_data.items():
+        setattr(db_vibration, key, value)
+    
+    db.commit()
+    db.refresh(db_vibration)
+    return db_vibration
+
+def delete_vibration_data(
+    db: Session,
+    data_id: int
+) -> bool:
+    """
+    Elimina un registro de datos de vibración.
+    Retorna True si se eliminó correctamente, False si no se encontró.
+    """
+    db_vibration = db.query(VibrationData).filter(VibrationData.data_id == data_id).first()
+    if not db_vibration:
+        return False
+    
+    db.delete(db_vibration)
+    db.commit()
+    return True
+
+# ======== CRUD para Sensor ========
+
+def create_sensor(
+    db: Session,
+    name: str,
+    description: Optional[str] = None,
+    model_id: Optional[int] = None
+) -> Sensor:
+    """
+    Crea un nuevo sensor en la base de datos.
+    """
+    db_sensor = Sensor(
+        name=name,
+        description=description,
+        model_id=model_id
+    )
+    db.add(db_sensor)
+    db.commit()
+    db.refresh(db_sensor)
+    return db_sensor
+
+def get_sensors(
+    db: Session,
+    sensor_id: Optional[int] = None,
+    model_id: Optional[int] = None,
+    limit: int = 100,
+    skip: int = 0
+) -> Union[List[Sensor], Sensor]:
+    """
+    Obtiene sensores con filtros opcionales.
+    
+    Esta función es utilizada tanto para listar todos los sensores
+    como para verificar la existencia de un sensor específico.
+    
+    Parámetros:
+    - db: Sesión de base de datos
+    - sensor_id: Para obtener un sensor específico (opcional)
+    - model_id: Para filtrar por modelo (opcional)
+    - limit/skip: Para paginación
+    
+    Retorna:
+    - Si sensor_id es proporcionado: Un único objeto Sensor o None
+    - Si no: Lista de objetos Sensor según filtros
+    
+    IMPORTANTE: La API depende de esta función para verificar la validez
+    de los datos enviados por los sensores.
+    """
+    if sensor_id is not None:
+        return db.query(Sensor).filter(Sensor.sensor_id == sensor_id).first()
+    
+    query = db.query(Sensor)
+    
+    if model_id is not None:
+        query = query.filter(Sensor.model_id == model_id)
+    
+    return query.offset(skip).limit(limit).all()
+
+def update_sensor(
     db: Session,
     sensor_id: int,
-    acceleration_x: float,
-    acceleration_y: float,
-    acceleration_z: float,
+    update_data: Dict[str, Any]
+) -> Optional[Sensor]:
+    """
+    Actualiza un sensor existente.
+    """
+    db_sensor = db.query(Sensor).filter(Sensor.sensor_id == sensor_id).first()
+    if not db_sensor:
+        return None
+    
+    for key, value in update_data.items():
+        setattr(db_sensor, key, value)
+    
+    db.commit()
+    db.refresh(db_sensor)
+    return db_sensor
+
+def delete_sensor(
+    db: Session,
+    sensor_id: int
+) -> bool:
+    """
+    Elimina un sensor.
+    Retorna True si se eliminó correctamente, False si no se encontró.
+    """
+    db_sensor = db.query(Sensor).filter(Sensor.sensor_id == sensor_id).first()
+    if not db_sensor:
+        return False
+    
+    db.delete(db_sensor)
+    db.commit()
+    return True
+
+def update_sensor_last_status(
+    db: Session,
+    sensor_id: int,
+    is_anomaly: bool = False,
     severity: int = 0,
-    date: datetime = None
-) -> VibrationData:
+    timestamp: datetime = None
+) -> bool:
     """
-    Crea un nuevo registro de datos de vibración con fecha específica
-    Si no se proporciona fecha, se usa la fecha actual
+    Actualiza el último estado registrado de un sensor.
+    
+    Esta función actualiza los campos last_status, last_severity y last_reading_time
+    del sensor para reflejar su estado más reciente. Esto es útil para mostrar alertas 
+    y estados en el dashboard sin tener que consultar la tabla de datos completa.
+    
+    Parámetros:
+    - db: Sesión de base de datos
+    - sensor_id: ID del sensor a actualizar
+    - is_anomaly: Si el último registro fue una anomalía
+    - severity: Nivel de severidad de la anomalía (0-3)
+    - timestamp: Timestamp de la última lectura
+    
+    Retorna:
+    - True si la actualización fue exitosa, False si no se encontró el sensor
     """
-    # Verificar si el sensor existe
-    sensor = get_sensor_by_id(db, sensor_id)
+    # Obtener el sensor a actualizar
+    sensor = db.query(Sensor).filter(Sensor.sensor_id == sensor_id).first()
     if not sensor:
-        raise ValueError(f"El sensor con ID {sensor_id} no existe")
+        return False
     
-    # Crear objeto de datos
-    db_data = VibrationData(
-        sensor_id=sensor_id,
-        acceleration_x=acceleration_x,
-        acceleration_y=acceleration_y,
-        acceleration_z=acceleration_z,
-        severity=severity
+    # Actualizar los campos si el sensor tiene estos atributos
+    # Verificar cada campo antes de intentar actualizarlo para evitar errores
+    if hasattr(sensor, 'last_status'):
+        sensor.last_status = is_anomaly
+    
+    if hasattr(sensor, 'last_severity'):
+        sensor.last_severity = severity
+    
+    if hasattr(sensor, 'last_reading_time') and timestamp:
+        sensor.last_reading_time = timestamp
+    
+    try:
+        db.commit()
+        return True
+    except Exception:
+        db.rollback()
+        return False
+
+# ======== CRUD para Model ========
+
+def create_model(
+    db: Session,
+    name: Optional[str] = None,
+    description: Optional[str] = None,
+    route_h5: Optional[str] = None,
+    route_pkl: Optional[str] = None
+) -> Model:
+    """
+    Crea un nuevo modelo en la base de datos.
+    """
+    db_model = Model(
+        name=name,
+        description=description,
+        route_h5=route_h5,
+        route_pkl=route_pkl
     )
-    
-    # Establecer fecha personalizada si se proporcionó
-    if date:
-        db_data.date = date
-    
-    # Guardar en la base de datos
-    db.add(db_data)
+    db.add(db_model)
     db.commit()
-    db.refresh(db_data)
-    return db_data
+    db.refresh(db_model)
+    return db_model
 
-def get_vibration_data(db: Session, limit: int = 100) -> List[Dict[str, Any]]:
-    """Obtiene los últimos registros de datos de vibración"""
-    data = db.query(VibrationData).order_by(VibrationData.date.desc()).limit(limit).all()
-    return [serializer_remove_sa_instance(item.__dict__) for item in data]
+def get_models(
+    db: Session,
+    model_id: Optional[int] = None,
+    limit: int = 100,
+    skip: int = 0
+) -> Union[List[Model], Model]:
+    """
+    Obtiene modelos con filtros opcionales.
+    Si se proporciona model_id, devuelve un único modelo.
+    """
+    if model_id is not None:
+        return db.query(Model).filter(Model.model_id == model_id).first()
+    
+    return db.query(Model).offset(skip).limit(limit).all()
 
-def get_vibration_data_by_sensor(db: Session, sensor_id: int, limit: int = 100) -> List[Dict[str, Any]]:
-    """Obtiene los últimos registros de datos de vibración para un sensor específico"""
-    data = db.query(VibrationData).filter(VibrationData.sensor_id == sensor_id).order_by(VibrationData.date.desc()).limit(limit).all()
-    return [serializer_remove_sa_instance(item.__dict__) for item in data]
+def update_model(
+    db: Session,
+    model_id: int,
+    update_data: Dict[str, Any]
+) -> Optional[Model]:
+    """
+    Actualiza un modelo existente.
+    """
+    db_model = db.query(Model).filter(Model.model_id == model_id).first()
+    if not db_model:
+        return None
+    
+    for key, value in update_data.items():
+        setattr(db_model, key, value)
+    
+    db.commit()
+    db.refresh(db_model)
+    return db_model
 
-def get_vibration_data_by_id(db: Session, data_id: int) -> Optional[Dict[str, Any]]:
-    """Obtiene un registro de datos de vibración por su ID"""
-    data = db.query(VibrationData).filter(VibrationData.data_id == data_id).first()
-    if data:
-        return serializer_remove_sa_instance(data.__dict__)
-    return None
+def delete_model(
+    db: Session,
+    model_id: int
+) -> bool:
+    """
+    Elimina un modelo.
+    Retorna True si se eliminó correctamente, False si no se encontró.
+    """
+    db_model = db.query(Model).filter(Model.model_id == model_id).first()
+    if not db_model:
+        return False
+    
+    db.delete(db_model)
+    db.commit()
+    return True
 
-def get_vibration_data_by_sensor_and_dates(
+# ======== CRUD para Machine ========
+
+def create_machine(
+    db: Session,
+    name: str,
+    description: Optional[str] = None,
+    sensor_id: Optional[int] = None
+) -> Machine:
+    """
+    Crea una nueva máquina en la base de datos.
+    """
+    db_machine = Machine(
+        name=name,
+        description=description,
+        sensor_id=sensor_id
+    )
+    db.add(db_machine)
+    db.commit()
+    db.refresh(db_machine)
+    return db_machine
+
+def get_machines(
+    db: Session,
+    machine_id: Optional[int] = None,
+    sensor_id: Optional[int] = None,
+    limit: int = 100,
+    skip: int = 0
+) -> Union[List[Machine], Machine]:
+    """
+    Obtiene máquinas con filtros opcionales.
+    Si se proporciona machine_id, devuelve una única máquina.
+    """
+    if machine_id is not None:
+        return db.query(Machine).filter(Machine.machine_id == machine_id).first()
+    
+    query = db.query(Machine)
+    
+    if sensor_id is not None:
+        query = query.filter(Machine.sensor_id == sensor_id)
+    
+    return query.offset(skip).limit(limit).all()
+
+def update_machine(
+    db: Session,
+    machine_id: int,
+    update_data: Dict[str, Any]
+) -> Optional[Machine]:
+    """
+    Actualiza una máquina existente.
+    """
+    db_machine = db.query(Machine).filter(Machine.machine_id == machine_id).first()
+    if not db_machine:
+        return None
+    
+    for key, value in update_data.items():
+        setattr(db_machine, key, value)
+    
+    db.commit()
+    db.refresh(db_machine)
+    return db_machine
+
+def delete_machine(
+    db: Session,
+    machine_id: int
+) -> bool:
+    """
+    Elimina una máquina.
+    Retorna True si se eliminó correctamente, False si no se encontró.
+    """
+    db_machine = db.query(Machine).filter(Machine.machine_id == machine_id).first()
+    if not db_machine:
+        return False
+    
+    db.delete(db_machine)
+    db.commit()
+    return True
+
+# ======== CRUD para Alert ========
+
+def create_alert(
     db: Session,
     sensor_id: int,
-    start_date: datetime,
-    end_date: datetime
-) -> List[VibrationData]:
-    """Obtiene datos de vibración para un sensor y rango de fechas"""
-    return db.query(VibrationData).filter(
-        VibrationData.sensor_id == sensor_id,
-        VibrationData.date >= start_date,
-        VibrationData.date <= end_date
-    ).order_by(VibrationData.date).all()
-
-# --- Funciones CRUD para Alertas ---
-
-def create_alert(db: Session, alert: Alert) -> Alert:
-    """Crea una nueva alerta"""
-    db.add(alert)
+    error_type: Optional[int] = None,
+    data_id: Optional[int] = None,
+    timestamp: Optional[datetime] = None
+) -> Alert:
+    """
+    Crea una nueva alerta en la base de datos.
+    
+    Esta función se utiliza para registrar anomalías detectadas
+    por el sistema de monitoreo y clasificación.
+    
+    Parámetros:
+    - db: Sesión de base de datos
+    - sensor_id: ID del sensor que generó la alerta
+    - error_type: Tipo/nivel de error (0-3)
+    - data_id: Referencia al registro de datos que generó la alerta
+    - timestamp: Momento de la alerta (default: now())
+    
+    Retorna:
+    - Objeto Alert creado y guardado
+    
+    IMPORTANTE: Las alertas nivel 3 deben recibir atención inmediata
+    ya que indican posibles fallos críticos.
+    """
+    db_alert = Alert(
+        sensor_id=sensor_id,
+        error_type=error_type,
+        data_id=data_id,
+        timestamp=timestamp or datetime.now()
+    )
+    db.add(db_alert)
     db.commit()
-    db.refresh(alert)
-    return alert
+    db.refresh(db_alert)
+    return db_alert
 
 def get_alerts(
     db: Session,
+    log_id: Optional[int] = None,
     sensor_id: Optional[int] = None,
-    limit: int = 100
-) -> List[Dict[str, Any]]:
-    """Obtiene alertas, opcionalmente filtradas por sensor_id"""
+    error_type: Optional[int] = None,
+    data_id: Optional[int] = None,
+    limit: int = 100,
+    skip: int = 0,
+    sort_by: str = "timestamp",
+    sort_desc: bool = True
+) -> Union[List[Alert], Alert]:
+    """
+    Obtiene alertas con filtros opcionales.
+    
+    Función utilizada para consultar alertas históricas o activas,
+    filtradas por diferentes criterios.
+    
+    Parámetros:
+    - db: Sesión de base de datos
+    - log_id: Para obtener una alerta específica
+    - sensor_id/error_type/data_id: Filtros opcionales
+    - limit/skip: Para paginación
+    - sort_by/sort_desc: Para ordenamiento
+    
+    Retorna:
+    - Si log_id es proporcionado: Una única alerta o None
+    - Si no: Lista de alertas según filtros
+    
+    USO TÍPICO: Esta función alimenta el panel de alertas en el
+    dashboard, mostrando las más recientes primero.
+    """
+    if log_id is not None:
+        return db.query(Alert).filter(Alert.log_id == log_id).first()
+    
     query = db.query(Alert)
     
     if sensor_id is not None:
         query = query.filter(Alert.sensor_id == sensor_id)
     
-    alerts = query.order_by(Alert.timestamp.desc()).limit(limit).all()
-    return [serializer_remove_sa_instance(alert.__dict__) for alert in alerts]
+    if error_type is not None:
+        query = query.filter(Alert.error_type == error_type)
+    
+    if data_id is not None:
+        query = query.filter(Alert.data_id == data_id)
+    
+    # Ordenamiento
+    order_column = getattr(Alert, sort_by, Alert.timestamp)
+    if sort_desc:
+        query = query.order_by(desc(order_column))
+    else:
+        query = query.order_by(asc(order_column))
+    
+    return query.offset(skip).limit(limit).all()
 
-def get_alert_by_id(db: Session, alert_id: int) -> Optional[Alert]:
-    """Obtiene una alerta por su ID"""
-    return db.query(Alert).filter(Alert.log_id == alert_id).first()
-
-def get_alerts_by_sensor_and_dates(
+def update_alert(
     db: Session,
-    sensor_id: int,
-    start_date: datetime,
-    end_date: datetime
-) -> List[Alert]:
-    """Obtiene alertas para un sensor y rango de fechas"""
-    return db.query(Alert).filter(
-        Alert.sensor_id == sensor_id,
-        Alert.timestamp >= start_date,
-        Alert.timestamp <= end_date
-    ).order_by(Alert.timestamp).all()
-
-# --- Funciones CRUD para Máquinas ---
-
-def get_machines(db: Session, skip: int = 0, limit: int = 100) -> List[Dict[str, Any]]:
-    """Obtiene la lista de todas las máquinas"""
-    return get_items(db, Machine, skip, limit)
-
-def get_machine_by_id(db: Session, machine_id: int) -> Optional[Machine]:
-    """Obtiene una máquina por su ID"""
-    return get_item_by_id(db, Machine, Machine.machine_id, machine_id)
-
-def get_machine_by_sensor_id(db: Session, sensor_id: int) -> Optional[Machine]:
-    """Obtiene una máquina asociada a un sensor específico"""
-    return db.query(Machine).filter(Machine.sensor_id == sensor_id).first()
-
-def get_machines_with_status(db: Session, skip: int = 0, limit: int = 100) -> List[Dict[str, Any]]:
-    """Obtiene las máquinas con información de estado"""
-    machines = get_machines(db, skip, limit)
-    result = []
+    log_id: int,
+    update_data: Dict[str, Any]
+) -> Optional[Alert]:
+    """
+    Actualiza una alerta existente.
+    """
+    db_alert = db.query(Alert).filter(Alert.log_id == log_id).first()
+    if not db_alert:
+        return None
     
-    for machine in machines:
-        # Obtener el sensor asociado a esta máquina
-        sensor = db.query(Sensor).filter(Sensor.sensor_id == machine["sensor_id"]).first()
-        
-        # Inicializar contadores de alerta
-        level1_count = 0
-        level2_count = 0
-        level3_count = 0
-        
-        if sensor:
-            # Contar alertas por tipo de error
-            level1_count = db.query(Alert).filter(
-                Alert.sensor_id == sensor.sensor_id,
-                Alert.error_type == 1
-            ).count()
-            
-            level2_count = db.query(Alert).filter(
-                Alert.sensor_id == sensor.sensor_id,
-                Alert.error_type == 2
-            ).count()
-            
-            level3_count = db.query(Alert).filter(
-                Alert.sensor_id == sensor.sensor_id,
-                Alert.error_type == 3
-            ).count()
-        
-        # Crear diccionario con datos de la máquina y alertas
-        machine_dict = machine.copy()
-        machine_dict["alerts"] = {
-            "level1": level1_count,
-            "level2": level2_count,
-            "level3": level3_count,
-            "total": level1_count + level2_count + level3_count
-        }
-        
-        result.append(machine_dict)
+    for key, value in update_data.items():
+        setattr(db_alert, key, value)
     
-    return result
-
-def create_machine(db: Session, machine: Machine) -> Dict[str, Any]:
-    """Crea una nueva máquina"""
-    return create_item(db, machine)
-
-def update_machine(db: Session, machine: Machine) -> Dict[str, Any]:
-    """Actualiza una máquina existente"""
-    return update_item(db, machine)
-
-def delete_machine(db: Session, machine_id: int) -> bool:
-    """Elimina una máquina"""
-    return delete_item(db, Machine, Machine.machine_id, machine_id)
-
-# --- Funciones CRUD para Modelos ---
-
-def get_models(db: Session, skip: int = 0, limit: int = 100) -> List[Dict[str, Any]]:
-    """Obtiene la lista de todos los modelos"""
-    return get_items(db, Model, skip, limit)
-
-def get_model_by_id(db: Session, model_id: int) -> Optional[Model]:
-    """Obtiene un modelo por su ID"""
-    return get_item_by_id(db, Model, Model.model_id, model_id)
-
-def create_model(db: Session, model: Model) -> Dict[str, Any]:
-    """Crea un nuevo modelo"""
-    return create_item(db, model)
-
-def update_model(db: Session, model: Model) -> Dict[str, Any]:
-    """Actualiza un modelo existente"""
-    return update_item(db, model)
-
-def delete_model(db: Session, model_id: int) -> bool:
-    """Elimina un modelo"""
-    return delete_item(db, Model, Model.model_id, model_id)
-
-# --- Funciones adicionales para la vista unificada ---
-
-def get_alert(db: Session, alert_id: int) -> Optional[Alert]:
-    """Obtiene una alerta por su ID"""
-    return db.query(Alert).filter(Alert.log_id == alert_id).first()
-
-def get_alert_counts(db: Session, sensor_id: Optional[int] = None) -> Dict[str, int]:
-    """Obtiene el conteo de alertas por tipo de error"""
-    query = db.query(Alert)
-    
-    if sensor_id is not None:
-        query = query.filter(Alert.sensor_id == sensor_id)
-    
-    level1_count = query.filter(Alert.error_type == 1).count()
-    level2_count = query.filter(Alert.error_type == 2).count()
-    level3_count = query.filter(Alert.error_type == 3).count()
-    
-    return {
-        "level1": level1_count,
-        "level2": level2_count,
-        "level3": level3_count,
-        "total": level1_count + level2_count + level3_count
-    }
-
-# --- Funciones CRUD para Límites de Aceleración ---
-
-def get_limit_config(db: Session) -> Optional[LimitConfig]:
-    """Obtiene la configuración de límites o None si no existe"""
-    return db.query(LimitConfig).first()
-
-def create_limit_config(db: Session, limit_config: LimitConfig) -> LimitConfig:
-    """Crea una nueva configuración de límites"""
-    db.add(limit_config)
     db.commit()
-    db.refresh(limit_config)
-    return limit_config
+    db.refresh(db_alert)
+    return db_alert
 
-def update_limit_config(db: Session, limit_config: LimitConfig) -> LimitConfig:
-    """Actualiza una configuración de límites existente"""
+def delete_alert(
+    db: Session,
+    log_id: int
+) -> bool:
+    """
+    Elimina una alerta.
+    Retorna True si se eliminó correctamente, False si no se encontró.
+    """
+    db_alert = db.query(Alert).filter(Alert.log_id == log_id).first()
+    if not db_alert:
+        return False
+    
+    db.delete(db_alert)
     db.commit()
-    db.refresh(limit_config)
-    return limit_config
+    return True
 
-def get_or_create_limit_config(db: Session) -> LimitConfig:
-    """Obtiene la configuración actual de límites o crea una con valores por defecto"""
-    config = get_limit_config(db)
-    if not config:
-        # Crear configuración con valores por defecto
-        config = LimitConfig()
-        db.add(config)
-        db.commit()
-        db.refresh(config)
-    return config
+# ======== CRUD para LimitConfig ========
 
-def delete_limit_config(db: Session) -> bool:
-    """Elimina la configuración de límites"""
-    config = get_limit_config(db)
-    if config:
-        db.delete(config)
-        db.commit()
-        return True
-    return False
+def create_limit_config(
+    db: Session,
+    config_data: Dict[str, Any]
+) -> LimitConfig:
+    """
+    Crea una nueva configuración de límites en la base de datos.
+    """
+    db_limit_config = LimitConfig(**config_data)
+    db.add(db_limit_config)
+    db.commit()
+    db.refresh(db_limit_config)
+    return db_limit_config
+
+def get_limit_configs(
+    db: Session,
+    limit_config_id: Optional[int] = None,
+    limit: int = 100,
+    skip: int = 0
+) -> Union[List[LimitConfig], LimitConfig]:
+    """
+    Obtiene configuraciones de límites.
+    Si se proporciona limit_config_id, devuelve una única configuración.
+    """
+    if limit_config_id is not None:
+        return db.query(LimitConfig).filter(LimitConfig.limit_config_id == limit_config_id).first()
+    
+    return db.query(LimitConfig).offset(skip).limit(limit).all()
+
+def get_latest_limit_config(
+    db: Session
+) -> Optional[LimitConfig]:
+    """
+    Obtiene la configuración de límites más reciente.
+    
+    Esta función es crítica para el sistema de clasificación
+    ya que obtiene los umbrales actuales que determinan la
+    severidad de las vibraciones.
+    
+    Parámetros:
+    - db: Sesión de base de datos
+    
+    Retorna:
+    - Objeto LimitConfig más reciente o None
+    
+    NOTA: Si esta función retorna None, el sistema debería
+    usar los valores predeterminados para la clasificación.
+    """
+    return db.query(LimitConfig).order_by(LimitConfig.update_limits.desc()).first()
+
+def update_limit_config(
+    db: Session,
+    limit_config_id: int,
+    update_data: Dict[str, Any]
+) -> Optional[LimitConfig]:
+    """
+    Actualiza una configuración de límites existente.
+    """
+    db_limit_config = db.query(LimitConfig).filter(LimitConfig.limit_config_id == limit_config_id).first()
+    if not db_limit_config:
+        return None
+    
+    for key, value in update_data.items():
+        setattr(db_limit_config, key, value)
+    
+    # Actualizar timestamp
+    db_limit_config.update_limits = datetime.now()
+    
+    db.commit()
+    db.refresh(db_limit_config)
+    return db_limit_config
+
+def delete_limit_config(
+    db: Session,
+    limit_config_id: int
+) -> bool:
+    """
+    Elimina una configuración de límites.
+    Retorna True si se eliminó correctamente, False si no se encontró.
+    """
+    db_limit_config = db.query(LimitConfig).filter(LimitConfig.limit_config_id == limit_config_id).first()
+    if not db_limit_config:
+        return False
+    
+    db.delete(db_limit_config)
+    db.commit()
+    return True

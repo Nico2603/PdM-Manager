@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prueba de Conexión API - PdM Manager</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+        .card {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 16px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .card h3 {
+            margin-top: 0;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 8px;
+        }
+        button {
+            background-color: #4CAF50;
+            border: none;
+            color: white;
+            padding: 8px 16px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 14px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        pre {
+            background-color: #f5f5f5;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 8px;
+            overflow: auto;
+        }
+        .success {
+            color: #4CAF50;
+        }
+        .error {
+            color: #f44336;
+        }
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(0,0,0,.3);
+            border-radius: 50%;
+            border-top-color: #4CAF50;
+            animation: spin 1s ease-in-out infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        #testForm {
+            margin-top: 20px;
+        }
+        #testForm div {
+            margin-bottom: 10px;
+        }
+        label {
+            display: inline-block;
+            width: 150px;
+        }
+        input {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            width: 200px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Prueba de Conexión API - PdM Manager</h1>
+    
+    <div class="card">
+        <h3>Verificación de salud del sistema</h3>
+        <p>Esta prueba verifica si el endpoint /health está funcionando correctamente.</p>
+        <button id="checkHealth">Verificar Salud</button>
+        <div id="healthResult"></div>
+    </div>
+    
+    <div class="card">
+        <h3>Obtener Sensores</h3>
+        <p>Esta prueba verifica si el endpoint /sensors está funcionando correctamente.</p>
+        <button id="getSensors">Obtener Sensores</button>
+        <div id="sensorsResult"></div>
+    </div>
+    
+    <div class="card">
+        <h3>Enviar datos de vibración</h3>
+        <p>Esta prueba verifica si el endpoint /sensor-data está funcionando correctamente.</p>
+        <form id="testForm">
+            <div>
+                <label for="sensorId">ID del Sensor:</label>
+                <input type="number" id="sensorId" value="1" required>
+            </div>
+            <div>
+                <label for="accelX">Aceleración X:</label>
+                <input type="number" id="accelX" value="0.5" step="0.1" required>
+            </div>
+            <div>
+                <label for="accelY">Aceleración Y:</label>
+                <input type="number" id="accelY" value="8.2" step="0.1" required>
+            </div>
+            <div>
+                <label for="accelZ">Aceleración Z:</label>
+                <input type="number" id="accelZ" value="-0.3" step="0.1" required>
+            </div>
+            <button type="submit" id="sendData">Enviar Datos</button>
+        </form>
+        <div id="sendResult"></div>
+    </div>
+
+    <div class="card">
+        <h3>Obtener Datos de Vibración</h3>
+        <p>Esta prueba verifica si el endpoint /vibration-data está funcionando correctamente.</p>
+        <div>
+            <label for="querySensorId">ID del Sensor:</label>
+            <input type="number" id="querySensorId" value="1">
+            <button id="getVibrationData">Obtener Datos</button>
+        </div>
+        <div id="vibrationResult"></div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Función para mostrar resultados
+            function showResult(elementId, isSuccess, message, data = null) {
+                const resultElement = document.getElementById(elementId);
+                resultElement.innerHTML = `
+                    <p class="${isSuccess ? 'success' : 'error'}">
+                        ${message}
+                    </p>
+                    ${data ? `<pre>${JSON.stringify(data, null, 2)}</pre>` : ''}
+                `;
+            }
+
+            // Función para mostrar cargando
+            function showLoading(elementId) {
+                const resultElement = document.getElementById(elementId);
+                resultElement.innerHTML = `<div class="loading"></div> Cargando...`;
+            }
+
+            // Verificar salud del sistema
+            document.getElementById('checkHealth').addEventListener('click', async function() {
+                showLoading('healthResult');
+                try {
+                    const response = await fetch('/health');
+                    if (!response.ok) {
+                        throw new Error(`Error ${response.status}: ${response.statusText}`);
+                    }
+                    const data = await response.json();
+                    showResult('healthResult', true, 'Conexión establecida correctamente', data);
+                } catch (error) {
+                    showResult('healthResult', false, `Error: ${error.message}`);
+                }
+            });
+
+            // Obtener sensores
+            document.getElementById('getSensors').addEventListener('click', async function() {
+                showLoading('sensorsResult');
+                try {
+                    const response = await fetch('/sensors');
+                    if (!response.ok) {
+                        throw new Error(`Error ${response.status}: ${response.statusText}`);
+                    }
+                    const data = await response.json();
+                    showResult('sensorsResult', true, 'Sensores obtenidos correctamente', data);
+                } catch (error) {
+                    showResult('sensorsResult', false, `Error: ${error.message}`);
+                }
+            });
+
+            // Enviar datos de vibración
+            document.getElementById('testForm').addEventListener('submit', async function(e) {
+                e.preventDefault();
+                showLoading('sendResult');
+                
+                const sensorId = parseInt(document.getElementById('sensorId').value);
+                const accelX = parseFloat(document.getElementById('accelX').value);
+                const accelY = parseFloat(document.getElementById('accelY').value);
+                const accelZ = parseFloat(document.getElementById('accelZ').value);
+                
+                const payload = {
+                    sensor_id: sensorId,
+                    acceleration_x: accelX,
+                    acceleration_y: accelY,
+                    acceleration_z: accelZ,
+                    timestamp: new Date().toISOString()
+                };
+                
+                try {
+                    const response = await fetch('/sensor-data', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(payload)
+                    });
+                    
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.message || `Error ${response.status}: ${response.statusText}`);
+                    }
+                    
+                    const data = await response.json();
+                    showResult('sendResult', true, 'Datos enviados correctamente', data);
+                } catch (error) {
+                    showResult('sendResult', false, `Error: ${error.message}`);
+                }
+            });
+
+            // Obtener datos de vibración
+            document.getElementById('getVibrationData').addEventListener('click', async function() {
+                showLoading('vibrationResult');
+                const sensorId = document.getElementById('querySensorId').value;
+                
+                try {
+                    const response = await fetch(`/vibration-data?sensor_id=${sensorId}&limit=10`);
+                    if (!response.ok) {
+                        throw new Error(`Error ${response.status}: ${response.statusText}`);
+                    }
+                    const data = await response.json();
+                    showResult('vibrationResult', true, 'Datos de vibración obtenidos correctamente', data);
+                } catch (error) {
+                    showResult('vibrationResult', false, `Error: ${error.message}`);
+                }
+            });
+        });
+    </script>
+</body>
+</html> 

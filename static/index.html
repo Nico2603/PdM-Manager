@@ -72,27 +72,13 @@
         
         <div class="sidebar-actions">
           <div class="sidebar-action-item">
-            <button id="startMonitoringBtn" class="btn btn-primary btn-block">
+            <button id="startMonitoringBtn" class="btn btn-primary btn-block" disabled>
               <i class="fas fa-play-circle mr-2"></i> Iniciar Monitoreo
             </button>
-            <div id="configurationWarning" class="configuration-warning d-none">
+            <div id="configurationWarning" class="configuration-warning">
               <i class="fas fa-exclamation-triangle mr-2"></i>
-              <span>Se requiere configurar al menos una máquina con sensor y modelo</span>
+              <span>Se requiere configurar el sistema antes de iniciar el monitoreo</span>
             </div>
-          </div>
-          
-          <div class="sidebar-action-item">
-            <button id="refreshDataBtn" class="btn btn-block">
-              <i class="fas fa-sync-alt mr-2"></i>
-              <span>Actualizar Datos</span>
-            </button>
-          </div>
-          
-          <div class="sidebar-action-item">
-            <button id="showLogsBtn" class="btn btn-block">
-              <i class="fas fa-list-alt mr-2"></i>
-              <span>Ver Logs</span>
-            </button>
           </div>
         </div>
       </div>
@@ -102,79 +88,6 @@
     <div class="main-content">
       <!-- Contenido -->
       <div class="content">
-        <!-- Modal para mostrar logs -->
-        <div id="logsModal" class="modal">
-          <div class="modal-content logs-modal-content">
-            <div class="modal-header">
-              <h3><i class="fas fa-list-alt mr-2"></i> Logs del Sistema</h3>
-              <button class="modal-close"><i class="fas fa-times"></i></button>
-            </div>
-            <div class="modal-body">
-              <div class="logs-filter">
-                <div class="filter-group">
-                  <label for="logComponentFilter">Componente:</label>
-                  <select id="logComponentFilter">
-                    <option value="">Todos</option>
-                    <option value="dashboard">Dashboard</option>
-                    <option value="navigation">Navegación</option>
-                    <option value="websocket">WebSocket</option>
-                    <option value="system">Sistema</option>
-                    <option value="performance">Rendimiento</option>
-                  </select>
-                </div>
-                <div class="filter-group">
-                  <label for="logLevelFilter">Nivel:</label>
-                  <select id="logLevelFilter">
-                    <option value="">Todos</option>
-                    <option value="debug">Debug</option>
-                    <option value="info">Info</option>
-                    <option value="warn">Advertencia</option>
-                    <option value="error">Error</option>
-                  </select>
-                </div>
-                <div class="filter-group">
-                  <label for="logSearchFilter">Buscar:</label>
-                  <input type="text" id="logSearchFilter" placeholder="Filtrar por texto...">
-                </div>
-                <div class="filter-actions">
-                  <button id="clearLogsBtn" class="btn btn-danger btn-sm">
-                    <i class="fas fa-trash-alt mr-1"></i> Limpiar
-                  </button>
-                  <button id="exportLogsBtn" class="btn btn-primary btn-sm">
-                    <i class="fas fa-download mr-1"></i> Exportar
-                  </button>
-                  <div class="custom-switch">
-                    <input type="checkbox" class="custom-control-input" id="debugModeToggle">
-                    <label class="custom-control-label" for="debugModeToggle">Modo Debug</label>
-                  </div>
-                </div>
-              </div>
-              <div class="logs-container">
-                <table class="logs-table">
-                  <thead>
-                    <tr>
-                      <th>Tiempo</th>
-                      <th>Componente</th>
-                      <th>Nivel</th>
-                      <th>Mensaje</th>
-                      <th>Duración</th>
-                    </tr>
-                  </thead>
-                  <tbody id="logsTableBody">
-                    <!-- Los logs se cargarán aquí dinámicamente -->
-                  </tbody>
-                </table>
-              </div>
-            </div>
-            <div class="modal-footer">
-              <div class="logs-status">
-                <span id="logsCount">0 logs</span>
-              </div>
-              <button class="btn btn-secondary" id="closeLogsBtn">Cerrar</button>
-            </div>
-          </div>
-        </div>
-
         <!-- Dashboard Section -->
         <div id="dashboard-section" class="content-section active animate-fade-in">
           <div class="section-header">
@@ -239,617 +152,189 @@
             </div>
           </div>
 
-          <!-- Espaciador para separar las alertas de los filtros -->
-          <div class="spacer mt-4"></div>
-
           <!-- Filtros y Gráficos -->
           <div class="dashboard-grid">
             <!-- Filtros del Dashboard -->
             <div class="filter-card animate-slide-up" style="animation-delay: 0.5s">
               <div class="card-header">
                 <h5><i class="fas fa-filter"></i> Filtros de Visualización</h5>
-                <button class="btn-icon" id="expandFiltersBtn" title="Minimizar filtros">
-                  <i class="fas fa-chevron-up"></i>
-                </button>
-              </div>
-              <div class="card-body filter-panel show">
-                <div class="filter-content">
-                  <div class="filter-section">
-                    <label class="filter-label">Máquina:</label>
-                    <div class="filter-dropdown" id="machineDropdown">
-                      <div class="filter-dropdown-toggle">
-                        <span id="selectedMachineText">Todas las máquinas</span>
-                        <i class="fas fa-chevron-down"></i>
-                      </div>
-                      <div class="filter-dropdown-menu" id="machineDropdownMenu">
-                        <div class="filter-dropdown-item selected" data-value="">Todas las máquinas</div>
-                        <!-- Las opciones se cargarán dinámicamente -->
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div class="filter-section">
-                    <label class="filter-label">Sensor:</label>
-                    <div class="filter-dropdown" id="sensorDropdown">
-                      <div class="filter-dropdown-toggle">
-                        <span id="selectedSensorText">Todos los sensores</span>
-                        <i class="fas fa-chevron-down"></i>
-                      </div>
-                      <div class="filter-dropdown-menu" id="sensorDropdownMenu">
-                        <div class="filter-dropdown-item selected" data-value="">Todos los sensores</div>
-                        <!-- Las opciones se cargarán dinámicamente -->
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div class="filter-section">
-                    <label class="filter-label">Rango de tiempo:</label>
-                    <div class="filter-dropdown" id="timeRangeDropdown">
-                      <div class="filter-dropdown-toggle">
-                        <span id="selectedTimeRangeText">Últimas 24 horas</span>
-                        <i class="fas fa-chevron-down"></i>
-                      </div>
-                      <div class="filter-dropdown-menu" id="timeRangeDropdownMenu">
-                        <div class="filter-dropdown-item" data-value="1h">Última hora</div>
-                        <div class="filter-dropdown-item" data-value="6h">Últimas 6 horas</div>
-                        <div class="filter-dropdown-item selected" data-value="24h">Últimas 24 horas</div>
-                        <div class="filter-dropdown-item" data-value="7d">Últimos 7 días</div>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div class="filter-section">
-                    <h6 class="filter-subtitle"><i class="fas fa-chart-line"></i> Visualización</h6>
-                    <div class="switch-group">
-                      <div class="custom-switch">
-                        <input type="checkbox" class="custom-control-input" id="show2Sigma" checked>
-                        <label class="custom-control-label" for="show2Sigma">2σ</label>
-                      </div>
-                      <div class="custom-switch">
-                        <input type="checkbox" class="custom-control-input" id="show3Sigma" checked>
-                        <label class="custom-control-label" for="show3Sigma">3σ</label>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div class="filter-actions">
-                    <button class="btn btn-block" id="applyFiltersBtn">
-                      <i class="fas fa-check mr-2"></i> Aplicar Filtros
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Parámetros Estadísticos -->
-            <div class="stats-container animate-slide-up" style="animation-delay: 0.6s">
-              <div class="stats-header">
-                <h3>
-                  <i class="fas fa-chart-bar text-accent"></i>
-                  Parámetros Estadísticos
-                </h3>
-                <button class="btn btn-secondary" id="adjustLimitsBtn">
-                  <i class="fas fa-sliders-h mr-2"></i> Ajustar Límites
-                </button>
-              </div>
-              
-              <div class="stats-grid">
-                <!-- Columna Eje X -->
-                <div class="axis-column axis-x">
-                  <div class="axis-header">
-                    <h4><span class="axis-indicator">X</span> Eje X</h4>
-                  </div>
-                  <div class="stat-card">
-                    <div class="stat-label"><i class="fas fa-level-down-alt"></i> Límite 2σ Inferior</div>
-                    <div class="stat-value" id="x2SigmaLowerDisplay">-2.36<span class="stat-unit">m/s²</span></div>
-                  </div>
-                  <div class="stat-card">
-                    <div class="stat-label"><i class="fas fa-level-up-alt"></i> Límite 2σ Superior</div>
-                    <div class="stat-value" id="x2SigmaUpperDisplay">2.18<span class="stat-unit">m/s²</span></div>
-                  </div>
-                  <div class="stat-card">
-                    <div class="stat-label"><i class="fas fa-level-down-alt"></i> Límite 3σ Inferior</div>
-                    <div class="stat-value" id="x3SigmaLowerDisplay">-3.50<span class="stat-unit">m/s²</span></div>
-                  </div>
-                  <div class="stat-card">
-                    <div class="stat-label"><i class="fas fa-level-up-alt"></i> Límite 3σ Superior</div>
-                    <div class="stat-value" id="x3SigmaUpperDisplay">3.32<span class="stat-unit">m/s²</span></div>
-                  </div>
-                </div>
-                
-                <!-- Columna Eje Y -->
-                <div class="axis-column axis-y">
-                  <div class="axis-header">
-                    <h4><span class="axis-indicator">Y</span> Eje Y</h4>
-                  </div>
-                  <div class="stat-card">
-                    <div class="stat-label"><i class="fas fa-level-down-alt"></i> Límite 2σ Inferior</div>
-                    <div class="stat-value" id="y2SigmaLowerDisplay">7.18<span class="stat-unit">m/s²</span></div>
-                  </div>
-                  <div class="stat-card">
-                    <div class="stat-label"><i class="fas fa-level-up-alt"></i> Límite 2σ Superior</div>
-                    <div class="stat-value" id="y2SigmaUpperDisplay">12.09<span class="stat-unit">m/s²</span></div>
-                  </div>
-                  <div class="stat-card">
-                    <div class="stat-label"><i class="fas fa-level-down-alt"></i> Límite 3σ Inferior</div>
-                    <div class="stat-value" id="y3SigmaLowerDisplay">5.95<span class="stat-unit">m/s²</span></div>
-                  </div>
-                  <div class="stat-card">
-                    <div class="stat-label"><i class="fas fa-level-up-alt"></i> Límite 3σ Superior</div>
-                    <div class="stat-value" id="y3SigmaUpperDisplay">13.32<span class="stat-unit">m/s²</span></div>
-                  </div>
-                </div>
-                
-                <!-- Columna Eje Z -->
-                <div class="axis-column axis-z">
-                  <div class="axis-header">
-                    <h4><span class="axis-indicator">Z</span> Eje Z</h4>
-                  </div>
-                  <div class="stat-card">
-                    <div class="stat-label"><i class="fas fa-level-down-alt"></i> Límite 2σ Inferior</div>
-                    <div class="stat-value" id="z2SigmaLowerDisplay">-2.39<span class="stat-unit">m/s²</span></div>
-                  </div>
-                  <div class="stat-card">
-                    <div class="stat-label"><i class="fas fa-level-up-alt"></i> Límite 2σ Superior</div>
-                    <div class="stat-value" id="z2SigmaUpperDisplay">1.11<span class="stat-unit">m/s²</span></div>
-                  </div>
-                  <div class="stat-card">
-                    <div class="stat-label"><i class="fas fa-level-down-alt"></i> Límite 3σ Inferior</div>
-                    <div class="stat-value" id="z3SigmaLowerDisplay">-3.26<span class="stat-unit">m/s²</span></div>
-                  </div>
-                  <div class="stat-card">
-                    <div class="stat-label"><i class="fas fa-level-up-alt"></i> Límite 3σ Superior</div>
-                    <div class="stat-value" id="z3SigmaUpperDisplay">1.98<span class="stat-unit">m/s²</span></div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-          
-          <!-- Gráficos -->
-          <div class="charts-container">
-            <!-- Mensaje de no configuración -->
-            <div id="noConfigurationMessage" class="no-config-message d-none">
-              <div class="message-container">
-                <div class="message-icon">
-                  <i class="fas fa-cog"></i>
-                </div>
-                <h3>No hay configuración disponible</h3>
-                <p>Cree una máquina y configure un sensor con un modelo en la configuración</p>
-                <a href="#configuracion" class="btn btn-accent">
-                  <i class="fas fa-wrench mr-2"></i>Ir a configuración
-                </a>
-              </div>
-            </div>
-            
-            <!-- Gráfica Eje X -->
-            <div class="chart-container chart-container-x animate-slide-up" style="animation-delay: 0.7s; width: 100%;">
-              <div class="chart-header">
-                <div class="chart-title">
-                  <span>Vibración - Eje X</span>
-                  <span class="axis-indicator">X</span>
-                </div>
-                <div class="chart-actions">
-                  <button class="btn-icon toggle-sigma" id="toggle2SigmaX" data-axis="x" data-sigma="2" title="Mostrar/ocultar límites 2σ">
-                    <i class="fas fa-circle"></i><span>2σ</span>
-                  </button>
-                  <button class="btn-icon toggle-sigma" id="toggle3SigmaX" data-axis="x" data-sigma="3" title="Mostrar/ocultar límites 3σ">
-                    <i class="fas fa-circle"></i><span>3σ</span>
-                  </button>
-                  <button class="btn-icon" id="zoomResetBtnX" title="Restablecer zoom">
-                    <i class="fas fa-compress-arrows-alt"></i>
-                  </button>
-                  <div class="chart-dropdown">
-                    <button class="btn-icon chart-dropdown-toggle" title="Opciones">
-                      <i class="fas fa-ellipsis-v"></i>
-                    </button>
-                    <div class="chart-dropdown-menu">
-                      <button class="chart-dropdown-item" id="exportPdfX">
-                        <i class="fas fa-file-pdf"></i> Exportar PDF
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div class="chart-body">
-                <canvas id="vibrationChartX"></canvas>
-              </div>
-            </div>
-            
-            <!-- Gráfica Eje Y -->
-            <div class="chart-container chart-container-y animate-slide-up" style="animation-delay: 0.8s; width: 100%;">
-              <div class="chart-header">
-                <div class="chart-title">
-                  <span>Vibración - Eje Y</span>
-                  <span class="axis-indicator">Y</span>
-                </div>
-                <div class="chart-actions">
-                  <button class="btn-icon toggle-sigma" id="toggle2SigmaY" data-axis="y" data-sigma="2" title="Mostrar/ocultar límites 2σ">
-                    <i class="fas fa-circle"></i><span>2σ</span>
-                  </button>
-                  <button class="btn-icon toggle-sigma" id="toggle3SigmaY" data-axis="y" data-sigma="3" title="Mostrar/ocultar límites 3σ">
-                    <i class="fas fa-circle"></i><span>3σ</span>
-                  </button>
-                  <button class="btn-icon" id="zoomResetBtnY" title="Restablecer zoom">
-                    <i class="fas fa-compress-arrows-alt"></i>
-                  </button>
-                  <div class="chart-dropdown">
-                    <button class="btn-icon chart-dropdown-toggle" title="Opciones">
-                      <i class="fas fa-ellipsis-v"></i>
-                    </button>
-                    <div class="chart-dropdown-menu">
-                      <button class="chart-dropdown-item" id="exportPdfY">
-                        <i class="fas fa-file-pdf"></i> Exportar PDF
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div class="chart-body">
-                <canvas id="vibrationChartY"></canvas>
-              </div>
-            </div>
-            
-            <!-- Gráfica Eje Z -->
-            <div class="chart-container chart-container-z animate-slide-up" style="animation-delay: 0.9s; width: 100%;">
-              <div class="chart-header">
-                <div class="chart-title">
-                  <span>Vibración - Eje Z</span>
-                  <span class="axis-indicator">Z</span>
-                </div>
-                <div class="chart-actions">
-                  <button class="btn-icon toggle-sigma" id="toggle2SigmaZ" data-axis="z" data-sigma="2" title="Mostrar/ocultar límites 2σ">
-                    <i class="fas fa-circle"></i><span>2σ</span>
-                  </button>
-                  <button class="btn-icon toggle-sigma" id="toggle3SigmaZ" data-axis="z" data-sigma="3" title="Mostrar/ocultar límites 3σ">
-                    <i class="fas fa-circle"></i><span>3σ</span>
-                  </button>
-                  <button class="btn-icon" id="zoomResetBtnZ" title="Restablecer zoom">
-                    <i class="fas fa-compress-arrows-alt"></i>
-                  </button>
-                  <div class="chart-dropdown">
-                    <button class="btn-icon chart-dropdown-toggle" title="Opciones">
-                      <i class="fas fa-ellipsis-v"></i>
-                    </button>
-                    <div class="chart-dropdown-menu">
-                      <button class="chart-dropdown-item" id="exportPdfZ">
-                        <i class="fas fa-file-pdf"></i> Exportar PDF
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div class="chart-body">
-                <canvas id="vibrationChartZ"></canvas>
-              </div>
-            </div>
-            
-            <!-- Historial de Alertas -->
-            <div class="card animate-slide-up" style="animation-delay: 1.05s; width: 100%;">
-              <div class="card-header">
-                <h5><i class="fas fa-exclamation-triangle"></i> Historial de Alertas</h5>
-                <button class="btn-icon" id="refreshAlertsTable" title="Refrescar datos">
-                  <i class="fas fa-sync-alt"></i>
-                </button>
               </div>
               <div class="card-body">
-                <div class="table-responsive">
-                  <table class="data-table">
-                    <thead>
-                      <tr>
-                        <th>ID</th>
-                        <th>Sensor ID</th>
-                        <th>Fecha y Hora</th>
-                        <th>Data ID</th>
-                        <th>Tipo de Error</th>
-                      </tr>
-                    </thead>
-                    <tbody id="alertsTableBody">
-                      <!-- Datos cargados dinámicamente -->
-                    </tbody>
-                  </table>
+                <div class="form-group">
+                  <label for="sensorSelector">Sensor:</label>
+                  <select id="sensorSelector" class="form-control">
+                    <option value="" disabled selected>Seleccione un sensor</option>
+                  </select>
+                </div>
+                <div id="dataStatus" class="status-message">
+                  <i class="fas fa-info-circle"></i> Seleccione un sensor para ver sus datos
+                </div>
+                <div class="form-group mt-3">
+                  <label for="lastUpdate">Última actualización:</label>
+                  <div id="lastUpdate" class="form-control-static">-</div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Gráficas de Aceleración -->
+            <div class="acceleration-charts-grid">
+              <!-- Gráfico de Aceleración Eje X -->
+              <div class="chart-card animate-slide-up" style="animation-delay: 0.6s">
+                <div class="card-header">
+                  <h5><i class="fas fa-chart-line"></i> Aceleración Eje X</h5>
+                </div>
+                <div class="card-body">
+                  <div class="chart-container">
+                    <canvas id="vibrationChartX"></canvas>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Gráfico de Aceleración Eje Y -->
+              <div class="chart-card animate-slide-up" style="animation-delay: 0.7s">
+                <div class="card-header">
+                  <h5><i class="fas fa-chart-line"></i> Aceleración Eje Y</h5>
+                </div>
+                <div class="card-body">
+                  <div class="chart-container">
+                    <canvas id="vibrationChartY"></canvas>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Gráfico de Aceleración Eje Z -->
+              <div class="chart-card animate-slide-up" style="animation-delay: 0.8s">
+                <div class="card-header">
+                  <h5><i class="fas fa-chart-line"></i> Aceleración Eje Z</h5>
+                </div>
+                <div class="card-body">
+                  <div class="chart-container">
+                    <canvas id="vibrationChartZ"></canvas>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
         </div>
         
-        <!-- Sección de Configuración -->
-        <div id="configuracion-section" class="content-section">
+        <!-- Configuración Section -->
+        <div id="configuracion-section" class="content-section" style="display: none;">
           <div class="section-header">
             <h2>
               <i class="fas fa-cog text-accent"></i>
               Configuración
             </h2>
-            <p class="section-description">Gestión de máquinas, sensores y modelos de predicción</p>
+            <p class="section-description">Configuración de archivos y parámetros del sistema</p>
           </div>
           
-          <!-- Tabs de Configuración -->
-          <div class="config-tabs">
-            <div class="tab-item" data-tab="limites">
-              <i class="fas fa-sliders-h"></i>
-              <span>Configurar límites</span>
-            </div>
-            <div class="tab-item" data-tab="modelos">
-              <i class="fas fa-brain"></i>
-              <span>Modelo de predicción</span>
-            </div>
-            <div class="tab-item" data-tab="sensores">
-              <i class="fas fa-microchip"></i>
-              <span>Configuración de sensores</span>
-            </div>
-            <div class="tab-item active" data-tab="maquinas">
-              <i class="fas fa-industry"></i>
-              <span>Configuración de máquinas</span>
-            </div>
-          </div>
-          
-          <!-- Contenido de las Tabs -->
-          <div class="config-content">
-            <!-- Tab Máquinas -->
-            <div id="maquinasContent" class="tab-content active">
-              <div class="config-form-grid">
-                <div class="config-card">
-                  <h3>Agregar Máquina</h3>
-                  <p class="card-description">Configure una nueva máquina para monitorear</p>
-                  
-                  <form id="machineForm" class="config-form">
-                    <input type="hidden" id="machineId" value="">
-                    <div class="form-group">
-                      <label for="machineName" class="form-label">Nombre de la Máquina</label>
-                      <input type="text" id="machineName" class="form-control" placeholder="Ej. Bomba Centrífuga 1" required>
-                    </div>
-                    
-                    <div class="form-group">
-                      <label for="machineDescription" class="form-label">Descripción</label>
-                      <textarea id="machineDescription" class="form-control" rows="3" placeholder="Detalles adicionales sobre la máquina..."></textarea>
-                    </div>
-                    
-                    <div class="form-group">
-                      <label for="machineSensor" class="form-label">Sensor</label>
-                      <select id="machineSensor" class="form-select">
-                        <option value="" selected>Sin asignación (opcional)</option>
-                        <!-- Opciones cargadas dinámicamente -->
-                      </select>
-                    </div>
-                    
-                    <div class="form-actions">
-                      <button type="button" class="btn btn-secondary" id="cancelMachineBtn">Cancelar</button>
-                      <button type="submit" class="btn btn-primary">Guardar Máquina</button>
-                    </div>
-                  </form>
-                </div>
-                
-                <div class="config-card">
-                  <h3>Máquinas Configuradas</h3>
-                  <p class="card-description">Lista de máquinas disponibles para monitoreo</p>
-                  
-                  <div class="table-container">
-                    <div class="table-responsive">
-                      <table class="data-table" id="machinesTable">
-                        <thead>
-                          <tr>
-                            <th class="column-id">ID</th>
-                            <th>Nombre</th>
-                            <th>Descripción</th>
-                            <th>Sensor</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          <!-- Se cargará dinámicamente -->
-                        </tbody>
-                      </table>
-                    </div>
+          <!-- Tarjetas de Configuración -->
+          <div class="config-grid">
+            <!-- Configuración de Archivos -->
+            <div class="config-card animate-slide-up">
+              <div class="card-header">
+                <h5><i class="fas fa-file-code"></i> Archivos del Modelo</h5>
+              </div>
+              <div class="card-body">
+                <div class="form-group">
+                  <label for="modelFile">Archivo del Modelo (.h5):</label>
+                  <div class="file-selector">
+                    <input type="text" id="modelFile" class="form-control" 
+                      value="Modelo/anomaly_detection_model.h5" readonly>
+                    <button id="selectModelBtn" class="btn"><i class="fas fa-folder-open"></i></button>
                   </div>
+                </div>
+                <div class="form-group mt-3">
+                  <label for="scalerFile">Archivo del Escalador (.pkl):</label>
+                  <div class="file-selector">
+                    <input type="text" id="scalerFile" class="form-control" 
+                      value="Scaler/scaler.pkl" readonly>
+                    <button id="selectScalerBtn" class="btn"><i class="fas fa-folder-open"></i></button>
+                  </div>
+                </div>
+                <div class="form-actions mt-4">
+                  <button id="saveFilePathsBtn" class="btn btn-primary">
+                    <i class="fas fa-save mr-2"></i> Guardar Rutas
+                  </button>
                 </div>
               </div>
             </div>
             
-            <!-- Tab Sensores -->
-            <div id="sensoresContent" class="tab-content">
-              <div class="config-form-grid">
-                <div class="config-card">
-                  <h3>Configurar Sensor</h3>
-                  <p class="card-description">Configure un nuevo sensor para monitoreo</p>
-                  
-                  <form id="sensorForm" class="config-form">
-                    <input type="hidden" id="sensorId" value="">
-                    <div class="form-group">
-                      <label for="sensorName" class="form-label">Nombre del Sensor</label>
-                      <input type="text" id="sensorName" class="form-control" placeholder="Ej. Acelerómetro Principal" required>
-                    </div>
-                    
-                    <div class="form-group">
-                      <label for="sensorDescription" class="form-label">Descripción</label>
-                      <textarea id="sensorDescription" class="form-control" rows="3" placeholder="Detalles adicionales sobre el sensor..."></textarea>
-                    </div>
-                    
-                    <div class="form-group">
-                      <label for="sensorModel" class="form-label">Modelo Predictivo</label>
-                      <select id="sensorModel" class="form-select" required>
-                        <option value="" disabled selected>Seleccione un modelo</option>
-                        <!-- Se cargará dinámicamente -->
-                      </select>
-                    </div>
-                    
-                    <div class="form-actions">
-                      <button type="button" class="btn btn-secondary" id="cancelSensorBtn">Cancelar</button>
-                      <button type="submit" class="btn btn-primary">Guardar Sensor</button>
-                    </div>
-                  </form>
-                </div>
-                
-                <div class="config-card">
-                  <h3>Sensores Configurados</h3>
-                  <p class="card-description">Lista de sensores asignados a máquinas</p>
-                  
-                  <div class="table-container">
-                    <div class="table-responsive">
-                      <table class="data-table" id="sensorsTable">
-                        <thead>
-                          <tr>
-                            <th class="column-id">ID</th>
-                            <th>Nombre</th>
-                            <th>Descripción</th>
-                            <th>Modelo</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          <!-- Se cargará dinámicamente -->
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </div>
+            <!-- Configuración de Límites -->
+            <div class="config-card animate-slide-up" style="animation-delay: 0.1s">
+              <div class="card-header">
+                <h5><i class="fas fa-exclamation-triangle"></i> Límites de Alertas</h5>
               </div>
-            </div>
-            
-            <!-- Tab Modelos -->
-            <div id="modelosContent" class="tab-content">
-              <div class="config-form-grid">
-                <div class="config-card">
-                  <h3>Agregar Modelo</h3>
-                  <p class="card-description">Cargue un nuevo modelo de IA para la predicción de fallos</p>
-                  
-                  <form id="modelForm" class="config-form">
-                    <input type="hidden" id="modelId" value="">
-                    <div class="form-group">
-                      <label for="modelName" class="form-label">Nombre del Modelo</label>
-                      <input type="text" id="modelName" class="form-control" placeholder="Ej. Modelo de Vibración" required>
-                    </div>
-                    
-                    <div class="form-group">
-                      <label for="modelDescription" class="form-label">Descripción</label>
-                      <textarea id="modelDescription" class="form-control" rows="3" placeholder="Detalles adicionales sobre el modelo..."></textarea>
-                    </div>
-                    
-                    <div class="form-group">
-                      <label class="form-label">Archivo del Modelo (.h5) <span id="modelFileRequired" class="required">*</span><span id="modelFileOptional" class="optional">Opcional</span></label>
-                      <div class="custom-file">
-                        <input type="file" class="custom-file-input" id="modelFile" accept=".h5,.hdf5">
-                        <button type="button" class="custom-file-button">
-                          <i class="fas fa-upload mr-2"></i> Seleccionar Archivo
-                        </button>
-                        <span class="custom-file-label" id="modelFileName">Ningún archivo seleccionado</span>
+              <div class="card-body">
+                <!-- Límites Eje X -->
+                <div class="form-group">
+                  <h6>Eje X</h6>
+                  <div class="limit-inputs">
+                    <div class="limit-input-group">
+                      <label>Warning (±2σ):</label>
+                      <div class="d-flex">
+                        <input type="number" id="xWarningMin" class="form-control" step="0.01" placeholder="Min">
+                        <input type="number" id="xWarningMax" class="form-control" step="0.01" placeholder="Max">
                       </div>
                     </div>
-                    
-                    <div class="form-group">
-                      <label class="form-label">Archivo del Escalador (.pkl) <span id="scalerFileRequired" class="required">*</span><span id="scalerFileOptional" class="optional">Opcional</span></label>
-                      <div class="custom-file">
-                        <input type="file" class="custom-file-input" id="scalerFile" accept=".pkl">
-                        <button type="button" class="custom-file-button">
-                          <i class="fas fa-upload mr-2"></i> Seleccionar Archivo
-                        </button>
-                        <span class="custom-file-label" id="scalerFileName">Ningún archivo seleccionado</span>
+                    <div class="limit-input-group">
+                      <label>Critical (±3σ):</label>
+                      <div class="d-flex">
+                        <input type="number" id="xCriticalMin" class="form-control" step="0.01" placeholder="Min">
+                        <input type="number" id="xCriticalMax" class="form-control" step="0.01" placeholder="Max">
                       </div>
-                    </div>
-                    
-                    <div class="form-actions">
-                      <button type="button" class="btn btn-secondary" id="cancelModelBtn">Cancelar</button>
-                      <button type="submit" class="btn btn-primary">Guardar Modelo</button>
-                    </div>
-                  </form>
-                </div>
-                
-                <div class="config-card">
-                  <h3>Modelos Configurados</h3>
-                  <p class="card-description">Lista de modelos disponibles para la predicción de fallos</p>
-                  
-                  <div class="table-container">
-                    <div class="table-responsive">
-                      <table class="data-table" id="modelsTable">
-                        <thead>
-                          <tr>
-                            <th class="column-id">ID</th>
-                            <th>Nombre</th>
-                            <th>Descripción</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          <!-- Se cargará dinámicamente -->
-                        </tbody>
-                      </table>
                     </div>
                   </div>
                 </div>
-              </div>
-            </div>
-            
-            <!-- Tab Límites -->
-            <div id="limitesContent" class="tab-content">
-              <div class="config-form-grid">
-                <div class="config-card">
-                  <h3>Configurar Límites</h3>
-                  <p class="card-description">Configure los límites de aceleración para la detección de anomalías</p>
-                  
-                  <form id="limitsForm" class="config-form">
-                    <div class="form-group">
-                      <label for="x_2inf" class="form-label">Límite 2σ Inferior - Eje X</label>
-                      <input type="number" id="x_2inf" class="form-control" step="0.01" placeholder="-2.36">
+                
+                <!-- Límites Eje Y -->
+                <div class="form-group mt-3">
+                  <h6>Eje Y</h6>
+                  <div class="limit-inputs">
+                    <div class="limit-input-group">
+                      <label>Warning (±2σ):</label>
+                      <div class="d-flex">
+                        <input type="number" id="yWarningMin" class="form-control" step="0.01" placeholder="Min">
+                        <input type="number" id="yWarningMax" class="form-control" step="0.01" placeholder="Max">
+                      </div>
                     </div>
-                    
-                    <div class="form-group">
-                      <label for="x_2sup" class="form-label">Límite 2σ Superior - Eje X</label>
-                      <input type="number" id="x_2sup" class="form-control" step="0.01" placeholder="2.18">
+                    <div class="limit-input-group">
+                      <label>Critical (±3σ):</label>
+                      <div class="d-flex">
+                        <input type="number" id="yCriticalMin" class="form-control" step="0.01" placeholder="Min">
+                        <input type="number" id="yCriticalMax" class="form-control" step="0.01" placeholder="Max">
+                      </div>
                     </div>
-                    
-                    <div class="form-group">
-                      <label for="x_3inf" class="form-label">Límite 3σ Inferior - Eje X</label>
-                      <input type="number" id="x_3inf" class="form-control" step="0.01" placeholder="-3.50">
+                  </div>
+                </div>
+                
+                <!-- Límites Eje Z -->
+                <div class="form-group mt-3">
+                  <h6>Eje Z</h6>
+                  <div class="limit-inputs">
+                    <div class="limit-input-group">
+                      <label>Warning (±2σ):</label>
+                      <div class="d-flex">
+                        <input type="number" id="zWarningMin" class="form-control" step="0.01" placeholder="Min">
+                        <input type="number" id="zWarningMax" class="form-control" step="0.01" placeholder="Max">
+                      </div>
                     </div>
-                    
-                    <div class="form-group">
-                      <label for="x_3sup" class="form-label">Límite 3σ Superior - Eje X</label>
-                      <input type="number" id="x_3sup" class="form-control" step="0.01" placeholder="3.32">
+                    <div class="limit-input-group">
+                      <label>Critical (±3σ):</label>
+                      <div class="d-flex">
+                        <input type="number" id="zCriticalMin" class="form-control" step="0.01" placeholder="Min">
+                        <input type="number" id="zCriticalMax" class="form-control" step="0.01" placeholder="Max">
+                      </div>
                     </div>
-                    
-                    <div class="form-group">
-                      <label for="y_2inf" class="form-label">Límite 2σ Inferior - Eje Y</label>
-                      <input type="number" id="y_2inf" class="form-control" step="0.01" placeholder="7.18">
-                    </div>
-                    
-                    <div class="form-group">
-                      <label for="y_2sup" class="form-label">Límite 2σ Superior - Eje Y</label>
-                      <input type="number" id="y_2sup" class="form-control" step="0.01" placeholder="12.09">
-                    </div>
-                    
-                    <div class="form-group">
-                      <label for="y_3inf" class="form-label">Límite 3σ Inferior - Eje Y</label>
-                      <input type="number" id="y_3inf" class="form-control" step="0.01" placeholder="5.95">
-                    </div>
-                    
-                    <div class="form-group">
-                      <label for="y_3sup" class="form-label">Límite 3σ Superior - Eje Y</label>
-                      <input type="number" id="y_3sup" class="form-control" step="0.01" placeholder="13.32">
-                    </div>
-                    
-                    <div class="form-group">
-                      <label for="z_2inf" class="form-label">Límite 2σ Inferior - Eje Z</label>
-                      <input type="number" id="z_2inf" class="form-control" step="0.01" placeholder="-2.39">
-                    </div>
-                    
-                    <div class="form-group">
-                      <label for="z_2sup" class="form-label">Límite 2σ Superior - Eje Z</label>
-                      <input type="number" id="z_2sup" class="form-control" step="0.01" placeholder="1.11">
-                    </div>
-                    
-                    <div class="form-group">
-                      <label for="z_3inf" class="form-label">Límite 3σ Inferior - Eje Z</label>
-                      <input type="number" id="z_3inf" class="form-control" step="0.01" placeholder="-3.26">
-                    </div>
-                    
-                    <div class="form-group">
-                      <label for="z_3sup" class="form-label">Límite 3σ Superior - Eje Z</label>
-                      <input type="number" id="z_3sup" class="form-control" step="0.01" placeholder="1.98">
-                    </div>
-                    
-                    <div class="form-actions">
-                      <button type="button" class="btn btn-secondary" id="cancelLimitsBtn">Cancelar</button>
-                      <button type="button" class="btn btn-warning" id="resetDefaultLimitsBtn">Restaurar Valores por Defecto</button>
-                      <button type="submit" class="btn btn-primary">Guardar Límites</button>
-                    </div>
-                  </form>
+                  </div>
+                </div>
+                
+                <div class="form-actions mt-4">
+                  <button id="saveLimitsBtn" class="btn btn-primary">
+                    <i class="fas fa-save mr-2"></i> Guardar Límites
+                  </button>
+                  <button id="resetLimitsBtn" class="btn btn-outline-secondary">
+                    <i class="fas fa-undo mr-2"></i> Restablecer
+                  </button>
                 </div>
               </div>
             </div>
@@ -859,365 +344,11 @@
     </div>
   </div>
   
-  <!-- Modales -->
-  
-  <!-- Modal de Máquina -->
-  <div class="modal" id="machineModal">
-    <div class="modal-dialog">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h4 class="modal-title" id="machineModalTitle">Nueva Máquina</h4>
-          <button type="button" class="close-modal">&times;</button>
-        </div>
-        <div class="modal-body">
-          <form id="machineModalForm" class="config-form">
-            <input type="hidden" id="machineId" value="">
-            <div class="form-group">
-              <label for="machineName" class="form-label">Nombre de la Máquina</label>
-              <input type="text" id="machineName" class="form-control" placeholder="Ej. Bomba Centrífuga 1" required>
-            </div>
-            <div class="form-group">
-              <label for="machineDescription" class="form-label">Descripción</label>
-              <textarea id="machineDescription" class="form-control" rows="3" placeholder="Detalles adicionales sobre la máquina..."></textarea>
-            </div>
-            <div class="form-group">
-              <label for="machineSensor" class="form-label">Sensor</label>
-              <select id="machineSensor" class="form-select">
-                <option value="" selected>Sin asignación (opcional)</option>
-              </select>
-            </div>
-          </form>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" id="cancelMachineModalBtn">Cancelar</button>
-          <button type="button" class="btn btn-primary" id="saveMachineBtn">Guardar</button>
-        </div>
-      </div>
-    </div>
-  </div>
-  
-  <!-- Modal de Sensor -->
-  <div class="modal" id="sensorModal">
-    <div class="modal-dialog">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h4 class="modal-title" id="sensorModalTitle">Nuevo Sensor</h4>
-          <button type="button" class="close-modal">&times;</button>
-        </div>
-        <div class="modal-body">
-          <form id="sensorModalForm" class="config-form">
-            <input type="hidden" id="sensorId" value="">
-            <div class="form-group">
-              <label for="sensorName" class="form-label">Nombre del Sensor</label>
-              <input type="text" id="sensorName" class="form-control" placeholder="Ej. Acelerómetro Principal" required>
-            </div>
-            <div class="form-group">
-              <label for="sensorDescription" class="form-label">Descripción</label>
-              <textarea id="sensorDescription" class="form-control" rows="3" placeholder="Detalles adicionales sobre el sensor..."></textarea>
-            </div>
-            <div class="form-group">
-              <label for="sensorModel" class="form-label">Modelo Predictivo</label>
-              <select id="sensorModel" class="form-select" required>
-                <option value="" disabled selected>Seleccione un modelo</option>
-              </select>
-            </div>
-          </form>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" id="cancelSensorModalBtn">Cancelar</button>
-          <button type="button" class="btn btn-primary" id="saveSensorBtn">Guardar</button>
-        </div>
-      </div>
-    </div>
-  </div>
-  
-  <!-- Modal de Modelo -->
-  <div class="modal" id="modelModal">
-    <div class="modal-dialog">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h4 class="modal-title" id="modelModalTitle">Nuevo Modelo</h4>
-          <button type="button" class="close-modal">&times;</button>
-        </div>
-        <div class="modal-body">
-          <form id="modelModalForm" class="config-form">
-            <input type="hidden" id="modelId" value="">
-            <div class="form-group">
-              <label for="modelName" class="form-label">Nombre del Modelo</label>
-              <input type="text" id="modelName" class="form-control" placeholder="Ej. Modelo de Vibración" required>
-            </div>
-            <div class="form-group">
-              <label for="modelDescription" class="form-label">Descripción</label>
-              <textarea id="modelDescription" class="form-control" rows="3" placeholder="Detalles adicionales sobre el modelo..."></textarea>
-            </div>
-            <div class="form-group">
-              <label class="form-label">Archivo del Modelo (.h5) <span id="modelFileRequired" class="required">*</span><span id="modelFileOptional" class="optional">Opcional</span></label>
-              <div class="custom-file">
-                <input type="file" class="custom-file-input" id="modelFile" accept=".h5,.hdf5">
-                <button type="button" class="custom-file-button">
-                  <i class="fas fa-upload mr-2"></i> Seleccionar Archivo
-                </button>
-                <span class="custom-file-label" id="modelFileName">Ningún archivo seleccionado</span>
-              </div>
-            </div>
-            <div class="form-group">
-              <label class="form-label">Archivo del Escalador (.pkl) <span id="scalerFileRequired" class="required">*</span><span id="scalerFileOptional" class="optional">Opcional</span></label>
-              <div class="custom-file">
-                <input type="file" class="custom-file-input" id="scalerFile" accept=".pkl">
-                <button type="button" class="custom-file-button">
-                  <i class="fas fa-upload mr-2"></i> Seleccionar Archivo
-                </button>
-                <span class="custom-file-label" id="scalerFileName">Ningún archivo seleccionado</span>
-              </div>
-            </div>
-          </form>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" id="cancelModelModalBtn">Cancelar</button>
-          <button type="button" class="btn btn-primary" id="saveModelBtn">Guardar</button>
-        </div>
-      </div>
-    </div>
-  </div>
-  
-  <!-- Template para el loader -->
-  <div id="loadingOverlay" class="loading-overlay">
-    <div class="loading-content">
-      <div class="spinner">
-        <div class="bounce1"></div>
-        <div class="bounce2"></div>
-        <div class="bounce3"></div>
-      </div>
-      <h3 id="loadingMessage">Cargando...</h3>
-    </div>
-  </div>
-
-  <!-- Toast para notificaciones -->
+  <!-- Contenedor de Notificaciones -->
   <div id="toastContainer" class="toast-container"></div>
-
+  
   <!-- Scripts -->
-  <script src="/static/js/utils.js" defer onerror="handleScriptError(this)"></script>
-  <script src="/static/js/app-logger.js" defer onerror="handleScriptError(this)"></script>
-  <script src="/static/js/navigation.js" defer onerror="handleScriptError(this)"></script>
-  <script src="/static/js/realtime-updates.js" defer onerror="handleScriptError(this)"></script>
-  <script src="/static/js/dashboard.js" defer onerror="handleScriptError(this)"></script>
-  <script src="/static/js/config.js" defer onerror="handleScriptError(this)"></script>
-  <script src="/static/js/logs-ui.js" defer onerror="handleScriptError(this)"></script>
-  <script src="/static/js/charts.js" defer onerror="handleScriptError(this)"></script>
-  <script src="/static/js/app.js" defer onerror="handleScriptError(this)"></script>
-  
-  <!-- Función para manejar errores de carga de scripts -->
-  <script>
-    function handleScriptError(scriptElement) {
-      const scriptSrc = scriptElement.src || 'script desconocido';
-      console.error(`Error al cargar el script: ${scriptSrc}`);
-      if (window.AppLogger) {
-        AppLogger.error('system', 'Error al cargar dependencia JavaScript', { script: scriptSrc });
-      }
-    }
-  </script>
-  
-  <!-- Script de inicialización -->
-  <script>
-    document.addEventListener('DOMContentLoaded', function() {
-      try {
-        // Funciones de soporte para la inicialización
-        function verificarDependencia(nombre, objeto, esError = true) {
-          if (typeof objeto === 'undefined' || objeto === null) {
-            const mensaje = `Dependencia crítica no disponible: ${nombre}`;
-            if (esError) {
-              throw new Error(mensaje);
-            } else {
-              if (window.AppLogger) {
-                AppLogger.warn('system', mensaje);
-              } else {
-                console.warn(mensaje);
-              }
-              return false;
-            }
-          }
-          return true;
-        }
-
-        function mostrarErrorEnOverlay(mensaje) {
-          const loadingOverlay = document.getElementById('loadingOverlay');
-          if (loadingOverlay) {
-            loadingOverlay.classList.remove('hidden');
-            loadingOverlay.style.display = 'flex';
-            
-            const loadingMessage = document.getElementById('loadingMessage');
-            if (loadingMessage) {
-              loadingMessage.innerHTML = `Error al iniciar la aplicación:<br>${mensaje}`;
-              loadingMessage.style.color = '#ff3333';
-            }
-          }
-        }
-
-        // Inicializar modo debug desde localStorage si existe
-        if (window.localStorage && window.localStorage.getItem('debug_mode') === 'true') {
-          window.DEBUG_MODE = true;
-          console.log('%c[DEBUG MODE] Activado', 'color:#ff8800; font-weight:bold');
-        }
-        
-        // Verificar dependencias críticas - AppLogger es imprescindible
-        verificarDependencia('AppLogger', window.AppLogger);
-        
-        AppLogger.info('system', 'Iniciando aplicación');
-        
-        // Registrar información del sistema
-        AppLogger.debug('system', 'Información del sistema', {
-          userAgent: navigator.userAgent,
-          screenSize: `${window.innerWidth}x${window.innerHeight}`,
-          storageAvailable: !!window.localStorage
-        });
-        
-        // Verificar funciones críticas del sistema
-        verificarDependencia('Estado global', window.getGlobalState, false) && 
-        verificarDependencia('Eventos de estado global', window.initGlobalStateEvents, false);
-        verificarDependencia('Componentes UI', window.initUI, false);
-        
-        // Inicialización de componentes críticos en orden correcto
-        let initErrors = [];
-        
-        // 1. Inicializar eventos de estado global primero
-        if (typeof window.initGlobalStateEvents === 'function') {
-          try {
-            window.initGlobalStateEvents();
-            AppLogger.info('system', 'Sistema de estado global inicializado');
-          } catch (err) {
-            AppLogger.error('system', 'Error al inicializar eventos de estado global', { error: err.message });
-            initErrors.push('Estado global: ' + err.message);
-          }
-        }
-        
-        // 2. Inicializar componentes UI
-        if (typeof window.initUI === 'function') {
-          try {
-            window.initUI();
-            AppLogger.info('system', 'Componentes UI inicializados');
-          } catch (err) {
-            AppLogger.error('system', 'Error al inicializar componentes UI', { error: err.message });
-            initErrors.push('UI: ' + err.message);
-          }
-        }
-        
-        // Inicializar sistema centralizado de gestión de event listeners
-        if (verificarDependencia('migrateGlobalEventListeners', window.migrateGlobalEventListeners, false)) {
-          try {
-            migrateGlobalEventListeners();
-            AppLogger.info('system', 'Sistema centralizado de event listeners inicializado');
-          } catch (err) {
-            AppLogger.error('system', 'Error al inicializar el sistema de event listeners', { error: err.message });
-            initErrors.push('Event Listeners: ' + err.message);
-          }
-        }
-        
-        // Inicializar la navegación
-        if (verificarDependencia('initNavigation', window.initNavigation, false)) {
-          try {
-            initNavigation();
-            AppLogger.info('system', 'Navegación inicializada');
-          } catch (err) {
-            AppLogger.error('system', 'Error al inicializar la navegación', { error: err.message });
-            initErrors.push('Navegación: ' + err.message);
-            
-            // La navegación es crítica, mostrar error en overlay si falla
-            mostrarErrorEnOverlay(`Error en el módulo de navegación: ${err.message}`);
-            return; // No continuar con la inicialización
-          }
-        } else {
-          initErrors.push('Navegación: Módulo no disponible');
-          mostrarErrorEnOverlay('Error crítico: Módulo de navegación no disponible');
-          return; // No continuar con la inicialización si no hay navegación
-        }
-        
-        // Inicializar la conexión WebSocket
-        if (verificarDependencia('initWebSocket', window.initWebSocket, false)) {
-          try {
-            initWebSocket();
-            AppLogger.info('system', 'Conexión WebSocket inicializada');
-          } catch (err) {
-            AppLogger.error('system', 'Error al inicializar la conexión WebSocket', { error: err.message });
-            initErrors.push('WebSocket: ' + err.message);
-          }
-        }
-        
-        // Comprobar disponibilidad de funciones críticas de la aplicación
-        verificarDependencia('Funciones de gráficos', window.initVibrationChart, false);
-        verificarDependencia('Funciones de UI', window.initLogsUI, false);
-        
-        // Verificar si hubo errores de inicialización y mostrarlos
-        if (initErrors.length > 0) {
-          const errorMessage = 'Se encontraron problemas durante la inicialización:<br>' + 
-                               initErrors.map(err => `• ${err}`).join('<br>');
-          AppLogger.warn('system', 'Aplicación inicializada con errores', { errors: initErrors });
-          
-          // Mostrar los errores en caso de que sean no críticos
-          if (initErrors.length > 0 && initErrors.length < 3) { // Si hay pocos errores, probablemente no son críticos
-            const toastContainer = document.getElementById('toastContainer');
-            if (toastContainer) {
-              const toast = document.createElement('div');
-              toast.className = 'toast warning';
-              toast.innerHTML = `
-                <div class="toast-header">
-                  <i class="fas fa-exclamation-triangle"></i>
-                  <span>Advertencia</span>
-                  <button class="toast-close"><i class="fas fa-times"></i></button>
-                </div>
-                <div class="toast-body">${errorMessage}</div>
-              `;
-              toastContainer.appendChild(toast);
-              setTimeout(() => toast.classList.add('show'), 100);
-              setTimeout(() => {
-                toast.classList.remove('show');
-                setTimeout(() => toast.remove(), 300);
-              }, 8000);
-            }
-          } else if (initErrors.length >= 3) {
-            // Errores críticos, mostrar en overlay
-            mostrarErrorEnOverlay(errorMessage);
-            return; // No continuar con la inicialización
-          }
-        }
-        
-        // Ocultar pantalla de carga solo si no hubo errores críticos
-        const loadingOverlay = document.getElementById('loadingOverlay');
-        if (loadingOverlay) {
-          setTimeout(() => {
-            loadingOverlay.classList.add('hidden');
-            setTimeout(() => {
-              loadingOverlay.style.display = 'none';
-            }, 500);
-          }, 500);
-        }
-        
-        AppLogger.info('system', 'Aplicación inicializada correctamente');
-        
-        // Registrar tiempo de carga completa
-        if (window.performance && performance.timing) {
-          const loadTime = performance.timing.domContentLoadedEventEnd - performance.timing.navigationStart;
-          AppLogger.info('performance', 'Tiempo de carga de la aplicación', { loadTimeMs: loadTime });
-        }
-      } catch (error) {
-        console.error('Error crítico durante la inicialización:', error);
-        
-        // Intentar registrar el error con AppLogger si está disponible
-        if (window.AppLogger) {
-          AppLogger.error('system', 'Error crítico durante la inicialización', { 
-            error: error.message,
-            stack: error.stack,
-            timestamp: new Date().toISOString()
-          });
-        }
-        
-        // Mostrar mensaje de error al usuario
-        mostrarErrorEnOverlay(error.message);
-        
-        // Permitir diagnóstico desde la consola
-        window._initError = error;
-        console.log('%c[ERROR] Puedes inspeccionar window._initError para más detalles.', 'color:#ff3333; font-weight:bold');
-      }
-    });
-  </script>
+  <script src="/static/js/charts.js"></script>
+  <script src="/static/js/app.js"></script>
 </body>
 </html>
