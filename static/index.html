@@ -169,9 +169,24 @@
                 <div id="dataStatus" class="status-message">
                   <i class="fas fa-info-circle"></i> Seleccione un sensor para ver sus datos
                 </div>
+                
+                <!-- Toggles para mostrar/ocultar ejes -->
                 <div class="form-group mt-3">
-                  <label for="lastUpdate">Última actualización:</label>
-                  <div id="lastUpdate" class="form-control-static">-</div>
+                  <label>Ejes a mostrar:</label>
+                  <div class="toggle-container">
+                    <div class="toggle-item">
+                      <input type="checkbox" id="toggleXAxis" class="axis-toggle" checked>
+                      <label for="toggleXAxis" class="axis-label x-axis">Eje X</label>
+                    </div>
+                    <div class="toggle-item">
+                      <input type="checkbox" id="toggleYAxis" class="axis-toggle" checked>
+                      <label for="toggleYAxis" class="axis-label y-axis">Eje Y</label>
+                    </div>
+                    <div class="toggle-item">
+                      <input type="checkbox" id="toggleZAxis" class="axis-toggle" checked>
+                      <label for="toggleZAxis" class="axis-label z-axis">Eje Z</label>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -224,117 +239,399 @@
               <i class="fas fa-cog text-accent"></i>
               Configuración
             </h2>
-            <p class="section-description">Configuración de archivos y parámetros del sistema</p>
+            <p class="section-description">Configuración de sensores, modelos, máquinas y límites del sistema</p>
           </div>
           
-          <!-- Tarjetas de Configuración -->
-          <div class="config-grid">
-            <!-- Configuración de Archivos -->
-            <div class="config-card animate-slide-up">
-              <div class="card-header">
-                <h5><i class="fas fa-file-code"></i> Archivos del Modelo</h5>
+          <div id="config">
+            <!-- Navegación entre secciones de configuración -->
+            <div class="config-nav">
+              <ul class="nav nav-tabs" id="configTabs">
+                <li class="nav-item">
+                  <a class="nav-link active" data-tab="config-sensor" href="#sensor">
+                    <i class="fas fa-microchip"></i> Sensor
+                  </a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" data-tab="config-model" href="#modelo">
+                    <i class="fas fa-brain"></i> Modelo
+                  </a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" data-tab="config-machine" href="#maquina">
+                    <i class="fas fa-cogs"></i> Máquina
+                  </a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" data-tab="config-limits" href="#limites">
+                    <i class="fas fa-exclamation-triangle"></i> Límites
+                  </a>
+                </li>
+              </ul>
+            </div>
+            
+            <!-- Contenido de las pestañas -->
+            <div class="config-content">
+              <!-- Sección: Sensor -->
+              <div id="config-sensor" class="config-tab-content active">
+                <div class="config-grid">
+                  <!-- Formulario para añadir/editar sensor -->
+                  <div class="config-card animate-slide-up">
+                    <div class="card-header">
+                      <h5><i class="fas fa-microchip"></i> Gestión de Sensor</h5>
+                    </div>
+                    <div class="card-body">
+                      <form id="sensorForm">
+                        <input type="hidden" id="sensorIdInput" value="">
+                        <div class="form-group">
+                          <label for="sensorNameInput">Nombre:</label>
+                          <input type="text" id="sensorNameInput" class="form-control" placeholder="Nombre del sensor" required>
+                        </div>
+                        <div class="form-group mt-3">
+                          <label for="sensorDescriptionInput">Descripción:</label>
+                          <input type="text" id="sensorDescriptionInput" class="form-control" placeholder="Descripción del sensor">
+                        </div>
+                        <div class="form-group mt-3">
+                          <label for="sensorModelIdInput">Modelo:</label>
+                          <select id="sensorModelIdInput" class="form-control" required>
+                            <option value="" disabled selected>Seleccione un modelo</option>
+                          </select>
+                        </div>
+                        <div class="form-buttons mt-3">
+                          <button type="button" id="resetSensorBtn" class="btn btn-outline-secondary">
+                            <i class="fas fa-undo"></i> Limpiar
+                          </button>
+                          <button type="submit" id="saveSensorBtn" class="btn btn-primary">
+                            <i class="fas fa-save"></i> Guardar
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+                  </div>
+
+                  <!-- Tabla de sensores -->
+                  <div class="config-card animate-slide-up">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                      <h5><i class="fas fa-microchip"></i> Sensores Registrados</h5>
+                      <button id="refreshSensorsBtn" class="btn btn-sm btn-outline-primary">
+                        <i class="fas fa-sync-alt"></i> Actualizar
+                      </button>
+                    </div>
+                    <div class="card-body">
+                      <div class="table-responsive">
+                        <table class="table table-striped table-sm">
+                          <thead>
+                            <tr>
+                              <th>ID</th>
+                              <th>Nombre</th>
+                              <th>Descripción</th>
+                              <th>Modelo ID</th>
+                              <th>Acciones</th>
+                            </tr>
+                          </thead>
+                          <tbody id="sensorsTableBody">
+                            <tr>
+                              <td colspan="5" class="text-center">No hay sensores configurados</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div class="card-body">
-                <div class="form-group">
-                  <label for="modelFile">Archivo del Modelo (.h5):</label>
-                  <div class="file-selector">
-                    <input type="text" id="modelFile" class="form-control" 
-                      value="Modelo/anomaly_detection_model.h5" readonly>
-                    <button id="selectModelBtn" class="btn"><i class="fas fa-folder-open"></i></button>
+              
+              <!-- Sección: Modelo -->
+              <div id="config-model" class="config-tab-content">
+                <div class="config-grid">
+                  <!-- Formulario para añadir/editar modelo -->
+                  <div class="config-card animate-slide-up">
+                    <div class="card-header">
+                      <h5><i class="fas fa-brain"></i> Gestión de Modelo</h5>
+                    </div>
+                    <div class="card-body">
+                      <form id="modelForm">
+                        <input type="hidden" id="modelIdInput" value="">
+                        <div class="form-group">
+                          <label for="modelNameInput">Nombre:</label>
+                          <input type="text" id="modelNameInput" class="form-control" placeholder="Nombre del modelo" required>
+                        </div>
+                        <div class="form-group mt-3">
+                          <label for="modelDescriptionInput">Descripción:</label>
+                          <input type="text" id="modelDescriptionInput" class="form-control" placeholder="Descripción del modelo">
+                        </div>
+                        <div class="form-group mt-3">
+                          <label for="modelRouteH5Input">Archivo del Modelo (.h5):</label>
+                          <div class="file-selector">
+                            <input type="text" id="modelRouteH5Input" class="form-control" placeholder="Ruta del archivo .h5" required>
+                            <button type="button" id="selectModelFileBtn" class="btn"><i class="fas fa-folder-open"></i></button>
+                          </div>
+                        </div>
+                        <div class="form-group mt-3">
+                          <label for="modelRoutePklInput">Archivo del Escalador (.pkl):</label>
+                          <div class="file-selector">
+                            <input type="text" id="modelRoutePklInput" class="form-control" placeholder="Ruta del archivo .pkl" required>
+                            <button type="button" id="selectScalerFileBtn" class="btn"><i class="fas fa-folder-open"></i></button>
+                          </div>
+                        </div>
+                        <div class="form-buttons mt-3">
+                          <button type="button" id="resetModelBtn" class="btn btn-outline-secondary">
+                            <i class="fas fa-undo"></i> Limpiar
+                          </button>
+                          <button type="submit" id="saveModelBtn" class="btn btn-primary">
+                            <i class="fas fa-save"></i> Guardar
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+                  </div>
+
+                  <!-- Tabla de modelos -->
+                  <div class="config-card animate-slide-up">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                      <h5><i class="fas fa-brain"></i> Modelos Registrados</h5>
+                      <button id="refreshModelsBtn" class="btn btn-sm btn-outline-primary">
+                        <i class="fas fa-sync-alt"></i> Actualizar
+                      </button>
+                    </div>
+                    <div class="card-body">
+                      <div class="table-responsive">
+                        <table class="table table-striped table-sm">
+                          <thead>
+                            <tr>
+                              <th>ID</th>
+                              <th>Nombre</th>
+                              <th>Descripción</th>
+                              <th>Ruta Modelo</th>
+                              <th>Ruta Escalador</th>
+                              <th>Acciones</th>
+                            </tr>
+                          </thead>
+                          <tbody id="modelsTableBody">
+                            <tr>
+                              <td colspan="6" class="text-center">No hay modelos configurados</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
                   </div>
                 </div>
-                <div class="form-group mt-3">
-                  <label for="scalerFile">Archivo del Escalador (.pkl):</label>
-                  <div class="file-selector">
-                    <input type="text" id="scalerFile" class="form-control" 
-                      value="Scaler/scaler.pkl" readonly>
-                    <button id="selectScalerBtn" class="btn"><i class="fas fa-folder-open"></i></button>
+              </div>
+              
+              <!-- Sección: Máquina -->
+              <div id="config-machine" class="config-tab-content">
+                <div class="config-grid">
+                  <!-- Formulario para añadir/editar máquina -->
+                  <div class="config-card animate-slide-up">
+                    <div class="card-header">
+                      <h5><i class="fas fa-cogs"></i> Gestión de Máquina</h5>
+                    </div>
+                    <div class="card-body">
+                      <form id="machineForm">
+                        <input type="hidden" id="machineIdInput" value="">
+                        <div class="form-group">
+                          <label for="machineNameInput">Nombre:</label>
+                          <input type="text" id="machineNameInput" class="form-control" placeholder="Nombre de la máquina" required>
+                        </div>
+                        <div class="form-group mt-3">
+                          <label for="machineDescriptionInput">Descripción:</label>
+                          <input type="text" id="machineDescriptionInput" class="form-control" placeholder="Descripción de la máquina">
+                        </div>
+                        <div class="form-group mt-3">
+                          <label for="machineSensorIdInput">Sensor:</label>
+                          <select id="machineSensorIdInput" class="form-control" required>
+                            <option value="" disabled selected>Seleccione un sensor</option>
+                          </select>
+                        </div>
+                        <div class="form-buttons mt-3">
+                          <button type="button" id="resetMachineBtn" class="btn btn-outline-secondary">
+                            <i class="fas fa-undo"></i> Limpiar
+                          </button>
+                          <button type="submit" id="saveMachineBtn" class="btn btn-primary">
+                            <i class="fas fa-save"></i> Guardar
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+                  </div>
+
+                  <!-- Tabla de máquinas -->
+                  <div class="config-card animate-slide-up">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                      <h5><i class="fas fa-cogs"></i> Máquinas Registradas</h5>
+                      <button id="refreshMachinesBtn" class="btn btn-sm btn-outline-primary">
+                        <i class="fas fa-sync-alt"></i> Actualizar
+                      </button>
+                    </div>
+                    <div class="card-body">
+                      <div class="table-responsive">
+                        <table class="table table-striped table-sm">
+                          <thead>
+                            <tr>
+                              <th>ID</th>
+                              <th>Nombre</th>
+                              <th>Descripción</th>
+                              <th>Sensor ID</th>
+                              <th>Acciones</th>
+                            </tr>
+                          </thead>
+                          <tbody id="machinesTableBody">
+                            <tr>
+                              <td colspan="5" class="text-center">No hay máquinas configuradas</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
                   </div>
                 </div>
-                <div class="form-actions mt-4">
-                  <button id="saveFilePathsBtn" class="btn btn-primary">
-                    <i class="fas fa-save mr-2"></i> Guardar Rutas
-                  </button>
+              </div>
+              
+              <!-- Sección: Límites -->
+              <div id="config-limits" class="config-tab-content">
+                <div class="config-grid">
+                  <!-- Formulario para editar límites -->
+                  <div class="config-card animate-slide-up">
+                    <div class="card-header">
+                      <h5><i class="fas fa-exclamation-triangle"></i> Configuración de Límites</h5>
+                    </div>
+                    <div class="card-body">
+                      <form id="limitsForm">
+                        <input type="hidden" id="limitIdInput" value="">
+                        
+                        <!-- Límites Eje X -->
+                        <div class="form-group">
+                          <h6>Eje X</h6>
+                          <div class="limit-inputs">
+                            <div class="limit-input-group">
+                              <label>Warning (±2σ):</label>
+                              <div class="d-flex">
+                                <input type="number" id="x2infInput" class="form-control" step="0.01" placeholder="Min" required>
+                                <input type="number" id="x2supInput" class="form-control" step="0.01" placeholder="Max" required>
+                              </div>
+                            </div>
+                            <div class="limit-input-group">
+                              <label>Critical (±3σ):</label>
+                              <div class="d-flex">
+                                <input type="number" id="x3infInput" class="form-control" step="0.01" placeholder="Min" required>
+                                <input type="number" id="x3supInput" class="form-control" step="0.01" placeholder="Max" required>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <!-- Límites Eje Y -->
+                        <div class="form-group mt-3">
+                          <h6>Eje Y</h6>
+                          <div class="limit-inputs">
+                            <div class="limit-input-group">
+                              <label>Warning (±2σ):</label>
+                              <div class="d-flex">
+                                <input type="number" id="y2infInput" class="form-control" step="0.01" placeholder="Min" required>
+                                <input type="number" id="y2supInput" class="form-control" step="0.01" placeholder="Max" required>
+                              </div>
+                            </div>
+                            <div class="limit-input-group">
+                              <label>Critical (±3σ):</label>
+                              <div class="d-flex">
+                                <input type="number" id="y3infInput" class="form-control" step="0.01" placeholder="Min" required>
+                                <input type="number" id="y3supInput" class="form-control" step="0.01" placeholder="Max" required>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <!-- Límites Eje Z -->
+                        <div class="form-group mt-3">
+                          <h6>Eje Z</h6>
+                          <div class="limit-inputs">
+                            <div class="limit-input-group">
+                              <label>Warning (±2σ):</label>
+                              <div class="d-flex">
+                                <input type="number" id="z2infInput" class="form-control" step="0.01" placeholder="Min" required>
+                                <input type="number" id="z2supInput" class="form-control" step="0.01" placeholder="Max" required>
+                              </div>
+                            </div>
+                            <div class="limit-input-group">
+                              <label>Critical (±3σ):</label>
+                              <div class="d-flex">
+                                <input type="number" id="z3infInput" class="form-control" step="0.01" placeholder="Min" required>
+                                <input type="number" id="z3supInput" class="form-control" step="0.01" placeholder="Max" required>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div class="form-buttons mt-3">
+                          <button type="button" id="resetLimitsBtn" class="btn btn-outline-secondary">
+                            <i class="fas fa-undo"></i> Limpiar
+                          </button>
+                          <button type="submit" id="saveLimitsBtn" class="btn btn-primary">
+                            <i class="fas fa-save"></i> Guardar
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+                  </div>
+
+                  <!-- Tabla de configuraciones de límites -->
+                  <div class="config-card animate-slide-up">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                      <h5><i class="fas fa-sliders-h"></i> Configuraciones de Límites</h5>
+                      <button id="refreshLimitsBtn" class="btn btn-sm btn-outline-primary">
+                        <i class="fas fa-sync-alt"></i> Actualizar
+                      </button>
+                    </div>
+                    <div class="card-body">
+                      <div class="table-responsive">
+                        <table class="table table-striped table-sm">
+                          <thead>
+                            <tr>
+                              <th>ID</th>
+                              <th>X (±2σ) Min</th>
+                              <th>X (±2σ) Max</th>
+                              <th>X (±3σ) Min</th>
+                              <th>X (±3σ) Max</th>
+                              <th>Y (±2σ) Min</th>
+                              <th>Y (±2σ) Max</th>
+                              <th>Y (±3σ) Min</th>
+                              <th>Y (±3σ) Max</th>
+                              <th>Z (±2σ) Min</th>
+                              <th>Z (±2σ) Max</th>
+                              <th>Z (±3σ) Min</th>
+                              <th>Z (±3σ) Max</th>
+                              <th>Acciones</th>
+                            </tr>
+                          </thead>
+                          <tbody id="limitsTableBody">
+                            <tr>
+                              <td colspan="14" class="text-center">No hay configuraciones de límites</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
             
-            <!-- Configuración de Límites -->
-            <div class="config-card animate-slide-up" style="animation-delay: 0.1s">
-              <div class="card-header">
-                <h5><i class="fas fa-exclamation-triangle"></i> Límites de Alertas</h5>
-              </div>
-              <div class="card-body">
-                <!-- Límites Eje X -->
-                <div class="form-group">
-                  <h6>Eje X</h6>
-                  <div class="limit-inputs">
-                    <div class="limit-input-group">
-                      <label>Warning (±2σ):</label>
-                      <div class="d-flex">
-                        <input type="number" id="xWarningMin" class="form-control" step="0.01" placeholder="Min">
-                        <input type="number" id="xWarningMax" class="form-control" step="0.01" placeholder="Max">
-                      </div>
-                    </div>
-                    <div class="limit-input-group">
-                      <label>Critical (±3σ):</label>
-                      <div class="d-flex">
-                        <input type="number" id="xCriticalMin" class="form-control" step="0.01" placeholder="Min">
-                        <input type="number" id="xCriticalMax" class="form-control" step="0.01" placeholder="Max">
-                      </div>
-                    </div>
+            <!-- Botones de Acción Globales -->
+            <div class="config-actions">
+              <div class="config-card animate-slide-up" style="margin-top: 20px;">
+                <div class="card-body d-flex justify-content-between align-items-center">
+                  <div>
+                    <span id="configStatus" class="config-status">Estado: No configurado</span>
+                    <span id="configLastUpdate" class="config-last-update">Última actualización: -</span>
                   </div>
-                </div>
-                
-                <!-- Límites Eje Y -->
-                <div class="form-group mt-3">
-                  <h6>Eje Y</h6>
-                  <div class="limit-inputs">
-                    <div class="limit-input-group">
-                      <label>Warning (±2σ):</label>
-                      <div class="d-flex">
-                        <input type="number" id="yWarningMin" class="form-control" step="0.01" placeholder="Min">
-                        <input type="number" id="yWarningMax" class="form-control" step="0.01" placeholder="Max">
-                      </div>
-                    </div>
-                    <div class="limit-input-group">
-                      <label>Critical (±3σ):</label>
-                      <div class="d-flex">
-                        <input type="number" id="yCriticalMin" class="form-control" step="0.01" placeholder="Min">
-                        <input type="number" id="yCriticalMax" class="form-control" step="0.01" placeholder="Max">
-                      </div>
-                    </div>
+                  <div>
+                    <button id="testConnectionButton" class="btn btn-info me-2">
+                      <i class="fas fa-plug"></i> Probar Conexión
+                    </button>
+                    <button id="resetConfigButton" class="btn btn-outline-secondary me-2">
+                      <i class="fas fa-undo"></i> Restablecer Todo
+                    </button>
                   </div>
-                </div>
-                
-                <!-- Límites Eje Z -->
-                <div class="form-group mt-3">
-                  <h6>Eje Z</h6>
-                  <div class="limit-inputs">
-                    <div class="limit-input-group">
-                      <label>Warning (±2σ):</label>
-                      <div class="d-flex">
-                        <input type="number" id="zWarningMin" class="form-control" step="0.01" placeholder="Min">
-                        <input type="number" id="zWarningMax" class="form-control" step="0.01" placeholder="Max">
-                      </div>
-                    </div>
-                    <div class="limit-input-group">
-                      <label>Critical (±3σ):</label>
-                      <div class="d-flex">
-                        <input type="number" id="zCriticalMin" class="form-control" step="0.01" placeholder="Min">
-                        <input type="number" id="zCriticalMax" class="form-control" step="0.01" placeholder="Max">
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                
-                <div class="form-actions mt-4">
-                  <button id="saveLimitsBtn" class="btn btn-primary">
-                    <i class="fas fa-save mr-2"></i> Guardar Límites
-                  </button>
-                  <button id="resetLimitsBtn" class="btn btn-outline-secondary">
-                    <i class="fas fa-undo mr-2"></i> Restablecer
-                  </button>
                 </div>
               </div>
             </div>

@@ -18,7 +18,7 @@ const char* password = "River1998";            // Contraseña WiFi
 const char* serverBaseUrl = "http://192.168.1.100:8000"; // Reemplaza con la IP local de tu servidor
 
 // ID del sensor registrado en la base de datos
-// Se usará para formar el string ESP32_SENSOR_XX
+// IMPORTANTE: Este ID debe existir en la base de datos del sistema
 const int sensorId = 1;
 
 // Configuración de tiempos

@@ -43,6 +43,11 @@ function initVibrationCharts() {
   initAxisChart('Y');
   initAxisChart('Z');
   console.log('Gráficos de vibración inicializados');
+  
+  // Establecer estado inicial de visibilidad de las gráficas
+  if (typeof toggleChartVisibility === 'function') {
+    toggleChartVisibility();
+  }
 }
 
 // Inicializa un gráfico para un eje específico

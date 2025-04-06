@@ -9,6 +9,7 @@
 #include <Adafruit_MPU6050.h>
 #include <Adafruit_Sensor.h>
 #include <ArduinoJson.h>
+#include <time.h>  // Para NTP
 #include "credentials.h"
 
 // Configuración del sensor
@@ -17,10 +18,16 @@ Adafruit_MPU6050 mpu;
 // URL completa para el envío de datos de vibración
 char apiUrl[100];
 
+// Configuración NTP
+const char* ntpServer = "pool.ntp.org";
+const long  gmtOffset_sec = -18000;  // UTC-5 (Colombia) en segundos
+const int   daylightOffset_sec = 0;  // Sin horario de verano
+
 // Variables globales
 unsigned long lastSendTime = 0;
 unsigned long lastWifiCheckTime = 0;
 const int wifiCheckInterval = 30000; // Revisar WiFi cada 30 segundos
+bool timeInitialized = false;
 
 void setup() {
   Serial.begin(115200);
@@ -28,20 +35,17 @@ void setup() {
   delay(100);
   
   Serial.println("\n===== INICIALIZANDO ESP32 SENSOR =====");
-  Serial.println("Versión: 1.0.2 - PdM-Manager");
+  Serial.println("Versión: 1.0.4 - PdM-Manager");
   Serial.println("Desarrollado para monitoreo de vibraciones");
   
   // Construir la URL completa para la API
   // IMPORTANTE: Este endpoint debe coincidir con el de tu backend
-  sprintf(apiUrl, "%s/api/vibration-data", serverBaseUrl);
+  sprintf(apiUrl, "%s/sensor-data", serverBaseUrl);
   Serial.print("URL de la API: ");
   Serial.println(apiUrl);
   
-  // Construir el ID del sensor en formato de cadena
-  char sensorIdStr[20];
-  sprintf(sensorIdStr, "ESP32_SENSOR_%02d", sensorId);
   Serial.print("ID del Sensor: ");
-  Serial.println(sensorIdStr);
+  Serial.println(sensorId);
   Serial.print("Intervalo de muestreo: ");
   Serial.print(sampleInterval / 1000.0);
   Serial.println(" segundos");
@@ -58,6 +62,10 @@ void setup() {
   // Conectar a WiFi
   connectToWiFi();
   
+  // Configurar tiempo NTP
+  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+  initializeTime();
+  
   Serial.println("\n===== SISTEMA LISTO =====");
   Serial.println("Iniciando monitoreo de vibraciones...");
 }
@@ -69,6 +77,7 @@ void loop() {
   if (WiFi.status() != WL_CONNECTED) {
     Serial.println("Conexión WiFi perdida. Reconectando...");
     connectToWiFi();
+    initializeTime(); // Reinicializar el tiempo después de reconectar
   }
   
   // Verificar si es momento de tomar una lectura
@@ -77,14 +86,16 @@ void loop() {
     sensors_event_t accel, gyro, temp;
     mpu.getEvent(&accel, &gyro, &temp);
     
+    // Obtener el timestamp actual en ISO8601
+    char timestamp[25];
+    getISOTimestamp(timestamp);
+    
     // Crear JSON con los datos
     DynamicJsonDocument jsonDoc(256);
-    // Convertir el ID numérico a un formato de cadena como "ESP32_SENSOR_XX"
-    char sensorIdStr[20];
-    sprintf(sensorIdStr, "ESP32_SENSOR_%02d", sensorId);
     
-    jsonDoc["sensor_id"] = sensorIdStr;
-    jsonDoc["timestamp"] = currentTime;  // Añadir timestamp en milisegundos
+    // Usar el ID del sensor como un número entero (importante para la API)
+    jsonDoc["sensor_id"] = sensorId;
+    jsonDoc["timestamp"] = timestamp;
     jsonDoc["acceleration_x"] = accel.acceleration.x;
     jsonDoc["acceleration_y"] = accel.acceleration.y;
     jsonDoc["acceleration_z"] = accel.acceleration.z;
@@ -233,4 +244,48 @@ void sendDataToServer(String jsonData) {
     Serial.print("URL actual: ");
     Serial.println(apiUrl);
   }
+}
+
+void initializeTime() {
+  timeInitialized = false;
+  Serial.println("Inicializando servidor NTP...");
+  
+  // Intentar obtener la hora hasta 5 veces
+  int retries = 0;
+  while (!timeInitialized && retries < 5) {
+    struct tm timeinfo;
+    if(getLocalTime(&timeinfo)) {
+      Serial.println("Hora obtenida del servidor NTP:");
+      Serial.println(&timeinfo, "%Y-%m-%d %H:%M:%S");
+      timeInitialized = true;
+    } else {
+      Serial.println("Error al obtener la hora, reintentando...");
+      delay(1000);
+      retries++;
+    }
+  }
+  
+  if (!timeInitialized) {
+    Serial.println("No se pudo sincronizar con el servidor NTP");
+    Serial.println("Se usarán timestamps relativos");
+  }
+}
+
+// Función para generar un timestamp ISO8601
+void getISOTimestamp(char* buffer) {
+  if (timeInitialized) {
+    // Obtener la hora actual del sistema NTP
+    struct tm timeinfo;
+    if (getLocalTime(&timeinfo)) {
+      // Formato: "2023-04-05T12:34:56Z"
+      sprintf(buffer, "%04d-%02d-%02dT%02d:%02d:%02dZ", 
+              timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday,
+              timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
+      return;
+    }
+  }
+  
+  // Fallback en caso de error: usar un timestamp relativo al millis()
+  time_t now = time(nullptr);
+  sprintf(buffer, "2023-04-05T12:%02d:%02dZ", (now / 60) % 60, now % 60);
 }

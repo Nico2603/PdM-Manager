@@ -106,3 +106,15 @@ class LimitConfig(Base):
     z_3inf = Column(Float, nullable=False, default=-3.26)
     z_3sup = Column(Float, nullable=False, default=1.98)
     update_limits = Column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=True)
+
+class SystemConfig(Base):
+    __tablename__ = 'system_config'
+    __table_args__ = {'schema': 'public'}
+    
+    config_id = Column(Integer, primary_key=True, index=True)
+    is_configured = Column(Integer, default=0, nullable=False)  # 0=false, 1=true
+    last_update = Column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
+    active_model_id = Column(Integer, ForeignKey('public.model.model_id', ondelete='SET NULL'), nullable=True)
+    
+    # Relaciones
+    active_model = relationship("Model")
