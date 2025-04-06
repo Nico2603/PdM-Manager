@@ -195,19 +195,34 @@ function initCrudForms() {
 // Función para seleccionar archivos
 async function selectFile(inputId, fileType) {
   try {
-    // Aquí se podría implementar una llamada a un API para seleccionar archivos
-    // Por ahora, simulamos la selección con un valor predeterminado
-    let filePath = '';
+    // Creamos un elemento input de tipo file temporal
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
     
+    // Configuramos las extensiones aceptadas según el tipo de archivo
     if (fileType === 'h5') {
-      filePath = 'Modelo/anomaly_detection_model.h5';
+      fileInput.accept = '.h5';
     } else if (fileType === 'pkl') {
-      filePath = 'Scaler/scaler.pkl';
+      fileInput.accept = '.pkl';
     }
     
-    if (filePath) {
-      document.getElementById(inputId).value = filePath;
-    }
+    // Manejamos el evento de cambio para obtener la ruta del archivo seleccionado
+    fileInput.addEventListener('change', function() {
+      if (fileInput.files.length > 0) {
+        const file = fileInput.files[0];
+        // Guardamos el nombre del archivo en el input correspondiente
+        document.getElementById(inputId).value = file.name;
+        
+        // También guardamos el archivo completo en un objeto global para su posible uso posterior
+        if (!window.selectedFiles) {
+          window.selectedFiles = {};
+        }
+        window.selectedFiles[inputId] = file;
+      }
+    });
+    
+    // Simulamos un clic en el input para abrir el explorador de archivos
+    fileInput.click();
   } catch (error) {
     console.error(`Error al seleccionar archivo ${fileType}:`, error);
     showToast(`Error al seleccionar archivo: ${error.message}`, 'error');
@@ -346,30 +361,32 @@ async function loadConfiguration() {
 
 // Verifica si el sistema está correctamente configurado
 function checkConfiguration() {
-  fetchAPI('/config')
-    .then(config => {
-      // Verificar si el sistema está configurado según la respuesta del servidor
-      isConfigured = config.system_config && config.system_config.is_configured === 1;
-      
-      // Actualizar UI según el estado de configuración
+  try {
+    // Cargar los límites independientemente del estado de configuración
+    loadLimits();
+    
+    // Si hay un modelo activo, considerar que el sistema está configurado
+    if (globalState.systemConfig && 
+        globalState.systemConfig.is_configured && 
+        globalState.systemConfig.active_model_id) {
+      isConfigured = true;
       updateConfigurationStatus();
       
-      // Si el sistema está configurado, cargar los datos y actualizar la UI
-      if (isConfigured) {
-        loadConfiguration();
-        
-        if (currentPage === 'dashboard' && globalState.currentSensor) {
-          startAutoUpdate();
-        }
-      } else {
-        // Mostrar mensaje de configuración necesaria
-        showConfigurationRequiredMessage();
+      // Si el sistema está configurado, actualizar la UI y datos
+      if (currentPage === 'dashboard' && globalState.currentSensor) {
+        startAutoUpdate();
       }
-    })
-    .catch(error => {
-      console.error('Error al verificar la configuración:', error);
-      showToast('Error al verificar la configuración del sistema', 'error');
-    });
+    } else {
+      isConfigured = false;
+      updateConfigurationStatus();
+      
+      // Mostrar mensaje de configuración necesaria
+      showConfigurationRequiredMessage();
+    }
+  } catch (error) {
+    console.error('Error al verificar la configuración:', error);
+    showToast('Error al verificar la configuración: ' + error.message, 'error');
+  }
 }
 
 // Actualiza la UI según el estado de configuración
@@ -1182,7 +1199,8 @@ async function saveConfiguration() {
     
     // Recopilar datos del formulario
     const configData = {
-      // Archivos del modelo
+      // Archivos del modelo - usamos el valor del input que puede ser el nombre del archivo seleccionado
+      // o una ruta existente ingresada manualmente
       route_h5: document.getElementById('modelFile').value.trim(),
       route_pkl: document.getElementById('scalerFile').value.trim(),
       
@@ -1190,6 +1208,7 @@ async function saveConfiguration() {
       model_name: document.getElementById('modelName').value.trim(),
       model_description: document.getElementById('modelDescription').value.trim(),
       
+      // El resto de la configuración sigue igual...
       // Información del sensor
       sensor_name: document.getElementById('sensorName').value.trim(),
       sensor_description: document.getElementById('sensorDescription').value.trim(),
@@ -1225,6 +1244,46 @@ async function saveConfiguration() {
       return false;
     }
     
+    // Si tenemos archivos seleccionados, primero debemos cargarlos al servidor
+    let formData = null;
+    if (window.selectedFiles && (window.selectedFiles['modelFile'] || window.selectedFiles['scalerFile'])) {
+      formData = new FormData();
+      
+      if (window.selectedFiles['modelFile']) {
+        formData.append('model_file', window.selectedFiles['modelFile']);
+        // Actualizamos la ruta en configData con el nombre real del archivo
+        configData.route_h5 = `Modelo/${window.selectedFiles['modelFile'].name}`;
+      }
+      
+      if (window.selectedFiles['scalerFile']) {
+        formData.append('scaler_file', window.selectedFiles['scalerFile']);
+        // Actualizamos la ruta en configData con el nombre real del archivo
+        configData.route_pkl = `Scaler/${window.selectedFiles['scalerFile'].name}`;
+      }
+      
+      // Subir los archivos al servidor primero
+      try {
+        const uploadResponse = await fetch('/upload_model_files', {
+          method: 'POST',
+          body: formData
+        });
+        
+        if (!uploadResponse.ok) {
+          throw new Error('Error al cargar archivos al servidor');
+        }
+        
+        // Limpiar los archivos seleccionados después de cargarlos
+        window.selectedFiles = {};
+      } catch (uploadError) {
+        console.error('Error al cargar archivos:', uploadError);
+        showToast(`Error al cargar archivos: ${uploadError.message}`, 'error');
+        saveButton.textContent = originalText;
+        saveButton.disabled = false;
+        return false;
+      }
+    }
+    
+    // El resto de la función sigue igual...
     if (!configData.model_name || !configData.sensor_name || !configData.machine_name) {
       showToast('Los nombres del modelo, sensor y máquina son obligatorios', 'error');
       saveButton.textContent = originalText;
@@ -1563,6 +1622,8 @@ async function loadLimits() {
         tableBody.innerHTML = '<tr><td colspan="14" class="text-center">No hay configuraciones de límites</td></tr>';
       } else {
         limits.forEach(limit => {
+          const isDefault = limit.is_default; // Verificar si es el límite por defecto
+          
           tableBody.innerHTML += `
             <tr>
               <td>${limit.limit_id}</td>
@@ -1582,7 +1643,9 @@ async function loadLimits() {
                 <button class="btn btn-sm btn-primary" onclick="editLimit(${limit.limit_id})">
                   <i class="fas fa-edit"></i>
                 </button>
-                <button class="btn btn-sm btn-danger" onclick="deleteLimit(${limit.limit_id})">
+                <button class="btn btn-sm btn-danger ${isDefault ? 'disabled' : ''}" 
+                  onclick="${isDefault ? 'void(0)' : `deleteLimit(${limit.limit_id})`}"
+                  ${isDefault ? 'disabled title="No se puede eliminar el límite por defecto"' : ''}>
                   <i class="fas fa-trash"></i>
                 </button>
               </td>
@@ -1594,7 +1657,7 @@ async function loadLimits() {
     
     // Actualizar los campos del formulario con los valores del primer límite
     if (limits && limits.length > 0) {
-      const limit = limits[0];
+      const limit = limits[0]; // Usar el primer límite (por defecto)
       
       document.getElementById('limitIdInput').value = limit.limit_id;
       document.getElementById('x2infInput').value = limit.x_2inf;
@@ -1611,6 +1674,27 @@ async function loadLimits() {
       document.getElementById('z2supInput').value = limit.z_2sup;
       document.getElementById('z3infInput').value = limit.z_3inf;
       document.getElementById('z3supInput').value = limit.z_3sup;
+      
+      // Actualizar los límites globales para las gráficas
+      globalState.limits = {
+        x: {
+          warning: { min: limit.x_2inf, max: limit.x_2sup },
+          critical: { min: limit.x_3inf, max: limit.x_3sup }
+        },
+        y: {
+          warning: { min: limit.y_2inf, max: limit.y_2sup },
+          critical: { min: limit.y_3inf, max: limit.y_3sup }
+        },
+        z: {
+          warning: { min: limit.z_2inf, max: limit.z_2sup },
+          critical: { min: limit.z_3inf, max: limit.z_3sup }
+        }
+      };
+      
+      // Actualizar las gráficas si están inicializadas
+      if (typeof updateChartLimits === 'function') {
+        updateChartLimits();
+      }
     }
   } catch (error) {
     console.error('Error al cargar los límites:', error);
@@ -1832,44 +1916,82 @@ async function saveModel() {
   try {
     const modelId = document.getElementById('modelIdInput').value;
     const modelData = {
-      name: document.getElementById('modelNameInput').value,
-      description: document.getElementById('modelDescriptionInput').value,
-      route_h5: document.getElementById('modelRouteH5Input').value,
-      route_pkl: document.getElementById('modelRoutePklInput').value
+      name: document.getElementById('modelNameInput').value.trim(),
+      description: document.getElementById('modelDescriptionInput').value.trim(),
+      route_h5: document.getElementById('modelRouteH5Input').value.trim(),
+      route_pkl: document.getElementById('modelRoutePklInput').value.trim()
     };
     
-    let response;
+    // Validaciones básicas
+    if (!modelData.name) {
+      showToast('El nombre del modelo es obligatorio', 'error');
+      return;
+    }
+    
+    // Si tenemos archivos seleccionados, primero debemos cargarlos al servidor
+    if (window.selectedFiles && (window.selectedFiles['modelRouteH5Input'] || window.selectedFiles['modelRoutePklInput'])) {
+      const formData = new FormData();
+      
+      if (window.selectedFiles['modelRouteH5Input']) {
+        formData.append('model_file', window.selectedFiles['modelRouteH5Input']);
+        // Actualizamos la ruta en modelData con el nombre real del archivo
+        modelData.route_h5 = `Modelo/${window.selectedFiles['modelRouteH5Input'].name}`;
+      }
+      
+      if (window.selectedFiles['modelRoutePklInput']) {
+        formData.append('scaler_file', window.selectedFiles['modelRoutePklInput']);
+        // Actualizamos la ruta en modelData con el nombre real del archivo
+        modelData.route_pkl = `Scaler/${window.selectedFiles['modelRoutePklInput'].name}`;
+      }
+      
+      // Subir los archivos al servidor primero
+      try {
+        const uploadResponse = await fetch('/upload_model_files', {
+          method: 'POST',
+          body: formData
+        });
+        
+        if (!uploadResponse.ok) {
+          throw new Error('Error al cargar archivos al servidor');
+        }
+        
+        // Limpiar los archivos seleccionados después de cargarlos
+        window.selectedFiles = {};
+      } catch (uploadError) {
+        console.error('Error al cargar archivos:', uploadError);
+        showToast(`Error al cargar archivos: ${uploadError.message}`, 'error');
+        return;
+      }
+    }
+    
+    let endpoint, method;
     
     if (modelId) {
       // Actualizar modelo existente
-      response = await fetchAPI(`/models/${modelId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(modelData)
-      });
-      
-      showToast('Modelo actualizado correctamente', 'success');
+      endpoint = `/models/${modelId}`;
+      method = 'PUT';
     } else {
       // Crear nuevo modelo
-      response = await fetchAPI('/models', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(modelData)
-      });
-      
-      showToast('Modelo creado correctamente', 'success');
+      endpoint = '/models';
+      method = 'POST';
     }
     
-    // Cerrar modal y recargar lista
-    closeModal('modelModal');
-    loadModels();
+    const response = await fetchAPI(endpoint, {
+      method: method,
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(modelData)
+    });
+    
+    if (response) {
+      closeModal('modelModal');
+      await loadModels();
+      showToast(`Modelo ${modelId ? 'actualizado' : 'creado'} correctamente`, 'success');
+    }
   } catch (error) {
-    console.error('Error al guardar modelo:', error);
-    showToast('Error al guardar el modelo: ' + error.message, 'error');
+    console.error('Error al guardar el modelo:', error);
+    showToast(`Error al guardar el modelo: ${error.message}`, 'error');
   }
 }
 

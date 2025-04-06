@@ -6,9 +6,10 @@ from datetime import datetime, timedelta
 import numpy as np
 import logging
 from typing import Dict, Any, Union, Optional
+import shutil
 
 # FastAPI
-from fastapi import FastAPI, HTTPException, Depends, status, Request, Query, Body
+from fastapi import FastAPI, HTTPException, Depends, status, Request, Query, Body, UploadFile, Form, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -154,6 +155,63 @@ def load_ml_models():
     except Exception as e:
         logger.error(f"Error al cargar los modelos de ML: {str(e)}")
         return False
+
+def ensure_default_limits_exist():
+    """
+    Verifica si existe un registro en la tabla limit_config con id=1.
+    Si no existe, crea un registro con los valores por defecto.
+    
+    Esta función debe ser llamada durante el inicio de la aplicación.
+    """
+    try:
+        db = SessionLocal()
+        try:
+            # Intentar obtener el límite con ID=1
+            limit = db.query(LimitConfig).filter(LimitConfig.limit_config_id == 1).first()
+            
+            # Si no existe, crear los límites por defecto
+            if not limit:
+                logger.info("Creando configuración de límites por defecto")
+                
+                # Valores por defecto según la especificación
+                lim_2_inf = {"acceleration_x": -2.364295, "acceleration_y": 7.177221, "acceleration_z": -2.389107}
+                lim_2_sup = {"acceleration_x": 2.180056, "acceleration_y": 12.088666, "acceleration_z": 1.106510}
+                lim_3_inf = {"acceleration_x": -3.500383, "acceleration_y": 5.949359, "acceleration_z": -3.263011}
+                lim_3_sup = {"acceleration_x": 3.316144, "acceleration_y": 13.316528, "acceleration_z": 1.980414}
+                
+                # Crear nuevo registro con ID=1
+                default_limit = LimitConfig(
+                    limit_config_id=1,
+                    x_2inf=lim_2_inf["acceleration_x"],
+                    x_2sup=lim_2_sup["acceleration_x"],
+                    x_3inf=lim_3_inf["acceleration_x"],
+                    x_3sup=lim_3_sup["acceleration_x"],
+                    y_2inf=lim_2_inf["acceleration_y"],
+                    y_2sup=lim_2_sup["acceleration_y"],
+                    y_3inf=lim_3_inf["acceleration_y"],
+                    y_3sup=lim_3_sup["acceleration_y"],
+                    z_2inf=lim_2_inf["acceleration_z"],
+                    z_2sup=lim_2_sup["acceleration_z"],
+                    z_3inf=lim_3_inf["acceleration_z"],
+                    z_3sup=lim_3_sup["acceleration_z"],
+                    update_limits=datetime.now()
+                )
+                
+                # Guardar en la base de datos
+                db.add(default_limit)
+                db.commit()
+                db.refresh(default_limit)
+                logger.info("Configuración de límites por defecto creada con éxito")
+            else:
+                logger.info("Configuración de límites por defecto ya existe")
+                
+        except Exception as e:
+            logger.error(f"Error al verificar/crear límites por defecto: {str(e)}")
+            db.rollback()
+        finally:
+            db.close()
+    except Exception as e:
+        logger.error(f"Error al conectar con la base de datos para verificar límites: {str(e)}")
 
 # ---------------------------------------------------------
 # ESQUEMAS DE VALIDACIÓN DE DATOS
@@ -325,6 +383,7 @@ async def startup_event():
     Este evento realiza las siguientes tareas:
     1. Intenta cargar los modelos de ML
     2. Configura la base de datos si es necesario
+    3. Verifica y crea los límites por defecto si no existen
     """
     global model, scaler
     
@@ -336,6 +395,9 @@ async def startup_event():
             logger.info("Modelos de ML cargados correctamente")
         else:
             logger.warning("No se pudieron cargar los modelos de ML. La clasificación de anomalías no estará disponible.")
+        
+        # Verificar y crear límites por defecto si es necesario
+        ensure_default_limits_exist()
         
         # Crear una sesión de base de datos para la inicialización
         db = SessionLocal()
@@ -1080,6 +1142,106 @@ async def update_config_endpoint(
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"status": "error", "message": error_msg}
+        )
+
+# ---------------------------------------------------------
+# ENDPOINT PARA SUBIR ARCHIVOS DE MODELO
+# ---------------------------------------------------------
+
+@app.post("/upload_model_files", status_code=status.HTTP_201_CREATED)
+async def upload_model_files(
+    model_file: UploadFile = File(None),
+    scaler_file: UploadFile = File(None)
+):
+    """
+    Sube archivos de modelo (.h5) y escalador (.pkl) al servidor.
+    
+    Esta función permite:
+    1. Subir archivo de modelo H5 para redes neuronales
+    2. Subir archivo de escalador PKL para normalización de datos
+    
+    Args:
+        model_file: Archivo del modelo (.h5)
+        scaler_file: Archivo del escalador (.pkl)
+        
+    Returns:
+        dict: Información sobre los archivos subidos
+    """
+    try:
+        result = {"uploaded_files": []}
+        
+        # Verificar que al menos se envió un archivo
+        if not model_file and not scaler_file:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Debe enviar al menos un archivo"
+            )
+        
+        # Manejar archivo del modelo
+        if model_file:
+            # Verificar la extensión
+            if not model_file.filename.lower().endswith('.h5'):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="El archivo del modelo debe tener extensión .h5"
+                )
+            
+            # Guardar archivo
+            file_path = os.path.join(MODELO_DIR, model_file.filename)
+            
+            # Crear directorio si no existe
+            os.makedirs(MODELO_DIR, exist_ok=True)
+            
+            # Guardar archivo
+            with open(file_path, "wb") as buffer:
+                # Leer por partes para archivos grandes
+                shutil.copyfileobj(model_file.file, buffer)
+            
+            result["uploaded_files"].append({
+                "type": "model",
+                "filename": model_file.filename,
+                "path": os.path.join("Modelo", model_file.filename)
+            })
+            
+            logger.info(f"Archivo de modelo subido correctamente: {file_path}")
+        
+        # Manejar archivo del escalador
+        if scaler_file:
+            # Verificar la extensión
+            if not scaler_file.filename.lower().endswith('.pkl'):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="El archivo del escalador debe tener extensión .pkl"
+                )
+            
+            # Guardar archivo
+            file_path = os.path.join(SCALER_DIR, scaler_file.filename)
+            
+            # Crear directorio si no existe
+            os.makedirs(SCALER_DIR, exist_ok=True)
+            
+            # Guardar archivo
+            with open(file_path, "wb") as buffer:
+                # Leer por partes para archivos grandes
+                shutil.copyfileobj(scaler_file.file, buffer)
+            
+            result["uploaded_files"].append({
+                "type": "scaler",
+                "filename": scaler_file.filename,
+                "path": os.path.join("Scaler", scaler_file.filename)
+            })
+            
+            logger.info(f"Archivo de escalador subido correctamente: {file_path}")
+        
+        return result
+    except HTTPException as e:
+        # Reenviar excepciones HTTP
+        raise e
+    except Exception as e:
+        logger.error(f"Error al subir archivos: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al subir archivos: {str(e)}"
         )
 
 # ---------------------------------------------------------

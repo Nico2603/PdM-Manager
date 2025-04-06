@@ -686,10 +686,41 @@ async def remove_machine_endpoint(
 @router.get("/limits", summary="Obtener todas las configuraciones de límites")
 async def get_all_limits_endpoint(db: Session = Depends(get_db)):
     """
-    Obtiene todas las configuraciones de límites registradas en la base de datos.
+    Obtiene todas las configuraciones de límites.
+    
+    Marca el límite con ID=1 como no eliminable, ya que es el límite por defecto.
     """
-    limits = get_all_limits(db)
-    return {"limits": limits}
+    try:
+        limits = get_all_limits(db)
+        
+        # Convertir a diccionarios y añadir campo is_default
+        result = []
+        for limit in limits:
+            limit_dict = {
+                "limit_id": limit.limit_config_id,
+                "x_2inf": limit.x_2inf,
+                "x_2sup": limit.x_2sup,
+                "x_3inf": limit.x_3inf,
+                "x_3sup": limit.x_3sup,
+                "y_2inf": limit.y_2inf,
+                "y_2sup": limit.y_2sup,
+                "y_3inf": limit.y_3inf,
+                "y_3sup": limit.y_3sup,
+                "z_2inf": limit.z_2inf,
+                "z_2sup": limit.z_2sup,
+                "z_3inf": limit.z_3inf,
+                "z_3sup": limit.z_3sup,
+                "update_limits": limit.update_limits,
+                "is_default": limit.limit_config_id == 1  # Marcar límite por defecto
+            }
+            result.append(limit_dict)
+            
+        return result
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al obtener límites: {str(e)}"
+        )
 
 @router.get("/limits/{limit_id}", summary="Obtener una configuración de límites por ID")
 async def get_limit_endpoint(
@@ -732,17 +763,39 @@ async def remove_limit_endpoint(
     db: Session = Depends(get_db)
 ):
     """
-    Elimina una configuración de límites de la base de datos por su ID.
+    Elimina una configuración de límites.
+    
+    No permite eliminar el límite con ID=1, ya que es el límite por defecto.
     """
+    # No permitir eliminar el límite con ID=1 (límite por defecto)
+    if limit_id == 1:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No se puede eliminar el límite por defecto"
+        )
+        
     try:
-        result = delete_limit(db, limit_id)
-        if not result:
-            raise HTTPException(status_code=404, detail="Configuración de límites no encontrada")
+        # Verificar que el límite existe
+        limit = get_limit_by_id(db, limit_id)
+        if not limit:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Límite con ID {limit_id} no encontrado"
+            )
+            
+        # Eliminar el límite
+        success = delete_limit(db, limit_id)
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Error al eliminar la configuración de límites"
+            )
+            
         return {"message": "Configuración de límites eliminada correctamente"}
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error al eliminar la configuración de límites: {str(e)}"
+            detail=f"Error al eliminar límites: {str(e)}"
         ) 
