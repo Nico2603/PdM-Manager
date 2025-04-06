@@ -30,10 +30,13 @@ SET default_table_access_method = heap;
 -- Se mantienen sensor_id, name y description.
 -- Se agrega model_id (FK → model.model_id)
 CREATE TABLE public.sensor (
-    sensor_id   integer       NOT NULL,
-    name        varchar(100)  NOT NULL,
-    description text,
-    model_id    integer,      -- FK a model.model_id
+    sensor_id         integer       NOT NULL,
+    name              varchar(100)  NOT NULL,
+    description       text,
+    model_id          integer,      -- FK a model.model_id
+    last_status       integer       DEFAULT 0,
+    last_severity     integer       DEFAULT 0,
+    last_reading_time timestamp with time zone,
     CONSTRAINT sensor_pkey PRIMARY KEY (sensor_id)
 );
 ALTER TABLE public.sensor OWNER TO postgres;
@@ -85,6 +88,7 @@ CREATE TABLE public.vibration_data (
     acceleration_y double precision,
     acceleration_z double precision,
     severity       integer          DEFAULT 0,
+    is_anomaly     integer          DEFAULT 0,
     CONSTRAINT vibration_data_pkey PRIMARY KEY (data_id)
 );
 ALTER TABLE public.vibration_data OWNER TO postgres;

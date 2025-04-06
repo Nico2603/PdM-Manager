@@ -44,6 +44,9 @@ function initVibrationCharts() {
   initAxisChart('Z');
   console.log('Gráficos de vibración inicializados');
   
+  // Inicializar toggles de límites
+  setupLimitsToggle();
+  
   // Establecer estado inicial de visibilidad de las gráficas
   if (typeof toggleChartVisibility === 'function') {
     toggleChartVisibility();
@@ -123,11 +126,19 @@ function initAxisChart(axis) {
     },
     options: {
       responsive: true,
-      aspectRatio: 2.5,
+      maintainAspectRatio: false,
+      aspectRatio: 3.5,
       plugins: {
         legend: {
           display: true,
-          position: 'top'
+          position: 'top',
+          align: 'start',
+          labels: {
+            boxWidth: 12,
+            font: {
+              size: 11
+            }
+          }
         },
         tooltip: {
           mode: 'index',
@@ -315,4 +326,36 @@ function clearCharts() {
     });
     vibrationChartZ.update();
   }
+}
+
+// Función para manejar la visibilidad de los límites
+function setupLimitsToggle() {
+    const toggleXLimits = document.getElementById('toggleXLimits');
+    const toggleYLimits = document.getElementById('toggleYLimits');
+    const toggleZLimits = document.getElementById('toggleZLimits');
+
+    function toggleLimits(chart, isVisible) {
+        if (!chart) return;
+        
+        // Los datasets 1 y 2 son Warning Superior e Inferior
+        // Los datasets 3 y 4 son Critical Superior e Inferior
+        for (let i = 1; i <= 4; i++) {
+            if (chart.data.datasets[i]) {
+                chart.data.datasets[i].hidden = !isVisible;
+            }
+        }
+        chart.update();
+    }
+
+    toggleXLimits.addEventListener('change', (e) => {
+        toggleLimits(vibrationChartX, e.target.checked);
+    });
+
+    toggleYLimits.addEventListener('change', (e) => {
+        toggleLimits(vibrationChartY, e.target.checked);
+    });
+
+    toggleZLimits.addEventListener('change', (e) => {
+        toggleLimits(vibrationChartZ, e.target.checked);
+    });
 }

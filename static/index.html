@@ -153,46 +153,67 @@
           </div>
 
           <!-- Filtros y Gráficos -->
-          <div class="dashboard-grid">
-            <!-- Filtros del Dashboard -->
-            <div class="filter-card animate-slide-up" style="animation-delay: 0.5s">
-              <div class="card-header">
-                <h5><i class="fas fa-filter"></i> Filtros de Visualización</h5>
-              </div>
-              <div class="card-body">
-                <div class="form-group">
-                  <label for="sensorSelector">Sensor:</label>
+          <div class="dashboard-content">
+            <!-- Selector de Sensores - Movido arriba de las gráficas -->
+            <div class="sensor-selector-container animate-slide-up" style="animation-delay: 0.5s; margin-bottom: 15px; width: 100%;">
+              <div class="sensor-selector-card">
+                <div class="card-header">
+                  <h5><i class="fas fa-microchip"></i> Sensor:</h5>
+                </div>
+                <div class="card-body">
                   <select id="sensorSelector" class="form-control">
                     <option value="" disabled selected>Seleccione un sensor</option>
                   </select>
+                  <div id="dataStatus" class="status-message mt-2">
+                    <i class="fas fa-info-circle"></i> Seleccione un sensor para ver sus datos
+                  </div>
                 </div>
-                <div id="dataStatus" class="status-message">
-                  <i class="fas fa-info-circle"></i> Seleccione un sensor para ver sus datos
+              </div>
+            </div>
+
+            <!-- Filtros del Dashboard -->
+            <div class="filters-bar animate-slide-up" style="animation-delay: 0.5s">
+              <!-- Toggles para mostrar/ocultar ejes -->
+              <div class="filter-group">
+                <label>Ejes a mostrar:</label>
+                <div class="toggle-container">
+                  <div class="toggle-item">
+                    <input type="checkbox" id="toggleXAxis" class="axis-toggle" checked>
+                    <label for="toggleXAxis" class="axis-label x-axis">Eje X</label>
+                  </div>
+                  <div class="toggle-item">
+                    <input type="checkbox" id="toggleYAxis" class="axis-toggle" checked>
+                    <label for="toggleYAxis" class="axis-label y-axis">Eje Y</label>
+                  </div>
+                  <div class="toggle-item">
+                    <input type="checkbox" id="toggleZAxis" class="axis-toggle" checked>
+                    <label for="toggleZAxis" class="axis-label z-axis">Eje Z</label>
+                  </div>
                 </div>
-                
-                <!-- Toggles para mostrar/ocultar ejes -->
-                <div class="form-group mt-3">
-                  <label>Ejes a mostrar:</label>
-                  <div class="toggle-container">
-                    <div class="toggle-item">
-                      <input type="checkbox" id="toggleXAxis" class="axis-toggle" checked>
-                      <label for="toggleXAxis" class="axis-label x-axis">Eje X</label>
-                    </div>
-                    <div class="toggle-item">
-                      <input type="checkbox" id="toggleYAxis" class="axis-toggle" checked>
-                      <label for="toggleYAxis" class="axis-label y-axis">Eje Y</label>
-                    </div>
-                    <div class="toggle-item">
-                      <input type="checkbox" id="toggleZAxis" class="axis-toggle" checked>
-                      <label for="toggleZAxis" class="axis-label z-axis">Eje Z</label>
-                    </div>
+              </div>
+
+              <!-- Toggles para mostrar/ocultar límites -->
+              <div class="filter-group">
+                <label>Mostrar límites:</label>
+                <div class="toggle-container">
+                  <div class="toggle-item">
+                    <input type="checkbox" id="toggleXLimits" class="limits-toggle" checked>
+                    <label for="toggleXLimits" class="limits-label x-axis">Límites X</label>
+                  </div>
+                  <div class="toggle-item">
+                    <input type="checkbox" id="toggleYLimits" class="limits-toggle" checked>
+                    <label for="toggleYLimits" class="limits-label y-axis">Límites Y</label>
+                  </div>
+                  <div class="toggle-item">
+                    <input type="checkbox" id="toggleZLimits" class="limits-toggle" checked>
+                    <label for="toggleZLimits" class="limits-label z-axis">Límites Z</label>
                   </div>
                 </div>
               </div>
             </div>
             
             <!-- Gráficas de Aceleración -->
-            <div class="acceleration-charts-grid">
+            <div class="charts-stack">
               <!-- Gráfico de Aceleración Eje X -->
               <div class="chart-card animate-slide-up" style="animation-delay: 0.6s">
                 <div class="card-header">

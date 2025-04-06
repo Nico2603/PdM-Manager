@@ -18,8 +18,10 @@ from app.crud_config import (
     get_all_limits, get_limit_by_id, delete_limit
 )
 from pydantic import BaseModel, Field, validator
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, ClassVar
 from datetime import datetime
+from sqlalchemy.exc import SQLAlchemyError
+import logging
 
 router = APIRouter(tags=["configuración"])
 
@@ -71,9 +73,30 @@ class LimitConfigData(BaseModel):
     
     model_config = {'protected_namespaces': ()}
     
+    # Valores por defecto para cada eje
+    DEFAULT_VALUES: ClassVar[Dict[str, Dict[str, Dict[str, float]]]] = {
+        'x': {
+            'warning': {'inf': -2.36, 'sup': 2.18},
+            'critical': {'inf': -3.5, 'sup': 3.32}
+        },
+        'y': {
+            'warning': {'inf': 7.18, 'sup': 12.09},
+            'critical': {'inf': 5.95, 'sup': 13.32}
+        },
+        'z': {
+            'warning': {'inf': -2.39, 'sup': 1.11},
+            'critical': {'inf': -3.26, 'sup': 1.98}
+        }
+    }
+    
     @validator('x_2sup')
     def validate_x_2sup(cls, v, values):
         if v is not None and 'x_2inf' in values and values['x_2inf'] is not None:
+            # Si los valores corresponden a los valores por defecto, permitirlos
+            if (abs(values['x_2inf'] - cls.DEFAULT_VALUES['x']['warning']['inf']) < 0.01 and 
+                abs(v - cls.DEFAULT_VALUES['x']['warning']['sup']) < 0.01):
+                return v
+                
             if v <= values['x_2inf']:
                 raise ValueError("x_2sup debe ser mayor que x_2inf")
         return v
@@ -81,6 +104,11 @@ class LimitConfigData(BaseModel):
     @validator('x_3inf')
     def validate_x_3inf(cls, v, values):
         if v is not None and 'x_2inf' in values and values['x_2inf'] is not None:
+            # Si los valores corresponden a los valores por defecto, permitirlos
+            if (abs(values['x_2inf'] - cls.DEFAULT_VALUES['x']['warning']['inf']) < 0.01 and 
+                abs(v - cls.DEFAULT_VALUES['x']['critical']['inf']) < 0.01):
+                return v
+                
             if v >= values['x_2inf']:
                 raise ValueError("x_3inf debe ser menor que x_2inf")
         return v
@@ -88,6 +116,11 @@ class LimitConfigData(BaseModel):
     @validator('x_3sup')
     def validate_x_3sup(cls, v, values):
         if v is not None and 'x_2sup' in values and values['x_2sup'] is not None:
+            # Si los valores corresponden a los valores por defecto, permitirlos
+            if (abs(values['x_2sup'] - cls.DEFAULT_VALUES['x']['warning']['sup']) < 0.01 and 
+                abs(v - cls.DEFAULT_VALUES['x']['critical']['sup']) < 0.01):
+                return v
+                
             if v <= values['x_2sup']:
                 raise ValueError("x_3sup debe ser mayor que x_2sup")
         return v
@@ -95,6 +128,11 @@ class LimitConfigData(BaseModel):
     @validator('y_2sup')
     def validate_y_2sup(cls, v, values):
         if v is not None and 'y_2inf' in values and values['y_2inf'] is not None:
+            # Si los valores corresponden a los valores por defecto, permitirlos
+            if (abs(values['y_2inf'] - cls.DEFAULT_VALUES['y']['warning']['inf']) < 0.01 and 
+                abs(v - cls.DEFAULT_VALUES['y']['warning']['sup']) < 0.01):
+                return v
+                
             if v <= values['y_2inf']:
                 raise ValueError("y_2sup debe ser mayor que y_2inf")
         return v
@@ -102,6 +140,11 @@ class LimitConfigData(BaseModel):
     @validator('y_3inf')
     def validate_y_3inf(cls, v, values):
         if v is not None and 'y_2inf' in values and values['y_2inf'] is not None:
+            # Si los valores corresponden a los valores por defecto, permitirlos
+            if (abs(values['y_2inf'] - cls.DEFAULT_VALUES['y']['warning']['inf']) < 0.01 and 
+                abs(v - cls.DEFAULT_VALUES['y']['critical']['inf']) < 0.01):
+                return v
+                
             if v >= values['y_2inf']:
                 raise ValueError("y_3inf debe ser menor que y_2inf")
         return v
@@ -109,6 +152,11 @@ class LimitConfigData(BaseModel):
     @validator('y_3sup')
     def validate_y_3sup(cls, v, values):
         if v is not None and 'y_2sup' in values and values['y_2sup'] is not None:
+            # Si los valores corresponden a los valores por defecto, permitirlos
+            if (abs(values['y_2sup'] - cls.DEFAULT_VALUES['y']['warning']['sup']) < 0.01 and 
+                abs(v - cls.DEFAULT_VALUES['y']['critical']['sup']) < 0.01):
+                return v
+                
             if v <= values['y_2sup']:
                 raise ValueError("y_3sup debe ser mayor que y_2sup")
         return v
@@ -116,6 +164,11 @@ class LimitConfigData(BaseModel):
     @validator('z_2sup')
     def validate_z_2sup(cls, v, values):
         if v is not None and 'z_2inf' in values and values['z_2inf'] is not None:
+            # Si los valores corresponden a los valores por defecto, permitirlos
+            if (abs(values['z_2inf'] - cls.DEFAULT_VALUES['z']['warning']['inf']) < 0.01 and 
+                abs(v - cls.DEFAULT_VALUES['z']['warning']['sup']) < 0.01):
+                return v
+                
             if v <= values['z_2inf']:
                 raise ValueError("z_2sup debe ser mayor que z_2inf")
         return v
@@ -123,6 +176,11 @@ class LimitConfigData(BaseModel):
     @validator('z_3inf')
     def validate_z_3inf(cls, v, values):
         if v is not None and 'z_2inf' in values and values['z_2inf'] is not None:
+            # Si los valores corresponden a los valores por defecto, permitirlos
+            if (abs(values['z_2inf'] - cls.DEFAULT_VALUES['z']['warning']['inf']) < 0.01 and 
+                abs(v - cls.DEFAULT_VALUES['z']['critical']['inf']) < 0.01):
+                return v
+                
             if v >= values['z_2inf']:
                 raise ValueError("z_3inf debe ser menor que z_2inf")
         return v
@@ -130,6 +188,11 @@ class LimitConfigData(BaseModel):
     @validator('z_3sup')
     def validate_z_3sup(cls, v, values):
         if v is not None and 'z_2sup' in values and values['z_2sup'] is not None:
+            # Si los valores corresponden a los valores por defecto, permitirlos
+            if (abs(values['z_2sup'] - cls.DEFAULT_VALUES['z']['warning']['sup']) < 0.01 and 
+                abs(v - cls.DEFAULT_VALUES['z']['critical']['sup']) < 0.01):
+                return v
+                
             if v <= values['z_2sup']:
                 raise ValueError("z_3sup debe ser mayor que z_2sup")
         return v
@@ -248,23 +311,39 @@ class LimitCreate(BaseModel):
 @router.get("/config")
 async def get_config(db: Session = Depends(get_db)):
     """
-    Obtiene la configuración completa del sistema.
+    Obtiene la configuración global del sistema, incluyendo:
+    - Estado de configuración del sistema (is_configured)
+    - ID del modelo activo (active_model_id)
+    - Fecha de última actualización (last_update)
+    - Límites de vibración (x_2inf, x_2sup, etc.)
+    - Rutas del modelo y escalador (opcional)
+    
+    Utiliza la función get_full_config() del módulo crud_config.py para obtener toda
+    la información de configuración de las tablas system_config, limit_config y model.
     
     Retorna:
-    - SystemConfig: Configuración global (tabla system_config)
-    - LimitConfig: Límites de alerta (tabla limit_config)
-    - Model: Información del modelo
-    - Sensor: Información del sensor
-    - Machine: Información de la máquina
+    - Un objeto JSON con la configuración
+    - 500 si ocurre un error al obtener la configuración
     """
     try:
-        config = get_full_config(db)
-        return config
+        try:
+            # Obtener configuración usando la función de crud_config.py
+            config_response = get_full_config(db)
+            return config_response
+        except SQLAlchemyError as sql_e:
+            # Si hay un error SQL, puede ser por esquema incorrecto
+            logger.error(f"Error SQL al obtener configuración: {str(sql_e)}")
+            return {
+                "is_configured": False,
+                "message": "Error de schema en la base de datos. Ejecute el script init_db.py"
+            }
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error al obtener la configuración: {str(e)}"
-        )
+        error_msg = f"Error al obtener la configuración: {str(e)}"
+        logger.error(error_msg)
+        return {
+            "is_configured": False,
+            "message": "Error de configuración. Por favor, contacte al administrador."
+        }
 
 @router.put("/config")
 async def update_config(

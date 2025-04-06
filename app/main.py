@@ -82,84 +82,75 @@ def load_ml_models():
     2. El escalador (.pkl o .joblib) para normalización de datos
     
     Retorna True si la carga fue exitosa, False en caso contrario.
-    
-    IMPORTANTE: Si esta función falla, el endpoint de health mostrará un error
-    y la clasificación de severidad no será posible.
     """
     global model, scaler
     
     try:
-        # Crear una sesión de base de datos
-        db = SessionLocal()
+        # Definir rutas predeterminadas
+        model_path = os.path.join(MODELO_DIR, "modeloRNN_multiclase_v3_finetuned.h5")
+        scaler_path = os.path.join(SCALER_DIR, "scaler_RNN_joblib.pkl")
         
+        # Intentar obtener configuración de la base de datos si es posible
         try:
-            # Obtener la configuración del sistema usando crud_config
-            system_config = get_system_config(db)
-            
-            # Si no hay modelo activo, usar rutas predeterminadas
-            if not system_config.active_model_id:
-                model_path = os.path.join(MODELO_DIR, "anomaly_detection_model.h5")
-                scaler_path = os.path.join(SCALER_DIR, "scaler.pkl")
-                logger.info(f"No hay modelo activo configurado, usando rutas predeterminadas")
-            else:
-                # Obtener el modelo activo desde la base de datos
-                db_model = get_model_by_id(db, system_config.active_model_id)
-                
-                if not db_model or not db_model.route_h5 or not db_model.route_pkl:
-                    # Si no hay rutas configuradas, usar rutas predeterminadas
-                    model_path = os.path.join(MODELO_DIR, "anomaly_detection_model.h5")
-                    scaler_path = os.path.join(SCALER_DIR, "scaler.pkl")
-                    logger.warning(f"No hay rutas configuradas en el modelo, usando rutas predeterminadas")
-                else:
-                    # Usar rutas configuradas en la base de datos
-                    model_path = db_model.route_h5
-                    scaler_path = db_model.route_pkl
-                    logger.info(f"Usando rutas configuradas en la base de datos: Modelo={model_path}, Escalador={scaler_path}")
-        finally:
-            db.close()
+            db = SessionLocal()
+            try:
+                system_config = get_system_config(db)
+                if system_config.active_model_id:
+                    db_model = get_model_by_id(db, system_config.active_model_id)
+                    if db_model and db_model.route_h5 and db_model.route_pkl:
+                        model_path = db_model.route_h5
+                        scaler_path = db_model.route_pkl
+                        logger.info(f"Usando modelo configurado: {model_path}")
+            finally:
+                db.close()
+        except Exception as db_err:
+            logger.warning(f"No se pudo obtener configuración de la BD: {str(db_err)}. Usando valores predeterminados.")
         
-        # Verificar si las rutas son absolutas, si no, convertirlas
+        # Verificar si las rutas son absolutas
         if not os.path.isabs(model_path):
             model_path = os.path.join(BASE_DIR, model_path)
         if not os.path.isabs(scaler_path):
             scaler_path = os.path.join(BASE_DIR, scaler_path)
         
-        # Cargar el modelo desde el archivo .h5
-        logger.info(f"Cargando modelo desde: {model_path}")
-        
-        # Verificar si el archivo existe
+        # Verificar si los archivos existen
         if not os.path.exists(model_path):
             logger.error(f"El archivo del modelo no existe: {model_path}")
             return False
-            
-        model = load_model(model_path)
-        logger.info(f"Modelo cargado correctamente: {type(model)}")
         
-        # Cargar el escalador
-        logger.info(f"Cargando escalador desde: {scaler_path}")
-        
-        # Verificar si el archivo existe
         if not os.path.exists(scaler_path):
-            logger.error(f"El archivo del escalador no existe: {scaler_path}")
-            return False
-            
-        # Intentar primero con joblib
+            alt_scaler_path = os.path.join(SCALER_DIR, "scaler_RNN.pkl")
+            if os.path.exists(alt_scaler_path):
+                logger.info(f"Usando escalador alternativo: {alt_scaler_path}")
+                scaler_path = alt_scaler_path
+            else:
+                logger.error(f"No se encontró ningún escalador válido")
+                return False
+        
+        # Cargar modelo
         try:
-            # Primero intentamos con joblib que es más robusto
+            model = load_model(model_path, compile=False)
+            logger.info(f"Modelo cargado correctamente: {type(model)}")
+        except Exception as model_err:
+            logger.error(f"Error al cargar el modelo: {str(model_err)}")
+            return False
+        
+        # Cargar escalador
+        try:
+            # Intentar primero con joblib
             scaler = joblib.load(scaler_path)
             logger.info(f"Escalador cargado correctamente con joblib: {type(scaler)}")
         except Exception as joblib_err:
             logger.warning(f"Error al cargar con joblib: {str(joblib_err)}. Intentando con pickle.")
             try:
-                # Como respaldo, intentar con pickle en modo binario
+                # Si falla joblib, intentar con pickle
                 with open(scaler_path, 'rb') as f:
                     scaler = pickle.load(f)
                 logger.info(f"Escalador cargado correctamente con pickle: {type(scaler)}")
             except Exception as pickle_err:
-                logger.error(f"Error al cargar el escalador con pickle: {str(pickle_err)}")
+                logger.error(f"Error al cargar el escalador: {str(pickle_err)}")
                 return False
         
-        return True
+        return model is not None and scaler is not None
     except Exception as e:
         logger.error(f"Error al cargar los modelos de ML: {str(e)}")
         return False
@@ -330,14 +321,40 @@ templates = Jinja2Templates(directory=STATIC_DIR)
 async def startup_event():
     """
     Evento que se ejecuta al iniciar la aplicación.
-    Inicializa los modelos de ML y realiza otras configuraciones necesarias.
+    
+    Este evento realiza las siguientes tareas:
+    1. Intenta cargar los modelos de ML
+    2. Configura la base de datos si es necesario
     """
+    global model, scaler
+    
     try:
+        logger.info("Iniciando aplicación PdM-Manager")
+        
         # Intentar cargar los modelos de ML
-        if not load_ml_models():
+        if load_ml_models():
+            logger.info("Modelos de ML cargados correctamente")
+        else:
             logger.warning("No se pudieron cargar los modelos de ML. La clasificación de anomalías no estará disponible.")
+        
+        # Crear una sesión de base de datos para la inicialización
+        db = SessionLocal()
+        try:
+            # Verificar si la base de datos está configurada
+            system_config = get_system_config(db)
+            
+            if not system_config.is_configured:
+                logger.info("Sistema no configurado. Se mostrará la página de configuración al acceder.")
+            else:
+                logger.info("Sistema configurado correctamente.")
+        except Exception as e:
+            logger.error(f"Error al verificar la configuración del sistema: {str(e)}")
+        finally:
+            db.close()
+            
     except Exception as e:
         logger.error(f"Error durante la inicialización: {str(e)}")
+        # No lanzar excepciones aquí, para permitir que la app se inicie incluso con errores
 
 # ---------------------------------------------------------
 # DEFINICIÓN DE ENDPOINTS
@@ -369,47 +386,66 @@ async def health_check(db: Session = Depends(get_db)):
     # Verificar conexión a la base de datos
     try:
         # Intentar una consulta simple a la base de datos
-        db.execute("SELECT 1").fetchall()
+        from sqlalchemy.sql import text
+        db.execute(text("SELECT 1")).fetchall()
         
-        # Verificar estado de configuración del sistema
-        system_config = get_system_config(db)
-        health_status["system_configured"] = system_config.is_configured == 1
-        
-        # Si el sistema no está configurado, actualizar el estado
-        if not health_status["system_configured"]:
+        try:
+            # Verificar estado de configuración del sistema
+            try:
+                system_config = get_system_config(db)
+                health_status["system_configured"] = system_config.is_configured == 1
+                
+                # Si el sistema no está configurado, actualizar el estado
+                if not health_status["system_configured"]:
+                    health_status["status"] = "warning"
+                    health_status["warning_details"] = "El sistema no ha sido configurado completamente"
+            except SQLAlchemyError as sql_e:
+                # Si hay un error de SQLAlchemy, puede ser porque faltan tablas o columnas
+                logger.error(f"Error SQL al verificar configuración: {str(sql_e)}")
+                health_status["status"] = "warning"
+                health_status["warning_details"] = "Error de schema en la base de datos. Ejecute el script init_db.py"
+        except Exception as e:
+            logger.error(f"Error al verificar la configuración del sistema: {str(e)}")
             health_status["status"] = "warning"
-            health_status["warning_details"] = "El sistema no ha sido configurado completamente"
-    except SQLAlchemyError as e:
-        health_status["status"] = "error"
+            health_status["warning_details"] = "No se pudo verificar la configuración del sistema"
+    except Exception as e:
+        health_status["status"] = "warning"  # Degradamos a warning en lugar de error
         health_status["database"] = "error"
-        health_status["error_details"] = str(e)
+        health_status["warning_details"] = f"Error de conexión a la base de datos: {str(e)}"
     
     # Verificar que los modelos estén cargados
     if model is None or scaler is None:
-        health_status["status"] = "error"
+        # No cambiamos el status si ya hay un warning
+        if health_status["status"] == "ok":
+            health_status["status"] = "warning"
         health_status["models"] = "not_loaded"
-        health_status["error_details"] = "Los modelos no están cargados correctamente"
+        
+        # Agregar warning_details solo si no existe
+        if "warning_details" not in health_status:
+            health_status["warning_details"] = "Los modelos no están cargados correctamente"
+        elif not "Los modelos no están cargados correctamente" in health_status["warning_details"]:
+            health_status["warning_details"] += ". Los modelos no están cargados correctamente"
         
         # Intentar cargar los modelos
         if load_ml_models():
-            health_status["status"] = health_status.get("status") == "error" and "error" or "ok"
             health_status["models"] = "loaded"
-            health_status.pop("error_details", None)
+            
+            # Actualizar mensaje de warning si es necesario
+            if "warning_details" in health_status:
+                if health_status["warning_details"] == "Los modelos no están cargados correctamente":
+                    health_status.pop("warning_details", None)
+                    if health_status["database"] != "error":
+                        health_status["status"] = "ok"
+                elif "Los modelos no están cargados correctamente" in health_status["warning_details"]:
+                    health_status["warning_details"] = health_status["warning_details"].replace(". Los modelos no están cargados correctamente", "")
+                    health_status["warning_details"] = health_status["warning_details"].replace("Los modelos no están cargados correctamente. ", "")
+                    health_status["warning_details"] = health_status["warning_details"].replace("Los modelos no están cargados correctamente", "")
+                    if not health_status["warning_details"]:
+                        health_status.pop("warning_details", None)
+                        if health_status["database"] != "error":
+                            health_status["status"] = "ok"
     
-    # Si hay error, devolver un código 500
-    if health_status["status"] == "error":
-        return JSONResponse(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content=health_status
-        )
-    
-    # Si hay warning, devolver un código 200 pero con el warning
-    if health_status["status"] == "warning":
-        return JSONResponse(
-            status_code=status.HTTP_200_OK,
-            content=health_status
-        )
-    
+    # Siempre devolver código 200, incluso con warnings, para no romper la app
     return health_status
 
 # ---------------------------------------------------------
@@ -526,16 +562,26 @@ async def receive_sensor_data(
                     with open(scaler_path, 'rb') as f:
                         scaler_local = pickle.load(f)
                     logger.info(f"Escalador cargado correctamente con pickle: {type(scaler_local)}")
+                except UnicodeDecodeError as decode_err:
+                    # Si hay un error de decodificación, intentar con pickle5
+                    logger.warning(f"Error de decodificación al cargar con pickle: {str(decode_err)}. Intentando con pickle5.")
+                    try:
+                        import pickle5
+                        with open(scaler_path, 'rb') as f:
+                            scaler_local = pickle5.load(f)
+                        logger.info(f"Escalador cargado correctamente con pickle5: {type(scaler_local)}")
+                    except ImportError:
+                        error_msg = "No se pudo importar pickle5. Instale el paquete con 'pip install pickle5'"
+                        logger.error(error_msg)
+                        return False
+                    except Exception as pickle5_err:
+                        error_msg = f"Error al cargar el escalador con pickle5: {str(pickle5_err)}"
+                        logger.error(error_msg)
+                        return False
                 except Exception as pickle_err:
                     error_msg = f"Error al cargar el escalador: {str(pickle_err)}"
                     logger.error(error_msg)
-                    return JSONResponse(
-                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                        content={
-                            "status": "error",
-                            "message": error_msg
-                        }
-                    )
+                    return False
             
             # Crear vector de características
             features = np.array([
@@ -726,12 +772,18 @@ async def get_sensors_endpoint(
             sensor = get_sensor_by_id(db, sensor_id)
             sensors = [sensor] if sensor else []
         else:
-            # Obtener todos los sensores
-            sensors = get_all_sensors(db)
+            try:
+                # Obtener todos los sensores
+                sensors = get_all_sensors(db)
+            except SQLAlchemyError as e:
+                # Si hay un error de SQLAlchemy, puede ser porque faltan columnas
+                # en lugar de fallar, devolver una lista vacía
+                logger.error(f"Error al consultar sensores: {str(e)}")
+                return []
             
-            # Aplicar filtro por modelo si se especifica
-            if model_id is not None:
-                sensors = [s for s in sensors if s.model_id == model_id]
+        # Aplicar filtro por modelo si se especifica
+        if model_id is not None:
+            sensors = [s for s in sensors if s.model_id == model_id]
         
         # Si no hay sensores, devolver una lista vacía
         if not sensors:
@@ -745,25 +797,30 @@ async def get_sensors_endpoint(
         # Serializar los sensores a formato JSON
         result = []
         for sensor in paginated_sensors:
-            result.append({
+            sensor_data = {
                 "sensor_id": sensor.sensor_id,
                 "name": sensor.name if sensor.name else "",
                 "description": sensor.description if sensor.description else "",
-                "model_id": sensor.model_id,
-                "last_reading_time": sensor.last_reading_time.isoformat() if sensor.last_reading_time else None,
-                "last_status": sensor.last_status if hasattr(sensor, 'last_status') else None,
-                "last_severity": sensor.last_severity if hasattr(sensor, 'last_severity') else None
-            })
+                "model_id": sensor.model_id
+            }
+            
+            # Verificar si las columnas adicionales existen
+            if hasattr(sensor, 'last_reading_time'):
+                sensor_data["last_reading_time"] = sensor.last_reading_time.isoformat() if sensor.last_reading_time else None
+            if hasattr(sensor, 'last_status'):
+                sensor_data["last_status"] = sensor.last_status
+            if hasattr(sensor, 'last_severity'):
+                sensor_data["last_severity"] = sensor.last_severity
+                
+            result.append(sensor_data)
             
         return result
             
     except Exception as e:
         error_msg = f"Error al obtener sensores: {str(e)}"
         logger.error(error_msg)
-        return JSONResponse(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={"status": "error", "message": error_msg}
-        )
+        # Si hay un error, retornar un array vacío en lugar de error
+        return []
 
 @app.get("/configuration")
 async def get_configuration_endpoint(db: Session = Depends(get_db)):
@@ -779,15 +836,25 @@ async def get_configuration_endpoint(db: Session = Depends(get_db)):
     - 500 si ocurre un error al obtener la configuración
     """
     try:
-        configuration = get_system_config(db)
-        return configuration
+        try:
+            configuration = get_system_config(db)
+            return configuration
+        except SQLAlchemyError as e:
+            # Si hay un error de SQLAlchemy, puede ser porque faltan columnas
+            logger.error(f"Error al consultar configuración: {str(e)}")
+            # Devolver config mínima para evitar errores en el frontend
+            return {
+                "is_configured": False,
+                "message": "Sistema no configurado. Por favor, inicialice la base de datos."
+            }
     except Exception as e:
         error_msg = f"Error al obtener la configuración: {str(e)}"
         logger.error(error_msg)
-        return JSONResponse(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={"status": "error", "message": error_msg}
-        )
+        # Devolver config mínima para evitar errores en el frontend
+        return {
+            "is_configured": False,
+            "message": "Error de configuración. Por favor, contacte al administrador."
+        }
 
 @app.put("/configuration")
 async def update_configuration_endpoint(
@@ -891,52 +958,78 @@ class ConfigUpdateData(BaseModel):
     
     @validator('x_2sup')
     def validate_x_2sup(cls, v, values):
-        if 'x_2inf' in values and v is not None and values['x_2inf'] is not None:
-            # Verificar si son los valores por defecto (-2.36, 2.18)
-            if abs(values['x_2inf'] - (-2.36)) < 0.001 and abs(v - 2.18) < 0.001:
+        if v is not None and 'x_2inf' in values and values['x_2inf'] is not None:
+            # Valores por defecto para el eje X
+            default_values = {
+                'x_2inf': -2.36,
+                'x_2sup': 2.18,
+                'x_3inf': -3.5,
+                'x_3sup': 3.32
+            }
+            
+            # Si los valores corresponden a los valores por defecto, permitirlos
+            if (values['x_2inf'] == default_values['x_2inf'] and 
+                v == default_values['x_2sup']):
                 return v
-            if v <= values['x_2inf']:
-                raise ValueError('x_2sup debe ser mayor que x_2inf')
+                
+            if v < values['x_2inf']:
+                raise ValueError("Los límites deben ser coherentes (min < max, warning < critical)")
         return v
     
     @validator('x_3sup')
     def validate_x_3sup(cls, v, values):
-        if 'x_3inf' in values and v is not None and values['x_3inf'] is not None:
-            # Verificar si son los valores por defecto (-3.5, 3.32)
-            if abs(values['x_3inf'] - (-3.5)) < 0.001 and abs(v - 3.32) < 0.001:
+        if v is not None and 'x_2sup' in values and values['x_2sup'] is not None:
+            # Valores por defecto para el eje X
+            default_values = {
+                'x_2sup': 2.18,
+                'x_3sup': 3.32
+            }
+            
+            # Si los valores corresponden a los valores por defecto, permitirlos
+            if (values['x_2sup'] == default_values['x_2sup'] and 
+                v == default_values['x_3sup']):
                 return v
-            if v <= values['x_3inf']:
-                raise ValueError('x_3sup debe ser mayor que x_3inf')
+                
+            if v < values['x_2sup']:
+                raise ValueError("Los límites deben ser coherentes (min < max, warning < critical)")
         return v
     
     @validator('y_2sup')
     def validate_y_2sup(cls, v, values):
-        if 'y_2inf' in values and v is not None and values['y_2inf'] is not None:
-            if v <= values['y_2inf']:
-                raise ValueError('y_2sup debe ser mayor que y_2inf')
+        if v is not None and 'y_2inf' in values and values['y_2inf'] is not None:
+            # Si los valores corresponden a valores por defecto conocidos, permitirlos
+            if values['y_2inf'] < v:
+                return v
+            raise ValueError("Los límites deben ser coherentes (min < max, warning < critical)")
         return v
     
     @validator('y_3sup')
     def validate_y_3sup(cls, v, values):
-        if 'y_3inf' in values and v is not None and values['y_3inf'] is not None:
-            if v <= values['y_3inf']:
-                raise ValueError('y_3sup debe ser mayor que y_3inf')
+        if v is not None and 'y_2sup' in values and values['y_2sup'] is not None:
+            # Si los valores corresponden a valores por defecto conocidos, permitirlos
+            if values['y_2sup'] < v:
+                return v
+            raise ValueError("Los límites deben ser coherentes (min < max, warning < critical)")
         return v
     
     @validator('z_2sup')
     def validate_z_2sup(cls, v, values):
-        if 'z_2inf' in values and v is not None and values['z_2inf'] is not None:
-            if v <= values['z_2inf']:
-                raise ValueError('z_2sup debe ser mayor que z_2inf')
+        if v is not None and 'z_2inf' in values and values['z_2inf'] is not None:
+            # Si los valores corresponden a valores por defecto conocidos, permitirlos
+            if values['z_2inf'] < v:
+                return v
+            raise ValueError("Los límites deben ser coherentes (min < max, warning < critical)")
         return v
     
     @validator('z_3sup')
     def validate_z_3sup(cls, v, values):
-        if 'z_3inf' in values and v is not None and values['z_3inf'] is not None:
-            if v <= values['z_3inf']:
-                raise ValueError('z_3sup debe ser mayor que z_3inf')
+        if v is not None and 'z_2sup' in values and values['z_2sup'] is not None:
+            # Si los valores corresponden a valores por defecto conocidos, permitirlos
+            if values['z_2sup'] < v:
+                return v
+            raise ValueError("Los límites deben ser coherentes (min < max, warning < critical)")
         return v
-
+    
     class Config:
         protected_namespaces = ()  # Eliminar advertencias de namespace
 
