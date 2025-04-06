@@ -52,6 +52,10 @@ MODELO_DIR = os.path.join(BASE_DIR, "Modelo")
 SCALER_DIR = os.path.join(BASE_DIR, "Scaler")
 STATIC_DIR = os.path.join(BASE_DIR, "static")
 
+# Rutas por defecto para el modelo y el escalador
+DEFAULT_MODEL_PATH = r"C:\Users\nicol\Documentos\GitHub\PdM-Manager\Modelo\anomaly_detection_model.h5"
+DEFAULT_SCALER_PATH = r"C:\Users\nicol\Documentos\GitHub\PdM-Manager\Scaler\scaler.pkl"
+
 # Variables globales para modelo y escalador
 # IMPORTANTE: Estas variables se inicializan en None y se cargan mediante la función load_ml_models
 model = None
@@ -88,8 +92,8 @@ def load_ml_models():
     
     try:
         # Definir rutas predeterminadas
-        model_path = os.path.join(MODELO_DIR, "modeloRNN_multiclase_v3_finetuned.h5")
-        scaler_path = os.path.join(SCALER_DIR, "scaler_RNN_joblib.pkl")
+        model_path = DEFAULT_MODEL_PATH
+        scaler_path = DEFAULT_SCALER_PATH
         
         # Intentar obtener configuración de la base de datos si es posible
         try:
@@ -115,16 +119,19 @@ def load_ml_models():
         
         # Verificar si los archivos existen
         if not os.path.exists(model_path):
-            logger.error(f"El archivo del modelo no existe: {model_path}")
-            return False
+            logger.info(f"El archivo del modelo no existe: {model_path}")
+            # Volver a la ruta predeterminada si el archivo no existe
+            model_path = DEFAULT_MODEL_PATH
+            if not os.path.exists(model_path):
+                logger.warning(f"El archivo del modelo predeterminado no existe: {model_path}")
+                return False
         
         if not os.path.exists(scaler_path):
-            alt_scaler_path = os.path.join(SCALER_DIR, "scaler_RNN.pkl")
-            if os.path.exists(alt_scaler_path):
-                logger.info(f"Usando escalador alternativo: {alt_scaler_path}")
-                scaler_path = alt_scaler_path
-            else:
-                logger.error(f"No se encontró ningún escalador válido")
+            logger.info(f"El archivo del escalador no existe: {scaler_path}")
+            # Volver a la ruta predeterminada si el archivo no existe
+            scaler_path = DEFAULT_SCALER_PATH
+            if not os.path.exists(scaler_path):
+                logger.warning(f"El archivo del escalador predeterminado no existe: {scaler_path}")
                 return False
         
         # Cargar modelo
@@ -132,7 +139,7 @@ def load_ml_models():
             model = load_model(model_path, compile=False)
             logger.info(f"Modelo cargado correctamente: {type(model)}")
         except Exception as model_err:
-            logger.error(f"Error al cargar el modelo: {str(model_err)}")
+            logger.warning(f"Error al cargar el modelo: {str(model_err)}")
             return False
         
         # Cargar escalador
@@ -148,12 +155,12 @@ def load_ml_models():
                     scaler = pickle.load(f)
                 logger.info(f"Escalador cargado correctamente con pickle: {type(scaler)}")
             except Exception as pickle_err:
-                logger.error(f"Error al cargar el escalador: {str(pickle_err)}")
+                logger.warning(f"Error al cargar el escalador: {str(pickle_err)}")
                 return False
         
         return model is not None and scaler is not None
     except Exception as e:
-        logger.error(f"Error al cargar los modelos de ML: {str(e)}")
+        logger.warning(f"Error al cargar los modelos de ML: {str(e)}")
         return False
 
 def ensure_default_limits_exist():
@@ -206,12 +213,71 @@ def ensure_default_limits_exist():
                 logger.info("Configuración de límites por defecto ya existe")
                 
         except Exception as e:
-            logger.error(f"Error al verificar/crear límites por defecto: {str(e)}")
+            logger.warning(f"Error al verificar/crear límites por defecto: {str(e)}")
             db.rollback()
         finally:
             db.close()
     except Exception as e:
-        logger.error(f"Error al conectar con la base de datos para verificar límites: {str(e)}")
+        logger.warning(f"Error al conectar con la base de datos para verificar límites: {str(e)}")
+
+def ensure_default_model_exists():
+    """
+    Verifica si existe un modelo por defecto en la base de datos.
+    Si no existe, crea un registro con los valores por defecto.
+    
+    Esta función debe ser llamada durante el inicio de la aplicación.
+    """
+    try:
+        db = SessionLocal()
+        try:
+            # Verificar si existe algún modelo
+            models = get_models(db)
+            if not models:
+                logger.info("Creando modelo por defecto")
+                
+                # Crear modelo con las rutas predeterminadas
+                default_model = create_model(
+                    db,
+                    name="Modelo por defecto",
+                    description="Modelo de detección de anomalías por defecto",
+                    route_h5=DEFAULT_MODEL_PATH,
+                    route_pkl=DEFAULT_SCALER_PATH
+                )
+                
+                # Actualizar configuración del sistema para usar este modelo
+                system_config = get_system_config(db)
+                update_system_config(db, active_model_id=default_model.model_id)
+                
+                logger.info(f"Modelo por defecto creado con ID: {default_model.model_id}")
+            else:
+                # Verificar si algún modelo tiene las rutas predeterminadas
+                default_model_exists = False
+                for model_db in models:
+                    if model_db.route_h5 == DEFAULT_MODEL_PATH or model_db.route_pkl == DEFAULT_SCALER_PATH:
+                        default_model_exists = True
+                        break
+                
+                # Si no existe un modelo con las rutas predeterminadas, crear uno
+                if not default_model_exists:
+                    logger.info("Creando modelo por defecto adicional")
+                    default_model = create_model(
+                        db,
+                        name="Modelo por defecto",
+                        description="Modelo de detección de anomalías por defecto",
+                        route_h5=DEFAULT_MODEL_PATH,
+                        route_pkl=DEFAULT_SCALER_PATH
+                    )
+                    logger.info(f"Modelo por defecto adicional creado con ID: {default_model.model_id}")
+                else:
+                    logger.info("Modelo por defecto ya existe")
+                
+        except Exception as e:
+            logger.warning(f"Error al verificar/crear modelo por defecto: {str(e)}")
+            db.rollback()
+        finally:
+            db.close()
+    except Exception as e:
+        logger.warning(f"Error al conectar con la base de datos para verificar modelo por defecto: {str(e)}")
 
 # ---------------------------------------------------------
 # ESQUEMAS DE VALIDACIÓN DE DATOS
@@ -384,20 +450,24 @@ async def startup_event():
     1. Intenta cargar los modelos de ML
     2. Configura la base de datos si es necesario
     3. Verifica y crea los límites por defecto si no existen
+    4. Verifica y crea el modelo por defecto si no existe
     """
     global model, scaler
     
     try:
         logger.info("Iniciando aplicación PdM-Manager")
         
+        # Verificar y crear límites por defecto si es necesario
+        ensure_default_limits_exist()
+        
+        # Verificar y crear modelo por defecto si es necesario
+        ensure_default_model_exists()
+        
         # Intentar cargar los modelos de ML
         if load_ml_models():
             logger.info("Modelos de ML cargados correctamente")
         else:
             logger.warning("No se pudieron cargar los modelos de ML. La clasificación de anomalías no estará disponible.")
-        
-        # Verificar y crear límites por defecto si es necesario
-        ensure_default_limits_exist()
         
         # Crear una sesión de base de datos para la inicialización
         db = SessionLocal()
@@ -410,12 +480,12 @@ async def startup_event():
             else:
                 logger.info("Sistema configurado correctamente.")
         except Exception as e:
-            logger.error(f"Error al verificar la configuración del sistema: {str(e)}")
+            logger.warning(f"Error al verificar la configuración del sistema: {str(e)}")
         finally:
             db.close()
             
     except Exception as e:
-        logger.error(f"Error durante la inicialización: {str(e)}")
+        logger.warning(f"Error durante la inicialización: {str(e)}")
         # No lanzar excepciones aquí, para permitir que la app se inicie incluso con errores
 
 # ---------------------------------------------------------
@@ -463,11 +533,11 @@ async def health_check(db: Session = Depends(get_db)):
                     health_status["warning_details"] = "El sistema no ha sido configurado completamente"
             except SQLAlchemyError as sql_e:
                 # Si hay un error de SQLAlchemy, puede ser porque faltan tablas o columnas
-                logger.error(f"Error SQL al verificar configuración: {str(sql_e)}")
+                logger.warning(f"Error SQL al verificar configuración: {str(sql_e)}")
                 health_status["status"] = "warning"
                 health_status["warning_details"] = "Error de schema en la base de datos. Ejecute el script init_db.py"
         except Exception as e:
-            logger.error(f"Error al verificar la configuración del sistema: {str(e)}")
+            logger.warning(f"Error al verificar la configuración del sistema: {str(e)}")
             health_status["status"] = "warning"
             health_status["warning_details"] = "No se pudo verificar la configuración del sistema"
     except Exception as e:
@@ -562,7 +632,7 @@ async def receive_sensor_data(
         
         # Si el sistema no tiene modelo activo configurado, retornar error
         if not system_config.active_model_id:
-            logger.error("No hay modelo activo configurado")
+            logger.info("No hay modelo activo configurado")
             return JSONResponse(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 content={
@@ -576,7 +646,7 @@ async def receive_sensor_data(
             db_model = get_model_by_id(db, system_config.active_model_id)
             
             if not db_model or not db_model.route_h5 or not db_model.route_pkl:
-                logger.error("Modelo activo sin rutas configuradas")
+                logger.info("Modelo activo sin rutas configuradas")
                 return JSONResponse(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     content={
@@ -603,7 +673,7 @@ async def receive_sensor_data(
             
             # Verificar si el archivo existe
             if not os.path.exists(scaler_path):
-                logger.error(f"El archivo del escalador no existe: {scaler_path}")
+                logger.info(f"El archivo del escalador no existe: {scaler_path}")
                 return JSONResponse(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     content={
@@ -634,15 +704,15 @@ async def receive_sensor_data(
                         logger.info(f"Escalador cargado correctamente con pickle5: {type(scaler_local)}")
                     except ImportError:
                         error_msg = "No se pudo importar pickle5. Instale el paquete con 'pip install pickle5'"
-                        logger.error(error_msg)
+                        logger.warning(error_msg)
                         return False
                     except Exception as pickle5_err:
                         error_msg = f"Error al cargar el escalador con pickle5: {str(pickle5_err)}"
-                        logger.error(error_msg)
+                        logger.warning(error_msg)
                         return False
                 except Exception as pickle_err:
                     error_msg = f"Error al cargar el escalador: {str(pickle_err)}"
-                    logger.error(error_msg)
+                    logger.warning(error_msg)
                     return False
             
             # Crear vector de características
@@ -674,12 +744,12 @@ async def receive_sensor_data(
                         f"anomalía={anomalia}, severidad={severidad}")
             
         except Exception as e:
-            logger.error(f"Error al procesar datos con ML: {str(e)}")
+            logger.warning(f"Error al procesar datos con ML: {str(e)}")
             return JSONResponse(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 content={
                     "status": "error",
-                    "message": f"Error al procesar datos con el modelo: {str(e)}"
+                    "message": f"Error al procesar datos: {str(e)}"
                 }
             )
         
@@ -727,7 +797,7 @@ async def receive_sensor_data(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 content={
                     "status": "error",
-                    "message": f"Error al guardar datos: {str(e)}"
+                    "message": f"Error al guardar los datos: {str(e)}"
                 }
             )
         
@@ -840,7 +910,7 @@ async def get_sensors_endpoint(
             except SQLAlchemyError as e:
                 # Si hay un error de SQLAlchemy, puede ser porque faltan columnas
                 # en lugar de fallar, devolver una lista vacía
-                logger.error(f"Error al consultar sensores: {str(e)}")
+                logger.warning(f"Error al consultar sensores: {str(e)}")
                 return []
             
         # Aplicar filtro por modelo si se especifica
@@ -880,7 +950,7 @@ async def get_sensors_endpoint(
             
     except Exception as e:
         error_msg = f"Error al obtener sensores: {str(e)}"
-        logger.error(error_msg)
+        logger.warning(error_msg)
         # Si hay un error, retornar un array vacío en lugar de error
         return []
 
@@ -903,7 +973,7 @@ async def get_configuration_endpoint(db: Session = Depends(get_db)):
             return configuration
         except SQLAlchemyError as e:
             # Si hay un error de SQLAlchemy, puede ser porque faltan columnas
-            logger.error(f"Error al consultar configuración: {str(e)}")
+            logger.warning(f"Error al consultar configuración: {str(e)}")
             # Devolver config mínima para evitar errores en el frontend
             return {
                 "is_configured": False,
@@ -911,7 +981,7 @@ async def get_configuration_endpoint(db: Session = Depends(get_db)):
             }
     except Exception as e:
         error_msg = f"Error al obtener la configuración: {str(e)}"
-        logger.error(error_msg)
+        logger.warning(error_msg)
         # Devolver config mínima para evitar errores en el frontend
         return {
             "is_configured": False,
@@ -952,7 +1022,7 @@ async def update_configuration_endpoint(
         return updated_config
     except Exception as e:
         error_msg = f"Error al actualizar la configuración: {str(e)}"
-        logger.error(error_msg)
+        logger.warning(error_msg)
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"status": "error", "message": error_msg}
@@ -985,7 +1055,7 @@ async def get_config_endpoint(db: Session = Depends(get_db)):
         return config_response
     except Exception as e:
         error_msg = f"Error al obtener la configuración: {str(e)}"
-        logger.error(error_msg)
+        logger.warning(error_msg)
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"status": "error", "message": error_msg}
@@ -1131,14 +1201,14 @@ async def update_config_endpoint(
         return updated_config
     except ValueError as ve:
         error_msg = f"Error de validación: {str(ve)}"
-        logger.error(error_msg)
+        logger.warning(error_msg)
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
             content={"status": "error", "message": error_msg}
         )
     except Exception as e:
         error_msg = f"Error al actualizar la configuración: {str(e)}"
-        logger.error(error_msg)
+        logger.warning(error_msg)
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"status": "error", "message": error_msg}
@@ -1238,7 +1308,7 @@ async def upload_model_files(
         # Reenviar excepciones HTTP
         raise e
     except Exception as e:
-        logger.error(f"Error al subir archivos: {str(e)}")
+        logger.warning(f"Error al subir archivos: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error al subir archivos: {str(e)}"

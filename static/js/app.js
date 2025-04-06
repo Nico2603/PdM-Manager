@@ -145,37 +145,31 @@ function initConfigTabs() {
 
 // Inicializa los formularios CRUD
 function initCrudForms() {
-  // Formulario de Sensor
+  // Event Listeners para los formularios CRUD
   const sensorForm = document.getElementById('sensorForm');
   if (sensorForm) {
-    sensorForm.addEventListener('submit', (e) => {
+    sensorForm.addEventListener('submit', function(e) {
       e.preventDefault();
       saveSensor();
     });
   }
   
-  // Formulario de Modelo
   const modelForm = document.getElementById('modelForm');
   if (modelForm) {
-    modelForm.addEventListener('submit', (e) => {
-      e.preventDefault();
-      saveModel();
-    });
+    modelForm.addEventListener('submit', modelFormSubmitHandler);
   }
   
-  // Formulario de Máquina
   const machineForm = document.getElementById('machineForm');
   if (machineForm) {
-    machineForm.addEventListener('submit', (e) => {
+    machineForm.addEventListener('submit', function(e) {
       e.preventDefault();
       saveMachine();
     });
   }
   
-  // Formulario de Límites
   const limitsForm = document.getElementById('limitsForm');
   if (limitsForm) {
-    limitsForm.addEventListener('submit', (e) => {
+    limitsForm.addEventListener('submit', function(e) {
       e.preventDefault();
       saveLimits();
     });
@@ -187,44 +181,28 @@ function initCrudForms() {
   document.getElementById('resetMachineBtn')?.addEventListener('click', () => resetForm('machineForm'));
   document.getElementById('resetLimitsBtn')?.addEventListener('click', () => resetForm('limitsForm'));
   
-  // Botones para seleccionar archivos
-  document.getElementById('selectModelFileBtn')?.addEventListener('click', () => selectFile('modelRouteH5Input', 'h5'));
-  document.getElementById('selectScalerFileBtn')?.addEventListener('click', () => selectFile('modelRoutePklInput', 'pkl'));
+  // Los listeners para los botones de selección de archivos ahora están directamente en el HTML
+  // Ya no los necesitamos aquí
 }
 
-// Función para seleccionar archivos
-async function selectFile(inputId, fileType) {
+// Función para manejar la selección de archivos
+function handleFileSelection(fileInput, targetInputId) {
   try {
-    // Creamos un elemento input de tipo file temporal
-    const fileInput = document.createElement('input');
-    fileInput.type = 'file';
-    
-    // Configuramos las extensiones aceptadas según el tipo de archivo
-    if (fileType === 'h5') {
-      fileInput.accept = '.h5';
-    } else if (fileType === 'pkl') {
-      fileInput.accept = '.pkl';
-    }
-    
-    // Manejamos el evento de cambio para obtener la ruta del archivo seleccionado
-    fileInput.addEventListener('change', function() {
-      if (fileInput.files.length > 0) {
-        const file = fileInput.files[0];
-        // Guardamos el nombre del archivo en el input correspondiente
-        document.getElementById(inputId).value = file.name;
-        
-        // También guardamos el archivo completo en un objeto global para su posible uso posterior
-        if (!window.selectedFiles) {
-          window.selectedFiles = {};
-        }
-        window.selectedFiles[inputId] = file;
+    if (fileInput.files.length > 0) {
+      const file = fileInput.files[0];
+      // Guardamos el nombre del archivo en el input correspondiente
+      document.getElementById(targetInputId).value = file.name;
+      
+      // También guardamos el archivo completo en un objeto global para su posible uso posterior
+      if (!window.selectedFiles) {
+        window.selectedFiles = {};
       }
-    });
-    
-    // Simulamos un clic en el input para abrir el explorador de archivos
-    fileInput.click();
+      window.selectedFiles[targetInputId] = file;
+      
+      console.log(`Archivo seleccionado para ${targetInputId}: ${file.name}`);
+    }
   } catch (error) {
-    console.error(`Error al seleccionar archivo ${fileType}:`, error);
+    console.error(`Error al procesar el archivo seleccionado:`, error);
     showToast(`Error al seleccionar archivo: ${error.message}`, 'error');
   }
 }
@@ -240,6 +218,17 @@ function resetForm(formId) {
       document.getElementById('sensorIdInput').value = '';
     } else if (formId === 'modelForm') {
       document.getElementById('modelIdInput').value = '';
+      // Limpiar los campos de archivo también
+      const routeH5Input = document.getElementById('modelRouteH5Input');
+      const routePklInput = document.getElementById('modelRoutePklInput');
+      if (routeH5Input) routeH5Input.value = '';
+      if (routePklInput) routePklInput.value = '';
+      
+      // Limpiar archivos seleccionados
+      if (window.selectedFiles) {
+        delete window.selectedFiles['modelRouteH5Input'];
+        delete window.selectedFiles['modelRoutePklInput'];
+      }
     } else if (formId === 'machineForm') {
       document.getElementById('machineIdInput').value = '';
     } else if (formId === 'limitsForm') {
@@ -312,11 +301,23 @@ async function loadConfiguration() {
     
     // Actualizar información del modelo
     if (config.model) {
-      globalState.modelPath = config.model.route_h5 || "";
-      globalState.scalerPath = config.model.route_pkl || "";
+      // Rutas predeterminadas
+      const defaultModelPath = "C:\\Users\\nicol\\Documentos\\GitHub\\PdM-Manager\\Modelo\\anomaly_detection_model.h5";
+      const defaultScalerPath = "C:\\Users\\nicol\\Documentos\\GitHub\\PdM-Manager\\Scaler\\scaler.pkl";
+      
+      globalState.modelPath = config.model.route_h5 || defaultModelPath;
+      globalState.scalerPath = config.model.route_pkl || defaultScalerPath;
       globalState.modelInfo = {
         name: config.model.name || "",
         description: config.model.description || ""
+      };
+    } else {
+      // Si no hay modelo configurado, establecer rutas predeterminadas
+      globalState.modelPath = "C:\\Users\\nicol\\Documentos\\GitHub\\PdM-Manager\\Modelo\\anomaly_detection_model.h5";
+      globalState.scalerPath = "C:\\Users\\nicol\\Documentos\\GitHub\\PdM-Manager\\Scaler\\scaler.pkl";
+      globalState.modelInfo = {
+        name: "Modelo por defecto",
+        description: "Modelo de detección de anomalías por defecto"
       };
     }
     
@@ -1201,8 +1202,8 @@ async function saveConfiguration() {
     const configData = {
       // Archivos del modelo - usamos el valor del input que puede ser el nombre del archivo seleccionado
       // o una ruta existente ingresada manualmente
-      route_h5: document.getElementById('modelFile').value.trim(),
-      route_pkl: document.getElementById('scalerFile').value.trim(),
+      route_h5: document.getElementById('modelRouteH5Input').value.trim(),
+      route_pkl: document.getElementById('modelRoutePklInput').value.trim(),
       
       // Información del modelo
       model_name: document.getElementById('modelName').value.trim(),
@@ -1246,19 +1247,19 @@ async function saveConfiguration() {
     
     // Si tenemos archivos seleccionados, primero debemos cargarlos al servidor
     let formData = null;
-    if (window.selectedFiles && (window.selectedFiles['modelFile'] || window.selectedFiles['scalerFile'])) {
+    if (window.selectedFiles && (window.selectedFiles['modelRouteH5Input'] || window.selectedFiles['modelRoutePklInput'])) {
       formData = new FormData();
       
-      if (window.selectedFiles['modelFile']) {
-        formData.append('model_file', window.selectedFiles['modelFile']);
+      if (window.selectedFiles['modelRouteH5Input']) {
+        formData.append('model_file', window.selectedFiles['modelRouteH5Input']);
         // Actualizamos la ruta en configData con el nombre real del archivo
-        configData.route_h5 = `Modelo/${window.selectedFiles['modelFile'].name}`;
+        configData.route_h5 = `Modelo/${window.selectedFiles['modelRouteH5Input'].name}`;
       }
       
-      if (window.selectedFiles['scalerFile']) {
-        formData.append('scaler_file', window.selectedFiles['scalerFile']);
+      if (window.selectedFiles['modelRoutePklInput']) {
+        formData.append('scaler_file', window.selectedFiles['modelRoutePklInput']);
         // Actualizamos la ruta en configData con el nombre real del archivo
-        configData.route_pkl = `Scaler/${window.selectedFiles['scalerFile'].name}`;
+        configData.route_pkl = `Scaler/${window.selectedFiles['modelRoutePklInput'].name}`;
       }
       
       // Subir los archivos al servidor primero
@@ -1273,7 +1274,10 @@ async function saveConfiguration() {
         }
         
         // Limpiar los archivos seleccionados después de cargarlos
-        window.selectedFiles = {};
+        if (window.selectedFiles) {
+          delete window.selectedFiles['modelRouteH5Input'];
+          delete window.selectedFiles['modelRoutePklInput'];
+        }
       } catch (uploadError) {
         console.error('Error al cargar archivos:', uploadError);
         showToast(`Error al cargar archivos: ${uploadError.message}`, 'error');
@@ -1409,12 +1413,12 @@ function resetConfigFields() {
     z: { warning: { min: -2.39, max: 1.11 }, critical: { min: -3.26, max: 1.98 } }
   };
   
-  // Restablecer rutas a valores por defecto
-  globalState.modelPath = "Modelo/anomaly_detection_model.h5";
-  globalState.scalerPath = "Scaler/scaler.pkl";
+  // Rutas predeterminadas absolutas
+  globalState.modelPath = "C:\\Users\\nicol\\Documentos\\GitHub\\PdM-Manager\\Modelo\\anomaly_detection_model.h5";
+  globalState.scalerPath = "C:\\Users\\nicol\\Documentos\\GitHub\\PdM-Manager\\Scaler\\scaler.pkl";
   
   // Restablecer información a valores por defecto
-  globalState.modelInfo = { name: "", description: "" };
+  globalState.modelInfo = { name: "Modelo por defecto", description: "Modelo de detección de anomalías por defecto" };
   globalState.sensorInfo = { name: "", description: "" };
   globalState.machineInfo = { name: "", description: "" };
   
@@ -1852,6 +1856,12 @@ async function deleteLimit(limitId) {
 
 // Funciones para mostrar/ocultar modales
 function showModelModal(model = null) {
+  // Primero, verificar si ya existe un modal con el mismo ID y eliminarlo
+  const existingModal = document.getElementById('modelModal');
+  if (existingModal && existingModal.parentNode) {
+    existingModal.parentNode.remove();
+  }
+  
   // Implementación básica de modal para modelos
   const modalTitle = model ? 'Editar Modelo' : 'Crear Nuevo Modelo';
   const modalHtml = `
@@ -1903,23 +1913,42 @@ function showModelModal(model = null) {
 
 function closeModal(modalId) {
   const modal = document.getElementById(modalId);
+  if (!modal) {
+    console.warn(`El modal con ID '${modalId}' no existe o ya ha sido cerrado.`);
+    return;
+  }
+  
   modal.classList.remove('active');
   
   // Eliminar del DOM después de la animación
   setTimeout(() => {
-    modal.parentNode.remove();
+    if (modal.parentNode) {
+      modal.parentNode.remove();
+    }
   }, 300);
 }
 
 // Función para guardar el modelo (crear o actualizar)
 async function saveModel() {
   try {
-    const modelId = document.getElementById('modelIdInput').value;
+    const modelId = document.getElementById('modelIdInput')?.value || '';
+    const modelNameInput = document.getElementById('modelNameInput');
+    const modelDescInput = document.getElementById('modelDescriptionInput');
+    const modelRouteH5Input = document.getElementById('modelRouteH5Input');
+    const modelRoutePklInput = document.getElementById('modelRoutePklInput');
+    
+    // Verificar que todos los elementos existen
+    if (!modelNameInput || !modelDescInput || !modelRouteH5Input || !modelRoutePklInput) {
+      console.error('No se encontraron todos los elementos del formulario');
+      showToast('Error: Formulario incompleto', 'error');
+      return;
+    }
+    
     const modelData = {
-      name: document.getElementById('modelNameInput').value.trim(),
-      description: document.getElementById('modelDescriptionInput').value.trim(),
-      route_h5: document.getElementById('modelRouteH5Input').value.trim(),
-      route_pkl: document.getElementById('modelRoutePklInput').value.trim()
+      name: modelNameInput.value.trim(),
+      description: modelDescInput.value.trim(),
+      route_h5: modelRouteH5Input.value.trim(),
+      route_pkl: modelRoutePklInput.value.trim()
     };
     
     // Validaciones básicas
@@ -1956,7 +1985,10 @@ async function saveModel() {
         }
         
         // Limpiar los archivos seleccionados después de cargarlos
-        window.selectedFiles = {};
+        if (window.selectedFiles) {
+          delete window.selectedFiles['modelRouteH5Input'];
+          delete window.selectedFiles['modelRoutePklInput'];
+        }
       } catch (uploadError) {
         console.error('Error al cargar archivos:', uploadError);
         showToast(`Error al cargar archivos: ${uploadError.message}`, 'error');
@@ -1985,8 +2017,22 @@ async function saveModel() {
     });
     
     if (response) {
-      closeModal('modelModal');
+      // Intentar cerrar cualquier modal que pueda estar abierto
+      try {
+        closeModal('modelModal');
+      } catch (modalError) {
+        console.warn('No se pudo cerrar el modal:', modalError);
+      }
+      
+      // Limpiar el formulario si existe
+      const modelForm = document.getElementById('modelForm');
+      if (modelForm) {
+        resetForm('modelForm');
+      }
+      
+      // Recargar la lista de modelos
       await loadModels();
+      
       showToast(`Modelo ${modelId ? 'actualizado' : 'creado'} correctamente`, 'success');
     }
   } catch (error) {
@@ -2299,4 +2345,10 @@ async function deleteLimit(limitId) {
       showToast('Error al eliminar la configuración de límites', 'error');
     }
   }
+}
+
+// Función para manejar el submit del formulario de modelo
+function modelFormSubmitHandler(e) {
+  e.preventDefault();
+  saveModel();
 }

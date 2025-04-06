@@ -332,14 +332,14 @@ async def get_config(db: Session = Depends(get_db)):
             return config_response
         except SQLAlchemyError as sql_e:
             # Si hay un error SQL, puede ser por esquema incorrecto
-            logger.error(f"Error SQL al obtener configuración: {str(sql_e)}")
+            logger.warning(f"Error SQL al obtener configuración: {str(sql_e)}")
             return {
                 "is_configured": False,
                 "message": "Error de schema en la base de datos. Ejecute el script init_db.py"
             }
     except Exception as e:
         error_msg = f"Error al obtener la configuración: {str(e)}"
-        logger.error(error_msg)
+        logger.warning(error_msg)
         return {
             "is_configured": False,
             "message": "Error de configuración. Por favor, contacte al administrador."

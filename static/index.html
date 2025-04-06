@@ -443,14 +443,16 @@
                           <label for="modelRouteH5Input">Archivo del Modelo (.h5):</label>
                           <div class="file-selector">
                             <input type="text" id="modelRouteH5Input" class="form-control" placeholder="Ruta del archivo .h5" required>
-                            <button type="button" id="selectModelFileBtn" class="btn"><i class="fas fa-folder-open"></i></button>
+                            <input type="file" id="modelFileInput" accept=".h5" style="display:none" onchange="handleFileSelection(this, 'modelRouteH5Input')">
+                            <button type="button" id="selectModelFileBtn" class="btn" onclick="document.getElementById('modelFileInput').click()"><i class="fas fa-folder-open"></i></button>
                           </div>
                         </div>
                         <div class="form-group mt-3">
                           <label for="modelRoutePklInput">Archivo del Escalador (.pkl):</label>
                           <div class="file-selector">
                             <input type="text" id="modelRoutePklInput" class="form-control" placeholder="Ruta del archivo .pkl" required>
-                            <button type="button" id="selectScalerFileBtn" class="btn"><i class="fas fa-folder-open"></i></button>
+                            <input type="file" id="scalerFileInput" accept=".pkl" style="display:none" onchange="handleFileSelection(this, 'modelRoutePklInput')">
+                            <button type="button" id="selectScalerFileBtn" class="btn" onclick="document.getElementById('scalerFileInput').click()"><i class="fas fa-folder-open"></i></button>
                           </div>
                         </div>
                         <div class="form-buttons mt-3">
