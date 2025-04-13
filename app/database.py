@@ -31,7 +31,7 @@ try:
         port="5432",
         database="pdm_db",
         user="postgres",
-        password=PASSWORD,
+        password="pdm123",
         client_encoding="utf8"
     )
     conn.close()
