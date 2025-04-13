@@ -5,7 +5,7 @@ import joblib
 from datetime import datetime, timedelta
 import numpy as np
 import logging
-from typing import Dict, Any, Union, Optional
+from typing import Dict, Any, Union, Optional, List
 import shutil
 
 # FastAPI
@@ -14,7 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, validator, root_validator
 
 # TensorFlow
 import tensorflow as tf
@@ -34,7 +34,8 @@ from app.crud_config import (
     get_all_models, get_model_by_id, create_new_model, update_existing_model, delete_model,
     get_all_sensors, get_sensor_by_id, create_new_sensor, update_existing_sensor, delete_sensor,
     get_all_machines, get_machine_by_id, create_new_machine, update_existing_machine, delete_machine,
-    get_all_limits, get_limit_by_id, delete_limit
+    get_all_limits, get_limit_by_id, delete_limit,
+    ensure_default_limits_exist
 )
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
@@ -123,7 +124,7 @@ def load_ml_models():
             # Volver a la ruta predeterminada si el archivo no existe
             model_path = DEFAULT_MODEL_PATH
             if not os.path.exists(model_path):
-                logger.warning(f"El archivo del modelo predeterminado no existe: {model_path}")
+                logger.info(f"El archivo del modelo predeterminado no existe: {model_path}")
                 return False
         
         if not os.path.exists(scaler_path):
@@ -131,7 +132,7 @@ def load_ml_models():
             # Volver a la ruta predeterminada si el archivo no existe
             scaler_path = DEFAULT_SCALER_PATH
             if not os.path.exists(scaler_path):
-                logger.warning(f"El archivo del escalador predeterminado no existe: {scaler_path}")
+                logger.info(f"El archivo del escalador predeterminado no existe: {scaler_path}")
                 return False
         
         # Cargar modelo
@@ -163,63 +164,6 @@ def load_ml_models():
         logger.warning(f"Error al cargar los modelos de ML: {str(e)}")
         return False
 
-def ensure_default_limits_exist():
-    """
-    Verifica si existe un registro en la tabla limit_config con id=1.
-    Si no existe, crea un registro con los valores por defecto.
-    
-    Esta función debe ser llamada durante el inicio de la aplicación.
-    """
-    try:
-        db = SessionLocal()
-        try:
-            # Intentar obtener el límite con ID=1
-            limit = db.query(LimitConfig).filter(LimitConfig.limit_config_id == 1).first()
-            
-            # Si no existe, crear los límites por defecto
-            if not limit:
-                logger.info("Creando configuración de límites por defecto")
-                
-                # Valores por defecto según la especificación
-                lim_2_inf = {"acceleration_x": -2.364295, "acceleration_y": 7.177221, "acceleration_z": -2.389107}
-                lim_2_sup = {"acceleration_x": 2.180056, "acceleration_y": 12.088666, "acceleration_z": 1.106510}
-                lim_3_inf = {"acceleration_x": -3.500383, "acceleration_y": 5.949359, "acceleration_z": -3.263011}
-                lim_3_sup = {"acceleration_x": 3.316144, "acceleration_y": 13.316528, "acceleration_z": 1.980414}
-                
-                # Crear nuevo registro con ID=1
-                default_limit = LimitConfig(
-                    limit_config_id=1,
-                    x_2inf=lim_2_inf["acceleration_x"],
-                    x_2sup=lim_2_sup["acceleration_x"],
-                    x_3inf=lim_3_inf["acceleration_x"],
-                    x_3sup=lim_3_sup["acceleration_x"],
-                    y_2inf=lim_2_inf["acceleration_y"],
-                    y_2sup=lim_2_sup["acceleration_y"],
-                    y_3inf=lim_3_inf["acceleration_y"],
-                    y_3sup=lim_3_sup["acceleration_y"],
-                    z_2inf=lim_2_inf["acceleration_z"],
-                    z_2sup=lim_2_sup["acceleration_z"],
-                    z_3inf=lim_3_inf["acceleration_z"],
-                    z_3sup=lim_3_sup["acceleration_z"],
-                    update_limits=datetime.now()
-                )
-                
-                # Guardar en la base de datos
-                db.add(default_limit)
-                db.commit()
-                db.refresh(default_limit)
-                logger.info("Configuración de límites por defecto creada con éxito")
-            else:
-                logger.info("Configuración de límites por defecto ya existe")
-                
-        except Exception as e:
-            logger.warning(f"Error al verificar/crear límites por defecto: {str(e)}")
-            db.rollback()
-        finally:
-            db.close()
-    except Exception as e:
-        logger.warning(f"Error al conectar con la base de datos para verificar límites: {str(e)}")
-
 def ensure_default_model_exists():
     """
     Verifica si existe un modelo por defecto en la base de datos.
@@ -231,12 +175,12 @@ def ensure_default_model_exists():
         db = SessionLocal()
         try:
             # Verificar si existe algún modelo
-            models = get_models(db)
+            models = get_all_models(db)
             if not models:
                 logger.info("Creando modelo por defecto")
                 
                 # Crear modelo con las rutas predeterminadas
-                default_model = create_model(
+                default_model = create_new_model(
                     db,
                     name="Modelo por defecto",
                     description="Modelo de detección de anomalías por defecto",
@@ -249,27 +193,6 @@ def ensure_default_model_exists():
                 update_system_config(db, active_model_id=default_model.model_id)
                 
                 logger.info(f"Modelo por defecto creado con ID: {default_model.model_id}")
-            else:
-                # Verificar si algún modelo tiene las rutas predeterminadas
-                default_model_exists = False
-                for model_db in models:
-                    if model_db.route_h5 == DEFAULT_MODEL_PATH or model_db.route_pkl == DEFAULT_SCALER_PATH:
-                        default_model_exists = True
-                        break
-                
-                # Si no existe un modelo con las rutas predeterminadas, crear uno
-                if not default_model_exists:
-                    logger.info("Creando modelo por defecto adicional")
-                    default_model = create_model(
-                        db,
-                        name="Modelo por defecto",
-                        description="Modelo de detección de anomalías por defecto",
-                        route_h5=DEFAULT_MODEL_PATH,
-                        route_pkl=DEFAULT_SCALER_PATH
-                    )
-                    logger.info(f"Modelo por defecto adicional creado con ID: {default_model.model_id}")
-                else:
-                    logger.info("Modelo por defecto ya existe")
                 
         except Exception as e:
             logger.warning(f"Error al verificar/crear modelo por defecto: {str(e)}")
@@ -449,7 +372,7 @@ async def startup_event():
     Este evento realiza las siguientes tareas:
     1. Intenta cargar los modelos de ML
     2. Configura la base de datos si es necesario
-    3. Verifica y crea los límites por defecto si no existen
+    3. Verifica y crea los límites por defecto si no existen (usando la función de crud_config)
     4. Verifica y crea el modelo por defecto si no existe
     """
     global model, scaler
@@ -457,21 +380,19 @@ async def startup_event():
     try:
         logger.info("Iniciando aplicación PdM-Manager")
         
-        # Verificar y crear límites por defecto si es necesario
-        ensure_default_limits_exist()
-        
-        # Verificar y crear modelo por defecto si es necesario
-        ensure_default_model_exists()
-        
-        # Intentar cargar los modelos de ML
-        if load_ml_models():
-            logger.info("Modelos de ML cargados correctamente")
-        else:
-            logger.warning("No se pudieron cargar los modelos de ML. La clasificación de anomalías no estará disponible.")
+        logger.info("Iniciando carga de modelos ML y configuración...")
+        if not load_ml_models():
+            logger.info("Modelos de ML no cargados. Configure el sistema en la sección 'Configuración'.") # Mensaje informativo único
         
         # Crear una sesión de base de datos para la inicialización
         db = SessionLocal()
         try:
+            logger.info("Verificando configuración de límites por defecto...")
+            ensure_default_limits_exist(db) # Llamar a la función importada
+            
+            # Verificar y crear modelo por defecto si es necesario
+            # ensure_default_model_exists() # Comentar o eliminar si no se necesita más
+            
             # Verificar si la base de datos está configurada
             system_config = get_system_config(db)
             
@@ -480,13 +401,12 @@ async def startup_event():
             else:
                 logger.info("Sistema configurado correctamente.")
         except Exception as e:
-            logger.warning(f"Error al verificar la configuración del sistema: {str(e)}")
+            logger.warning(f"Error durante la inicialización de la BD: {str(e)}")
         finally:
             db.close()
             
     except Exception as e:
-        logger.warning(f"Error durante la inicialización: {str(e)}")
-        # No lanzar excepciones aquí, para permitir que la app se inicie incluso con errores
+        logger.warning(f"Error durante la inicialización general: {str(e)}")
 
 # ---------------------------------------------------------
 # DEFINICIÓN DE ENDPOINTS
@@ -593,21 +513,27 @@ async def receive_sensor_data(
     Endpoint para recibir datos de sensores.
     
     Acepta tanto el formato completo (SensorData) como el simplificado (SimpleSensorData).
-    Procesa los datos, calcula la severidad si es posible, y almacena en la base de datos.
+    Procesa los datos, calcula la severidad si es posible (si está configurado),
+    y almacena en la base de datos.
     """
     logger.info(f"Datos recibidos del sensor {data.sensor_id}")
     
-    # Verificar que el sistema esté configurado
+    # Obtener configuración del sistema
     system_config = get_system_config(db)
-    if not system_config.is_configured:
-        logger.warning("Sistema no configurado. Se rechazó la solicitud.")
-        return JSONResponse(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            content={
-                "status": "error",
-                "message": "Configuración incompleta. Por favor, configure el sistema antes de iniciar el monitoreo."
-            }
-        )
+    is_sys_configured = system_config.is_configured == 1
+    active_model_id = system_config.active_model_id
+    
+    # --- Eliminamos el bloqueo si no está configurado --- 
+    # if not is_sys_configured:
+    #     logger.warning("Sistema no configurado. Se rechazó la solicitud.")
+    #     return JSONResponse(
+    #         status_code=status.HTTP_400_BAD_REQUEST,
+    #         content={
+    #             "status": "error",
+    #             "message": "Configuración incompleta. Por favor, configure el sistema antes de iniciar el monitoreo."
+    #         }
+    #     )
+    # -----------------------------------------------------
     
     # Validar que el sensor existe en la base de datos
     sensor = get_sensors(db=db, sensor_id=data.sensor_id)
@@ -623,137 +549,83 @@ async def receive_sensor_data(
     
     # Creación de datos según el tipo recibido
     if isinstance(data, SensorData):
-        # Para datos completos, calculamos severidad si hay modelo disponible
+        # Valores por defecto para severidad/anomalía
         severidad = 0
         anomalia = False
         
-        # Obtener la configuración del sistema
-        system_config = get_system_config(db)
-        
-        # Si el sistema no tiene modelo activo configurado, retornar error
-        if not system_config.active_model_id:
-            logger.info("No hay modelo activo configurado")
-            return JSONResponse(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                content={
-                    "status": "error",
-                    "message": "No hay modelo activo configurado"
-                }
-            )
-        
-        try:
-            # Obtener el modelo activo desde la base de datos
-            db_model = get_model_by_id(db, system_config.active_model_id)
-            
-            if not db_model or not db_model.route_h5 or not db_model.route_pkl:
-                logger.info("Modelo activo sin rutas configuradas")
-                return JSONResponse(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    content={
-                        "status": "error",
-                        "message": "Modelo activo sin rutas configuradas"
-                    }
-                )
-            
-            # Usar rutas configuradas en la base de datos
-            model_path = db_model.route_h5
-            scaler_path = db_model.route_pkl
-            
-            # Verificar si las rutas son absolutas, si no, convertirlas
-            if not os.path.isabs(model_path):
-                model_path = os.path.join(BASE_DIR, model_path)
-            if not os.path.isabs(scaler_path):
-                scaler_path = os.path.join(BASE_DIR, scaler_path)
-            
-            # Cargar el modelo desde el archivo .h5 utilizando tensorflow
-            model_local = load_model(model_path)
-            
-            # Cargar el escalador desde el archivo pickle usando modo binario
-            scaler_local = None
-            
-            # Verificar si el archivo existe
-            if not os.path.exists(scaler_path):
-                logger.info(f"El archivo del escalador no existe: {scaler_path}")
-                return JSONResponse(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    content={
-                        "status": "error",
-                        "message": f"El archivo del escalador no existe: {scaler_path}"
-                    }
-                )
-                
-            # Intentar primero con joblib
+        # --- Intentar predicción SOLO si está configurado y hay modelo activo ---
+        if is_sys_configured and active_model_id:
+            logger.info(f"Sistema configurado con modelo activo ID {active_model_id}. Intentando predicción.")
             try:
-                # Primero intentamos con joblib que es más robusto
-                scaler_local = joblib.load(scaler_path)
-                logger.info(f"Escalador cargado correctamente con joblib: {type(scaler_local)}")
-            except Exception as joblib_err:
-                logger.warning(f"Error al cargar con joblib: {str(joblib_err)}. Intentando con pickle.")
-                try:
-                    # Como respaldo, intentar con pickle en modo binario
-                    with open(scaler_path, 'rb') as f:
-                        scaler_local = pickle.load(f)
-                    logger.info(f"Escalador cargado correctamente con pickle: {type(scaler_local)}")
-                except UnicodeDecodeError as decode_err:
-                    # Si hay un error de decodificación, intentar con pickle5
-                    logger.warning(f"Error de decodificación al cargar con pickle: {str(decode_err)}. Intentando con pickle5.")
-                    try:
-                        import pickle5
-                        with open(scaler_path, 'rb') as f:
-                            scaler_local = pickle5.load(f)
-                        logger.info(f"Escalador cargado correctamente con pickle5: {type(scaler_local)}")
-                    except ImportError:
-                        error_msg = "No se pudo importar pickle5. Instale el paquete con 'pip install pickle5'"
-                        logger.warning(error_msg)
-                        return False
-                    except Exception as pickle5_err:
-                        error_msg = f"Error al cargar el escalador con pickle5: {str(pickle5_err)}"
-                        logger.warning(error_msg)
-                        return False
-                except Exception as pickle_err:
-                    error_msg = f"Error al cargar el escalador: {str(pickle_err)}"
-                    logger.warning(error_msg)
-                    return False
-            
-            # Crear vector de características
-            features = np.array([
-                data.acceleration_x,
-                data.acceleration_y,
-                data.acceleration_z
-            ]).reshape(1, -1)
-            
-            # Normalizar datos mediante el escalador cargado
-            normalized_features = scaler_local.transform(features)
-            
-            # Predecir anomalía usando el modelo cargado
-            prediction = model_local.predict(normalized_features)
-            
-            # Clasificar severidad (0: normal, 1: leve, 2: grave)
-            pred_value = float(prediction[0][0])
-            anomalia = pred_value > 0.5
-            
-            # Asignar niveles de severidad (0, 1, 2)
-            if pred_value < 0.5:
-                severidad = 0  # Normal
-            elif pred_value < 0.8:
-                severidad = 1  # Leve
-            else:
-                severidad = 2  # Grave
-            
-            logger.info(f"Predicción para sensor {data.sensor_id}: " 
-                        f"anomalía={anomalia}, severidad={severidad}")
-            
-        except Exception as e:
-            logger.warning(f"Error al procesar datos con ML: {str(e)}")
-            return JSONResponse(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                content={
-                    "status": "error",
-                    "message": f"Error al procesar datos: {str(e)}"
-                }
-            )
+                # Obtener el modelo activo desde la base de datos
+                db_model = get_model_by_id(db, active_model_id)
+                
+                if not db_model or not db_model.route_h5 or not db_model.route_pkl:
+                    logger.warning(f"Modelo activo ID {active_model_id} sin rutas configuradas. Omitiendo predicción.")
+                    # No retornamos error, solo omitimos la predicción
+                else:
+                    # Usar rutas configuradas en la base de datos
+                    model_path = db_model.route_h5
+                    scaler_path = db_model.route_pkl
+                    
+                    # Verificar si las rutas son absolutas, si no, convertirlas
+                    if not os.path.isabs(model_path):
+                        model_path = os.path.join(BASE_DIR, model_path)
+                    if not os.path.isabs(scaler_path):
+                        scaler_path = os.path.join(BASE_DIR, scaler_path)
+                    
+                    # Verificar si los archivos existen
+                    if not os.path.exists(model_path):
+                        logger.warning(f"El archivo del modelo no existe: {model_path}. Omitiendo predicción.")
+                    elif not os.path.exists(scaler_path):
+                         logger.warning(f"El archivo del escalador no existe: {scaler_path}. Omitiendo predicción.")
+                    else:
+                        # Cargar el modelo desde el archivo .h5 utilizando tensorflow
+                        model_local = load_model(model_path, compile=False) # Añadido compile=False por si acaso
+                        
+                        # Cargar el escalador
+                        scaler_local = None
+                        try:
+                            scaler_local = joblib.load(scaler_path)
+                            logger.info(f"Escalador cargado con joblib: {type(scaler_local)}")
+                        except Exception as joblib_err:
+                            logger.warning(f"Error con joblib: {joblib_err}. Intentando con pickle.")
+                            try:
+                                with open(scaler_path, 'rb') as f:
+                                    scaler_local = pickle.load(f)
+                                logger.info(f"Escalador cargado con pickle: {type(scaler_local)}")
+                            except Exception as pickle_err:
+                                logger.warning(f"Error al cargar el escalador: {pickle_err}. Omitiendo predicción.")
+                                scaler_local = None # Asegurar que es None
+                        
+                        # Proceder con la predicción solo si modelo y escalador se cargaron
+                        if model_local and scaler_local:
+                            features = np.array([
+                                data.acceleration_x,
+                                data.acceleration_y,
+                                data.acceleration_z
+                            ]).reshape(1, -1)
+                            normalized_features = scaler_local.transform(features)
+                            prediction = model_local.predict(normalized_features)
+                            pred_value = float(prediction[0][0])
+                            anomalia = pred_value > 0.5
+                            if pred_value < 0.5: severidad = 0
+                            elif pred_value < 0.8: severidad = 1
+                            else: severidad = 2
+                            logger.info(f"Predicción para sensor {data.sensor_id}: anomalía={anomalia}, severidad={severidad}")
+                        else:
+                            logger.warning("No se pudo cargar modelo o escalador. Omitiendo predicción.")
+
+            except Exception as e:
+                logger.error(f"Error inesperado durante el procesamiento ML para sensor {data.sensor_id}: {str(e)}", exc_info=True)
+                # No devolver error 500, solo registrar y usar valores por defecto
+                severidad = 0 
+                anomalia = False
+        else:
+             logger.info(f"Sistema no configurado o sin modelo activo. Guardando datos crudos para sensor {data.sensor_id}.")
+        # ---------------------------------------------------------------------
         
-        # Guardar los datos en la base de datos incluyendo predicción de severidad
+        # Guardar los datos en la base de datos (siempre se guardan)
         try:
             db_data = create_vibration_data(
                 db=db,
@@ -762,12 +634,11 @@ async def receive_sensor_data(
                 acceleration_y=data.acceleration_y,
                 acceleration_z=data.acceleration_z,
                 date=datetime.fromisoformat(data.timestamp.replace('Z', '+00:00')),
-                severity=severidad,
-                is_anomaly=1 if anomalia else 0
+                severity=severidad, # Se usa el valor calculado o el default
+                is_anomaly=1 if anomalia else 0 # Se usa el valor calculado o el default
             )
             
-            # Crear alerta si la severidad es alta (2)
-            # (Las alertas de nivel 3 se generarán por el trigger en la base de datos)
+            # Crear alerta si la severidad (calculada o default) es alta
             if severidad >= 2:
                 create_alert(
                     db=db,
@@ -787,12 +658,14 @@ async def receive_sensor_data(
                 timestamp=datetime.fromisoformat(data.timestamp.replace('Z', '+00:00'))
             )
             
+            logger.info(f"Datos guardados para sensor {data.sensor_id}. Severidad registrada: {severidad}")
             return {
                 "status": "ok",
-                "severity": severidad
+                "message": f"Datos recibidos para sensor {data.sensor_id}",
+                "calculated_severity": severidad # Devolver la severidad (calculada o default)
             }
         except Exception as e:
-            logger.error(f"Error al guardar datos en la base de datos: {str(e)}")
+            logger.error(f"Error al guardar datos en la base de datos para sensor {data.sensor_id}: {str(e)}", exc_info=True)
             return JSONResponse(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 content={
@@ -801,8 +674,9 @@ async def receive_sensor_data(
                 }
             )
         
-    else:  # SimpleSensorData
-        # Para datos simplificados, se rechaza la solicitud ya que el endpoint requiere datos completos
+    elif isinstance(data, SimpleSensorData):
+        # Para datos simplificados, se rechaza la solicitud (mantenemos esto)
+        logger.warning(f"Formato SimpleSensorData recibido para sensor {data.sensor_id}, no soportado por este endpoint.")
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
             content={
@@ -810,6 +684,10 @@ async def receive_sensor_data(
                 "message": "Este endpoint requiere datos completos del sensor (acceleration_x, acceleration_y, acceleration_z)"
             }
         )
+    else:
+        # Caso inesperado
+        logger.error(f"Tipo de dato inesperado recibido: {type(data)}")
+        return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST, content={"status": "error", "message": "Tipo de dato inválido"})
 
 # ---------------------------------------------------------
 # ENDPOINT PARA OBTENER DATOS DE VIBRACIÓN
@@ -954,84 +832,6 @@ async def get_sensors_endpoint(
         # Si hay un error, retornar un array vacío en lugar de error
         return []
 
-@app.get("/configuration")
-async def get_configuration_endpoint(db: Session = Depends(get_db)):
-    """
-    Obtiene la configuración actual del sistema, incluyendo:
-    - Rutas de archivos del modelo y escalador
-    - Límites de vibración
-    - Configuración de sensores y máquinas
-    - Estado de configuración del sistema
-    
-    Retorna:
-    - Un objeto JSON con toda la configuración
-    - 500 si ocurre un error al obtener la configuración
-    """
-    try:
-        try:
-            configuration = get_system_config(db)
-            return configuration
-        except SQLAlchemyError as e:
-            # Si hay un error de SQLAlchemy, puede ser porque faltan columnas
-            logger.warning(f"Error al consultar configuración: {str(e)}")
-            # Devolver config mínima para evitar errores en el frontend
-            return {
-                "is_configured": False,
-                "message": "Sistema no configurado. Por favor, inicialice la base de datos."
-            }
-    except Exception as e:
-        error_msg = f"Error al obtener la configuración: {str(e)}"
-        logger.warning(error_msg)
-        # Devolver config mínima para evitar errores en el frontend
-        return {
-            "is_configured": False,
-            "message": "Error de configuración. Por favor, contacte al administrador."
-        }
-
-@app.put("/configuration")
-async def update_configuration_endpoint(
-    config_data: ConfigurationData = Body(...),
-    db: Session = Depends(get_db)
-):
-    """
-    Actualiza la configuración del sistema.
-    
-    El cuerpo de la solicitud debe contener un objeto JSON con:
-    - model: Configuración del modelo (rutas de archivos)
-    - limit_config: Configuración de límites de vibración
-    - sensors: Lista de sensores a configurar
-    - machines: Lista de máquinas a configurar
-    
-    Retorna:
-    - La configuración actualizada
-    - 500 si ocurre un error al actualizar la configuración
-    """
-    try:
-        # Convertir el modelo Pydantic a diccionario
-        config_dict = config_data.dict(exclude_unset=True)
-        
-        # Actualizar la configuración
-        updated_config = update_system_config(db, config_dict)
-        
-        # Recargar el modelo ML si se actualizaron las rutas
-        if "model" in config_dict and config_dict["model"]:
-            model_data = config_dict["model"]
-            if "route_h5" in model_data or "route_pkl" in model_data:
-                load_ml_models()
-        
-        return updated_config
-    except Exception as e:
-        error_msg = f"Error al actualizar la configuración: {str(e)}"
-        logger.warning(error_msg)
-        return JSONResponse(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={"status": "error", "message": error_msg}
-        )
-
-# ---------------------------------------------------------
-# ENDPOINTS PARA CONFIGURACIÓN (/config)
-# ---------------------------------------------------------
-
 @app.get("/config")
 async def get_config_endpoint(db: Session = Depends(get_db)):
     """
@@ -1061,265 +861,239 @@ async def get_config_endpoint(db: Session = Depends(get_db)):
             content={"status": "error", "message": error_msg}
         )
 
-class ConfigUpdateData(BaseModel):
-    """
-    Esquema para validar datos de actualización de configuración.
-    """
-    route_h5: str = Field(None, description="Ruta al archivo del modelo (.h5)")
-    route_pkl: str = Field(None, description="Ruta al archivo del escalador (.pkl)")
-    model_name: str = Field(None, description="Nombre del modelo")
-    model_description: str = Field(None, description="Descripción del modelo")
-    
-    # Límites de vibración
-    x_2inf: float = Field(None, description="Límite inferior nivel 2 para el eje X")
-    x_2sup: float = Field(None, description="Límite superior nivel 2 para el eje X")
-    x_3inf: float = Field(None, description="Límite inferior nivel 3 para el eje X")
-    x_3sup: float = Field(None, description="Límite superior nivel 3 para el eje X")
-    y_2inf: float = Field(None, description="Límite inferior nivel 2 para el eje Y")
-    y_2sup: float = Field(None, description="Límite superior nivel 2 para el eje Y")
-    y_3inf: float = Field(None, description="Límite inferior nivel 3 para el eje Y")
-    y_3sup: float = Field(None, description="Límite superior nivel 3 para el eje Y")
-    z_2inf: float = Field(None, description="Límite inferior nivel 2 para el eje Z")
-    z_2sup: float = Field(None, description="Límite superior nivel 2 para el eje Z")
-    z_3inf: float = Field(None, description="Límite inferior nivel 3 para el eje Z")
-    z_3sup: float = Field(None, description="Límite superior nivel 3 para el eje Z")
-    
-    # Información del sensor y máquina (opcional para actualizar en orden)
-    sensor_info: dict = Field(None, description="Información para actualizar o crear un sensor")
-    machine_info: dict = Field(None, description="Información para actualizar o crear una máquina")
-    
-    @validator('x_2sup')
-    def validate_x_2sup(cls, v, values):
-        if v is not None and 'x_2inf' in values and values['x_2inf'] is not None:
-            # Valores por defecto para el eje X
-            default_values = {
-                'x_2inf': -2.36,
-                'x_2sup': 2.18,
-                'x_3inf': -3.5,
-                'x_3sup': 3.32
-            }
-            
-            # Si los valores corresponden a los valores por defecto, permitirlos
-            if (values['x_2inf'] == default_values['x_2inf'] and 
-                v == default_values['x_2sup']):
-                return v
-                
-            if v < values['x_2inf']:
-                raise ValueError("Los límites deben ser coherentes (min < max, warning < critical)")
-        return v
-    
-    @validator('x_3sup')
-    def validate_x_3sup(cls, v, values):
-        if v is not None and 'x_2sup' in values and values['x_2sup'] is not None:
-            # Valores por defecto para el eje X
-            default_values = {
-                'x_2sup': 2.18,
-                'x_3sup': 3.32
-            }
-            
-            # Si los valores corresponden a los valores por defecto, permitirlos
-            if (values['x_2sup'] == default_values['x_2sup'] and 
-                v == default_values['x_3sup']):
-                return v
-                
-            if v < values['x_2sup']:
-                raise ValueError("Los límites deben ser coherentes (min < max, warning < critical)")
-        return v
-    
-    @validator('y_2sup')
-    def validate_y_2sup(cls, v, values):
-        if v is not None and 'y_2inf' in values and values['y_2inf'] is not None:
-            # Si los valores corresponden a valores por defecto conocidos, permitirlos
-            if values['y_2inf'] < v:
-                return v
-            raise ValueError("Los límites deben ser coherentes (min < max, warning < critical)")
-        return v
-    
-    @validator('y_3sup')
-    def validate_y_3sup(cls, v, values):
-        if v is not None and 'y_2sup' in values and values['y_2sup'] is not None:
-            # Si los valores corresponden a valores por defecto conocidos, permitirlos
-            if values['y_2sup'] < v:
-                return v
-            raise ValueError("Los límites deben ser coherentes (min < max, warning < critical)")
-        return v
-    
-    @validator('z_2sup')
-    def validate_z_2sup(cls, v, values):
-        if v is not None and 'z_2inf' in values and values['z_2inf'] is not None:
-            # Si los valores corresponden a valores por defecto conocidos, permitirlos
-            if values['z_2inf'] < v:
-                return v
-            raise ValueError("Los límites deben ser coherentes (min < max, warning < critical)")
-        return v
-    
-    @validator('z_3sup')
-    def validate_z_3sup(cls, v, values):
-        if v is not None and 'z_2sup' in values and values['z_2sup'] is not None:
-            # Si los valores corresponden a valores por defecto conocidos, permitirlos
-            if values['z_2sup'] < v:
-                return v
-            raise ValueError("Los límites deben ser coherentes (min < max, warning < critical)")
-        return v
-    
-    class Config:
-        protected_namespaces = ()  # Eliminar advertencias de namespace
+# ---------------------------------------------------------
+# ENDPOINTS CRUD PARA MODELOS
+# ---------------------------------------------------------
 
-@app.put("/config")
-async def update_config_endpoint(
-    config_data: ConfigUpdateData = Body(...),
-    db: Session = Depends(get_db)
-):
-    """
-    Actualiza la configuración global del sistema en el siguiente orden:
-    1. Actualiza o crea un modelo con las rutas proporcionadas
-    2. Actualiza los límites de vibración
-    3. Actualiza o crea un sensor (opcional)
-    4. Actualiza o crea una máquina (opcional)
-    
-    Utiliza la función update_full_config() del módulo crud_config.py para manejar toda
-    la lógica de actualización, incluyendo transacciones y validación de datos.
-    
-    Valida que los límites sean coherentes (inferiores < superiores)
-    
-    Retorna:
-    - La configuración actualizada
-    - 400 si hay un error de validación
-    - 500 si hay un error interno
-    """
+@app.get("/models", response_model=List[ModelConfigData])
+async def get_models_endpoint(db: Session = Depends(get_db)):
+    """Obtiene todos los modelos registrados."""
     try:
-        # Convertir el modelo Pydantic a diccionario
-        config_dict = config_data.dict(exclude_unset=True)
-        
-        # Actualizar la configuración utilizando la función de crud_config.py
-        updated_config = update_full_config(db, config_dict)
-        
-        # Recargar modelos si se actualizaron las rutas
-        if "route_h5" in config_dict or "route_pkl" in config_dict:
-            load_ml_models()
-        
-        return updated_config
-    except ValueError as ve:
-        error_msg = f"Error de validación: {str(ve)}"
-        logger.warning(error_msg)
-        return JSONResponse(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            content={"status": "error", "message": error_msg}
-        )
+        models = get_all_models(db)
+        # Convertir a ModelConfigData para asegurar la respuesta correcta
+        return [ModelConfigData.from_orm(m) for m in models]
     except Exception as e:
-        error_msg = f"Error al actualizar la configuración: {str(e)}"
-        logger.warning(error_msg)
-        return JSONResponse(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={"status": "error", "message": error_msg}
-        )
+        logger.error(f"Error obteniendo modelos: {e}")
+        raise HTTPException(status_code=500, detail="Error al obtener modelos")
+
+@app.get("/models/{model_id}", response_model=ModelConfigData)
+async def get_model_endpoint(model_id: int, db: Session = Depends(get_db)):
+    """Obtiene un modelo específico por su ID."""
+    db_model = get_model_by_id(db, model_id)
+    if db_model is None:
+        raise HTTPException(status_code=404, detail="Modelo no encontrado")
+    return ModelConfigData.from_orm(db_model)
+
+@app.post("/models", response_model=ModelConfigData, status_code=status.HTTP_201_CREATED)
+async def create_model_endpoint(model: ModelConfigData, db: Session = Depends(get_db)):
+    """Crea un nuevo modelo."""
+    try:
+        # Asegurarse de no pasar el ID al crear
+        model_dict = model.dict(exclude_unset=True, exclude={'model_id'})
+        if not model_dict.get('name') or not model_dict.get('route_h5') or not model_dict.get('route_pkl'):
+             raise HTTPException(status_code=400, detail="Nombre, ruta h5 y ruta pkl son requeridos para crear un modelo.")
+        created_model = create_new_model(db=db, model_data=model_dict)
+        return ModelConfigData.from_orm(created_model)
+    except Exception as e:
+        logger.error(f"Error creando modelo: {e}")
+        # Podría ser un nombre duplicado u otro error de BD
+        raise HTTPException(status_code=400, detail=f"Error al crear modelo: {str(e)}")
+
+@app.put("/models/{model_id}", response_model=ModelConfigData)
+async def update_model_endpoint(model_id: int, model: ModelConfigData, db: Session = Depends(get_db)):
+    """Actualiza un modelo existente."""
+    try:
+        # Excluir el ID del cuerpo de la solicitud, usar el de la URL
+        model_data = model.dict(exclude_unset=True, exclude={'model_id'})
+        updated_model = update_existing_model(db=db, model_id=model_id, model_data=model_data)
+        if updated_model is None:
+            raise HTTPException(status_code=404, detail="Modelo no encontrado")
+
+        # Recargar modelos ML si se actualizó el modelo activo
+        system_config = get_system_config(db)
+        if system_config.active_model_id == model_id:
+             logger.info(f"Modelo activo (ID: {model_id}) actualizado. Recargando modelos ML...")
+             load_ml_models()
+
+        return ModelConfigData.from_orm(updated_model)
+    except Exception as e:
+        logger.error(f"Error actualizando modelo {model_id}: {e}")
+        raise HTTPException(status_code=400, detail=f"Error al actualizar modelo: {str(e)}")
+
+@app.delete("/models/{model_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_model_endpoint(model_id: int, db: Session = Depends(get_db)):
+    """Elimina un modelo."""
+    # Verificar si el modelo está activo
+    system_config = get_system_config(db)
+    if system_config.active_model_id == model_id:
+         raise HTTPException(status_code=400, detail="No se puede eliminar el modelo activo.")
+
+    deleted = delete_model(db=db, model_id=model_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Modelo no encontrado")
+    return None # No content
+
+# ---------------------------------------------------------
+# ENDPOINTS CRUD PARA SENSORES
+# ---------------------------------------------------------
+
+@app.get("/sensors/{sensor_id}", response_model=SensorConfigData)
+async def get_sensor_endpoint(sensor_id: int, db: Session = Depends(get_db)):
+    """Obtiene un sensor específico por su ID."""
+    db_sensor = get_sensor_by_id(db, sensor_id)
+    if db_sensor is None:
+        raise HTTPException(status_code=404, detail="Sensor no encontrado")
+    return SensorConfigData.from_orm(db_sensor)
+
+@app.post("/sensors", response_model=SensorConfigData, status_code=status.HTTP_201_CREATED)
+async def create_sensor_endpoint(sensor: SensorConfigData, db: Session = Depends(get_db)):
+    """Crea un nuevo sensor."""
+    try:
+        # Asegurarse de no pasar el ID al crear
+        sensor_dict = sensor.dict(exclude_unset=True, exclude={'sensor_id'})
+        if not sensor_dict.get('name'):
+             raise HTTPException(status_code=400, detail="Nombre es requerido para crear un sensor.")
+
+        # Validar si el modelo_id existe (si se proporciona)
+        if sensor_dict.get('model_id') is not None:
+            model = get_model_by_id(db, sensor_dict['model_id'])
+            if not model:
+                raise HTTPException(status_code=404, detail=f"Modelo con id {sensor_dict['model_id']} no encontrado")
+
+        created_sensor = create_new_sensor(db=db, sensor_data=sensor_dict)
+        return SensorConfigData.from_orm(created_sensor)
+    except Exception as e:
+        logger.error(f"Error creando sensor: {e}")
+        raise HTTPException(status_code=400, detail=f"Error al crear sensor: {str(e)}")
+
+@app.put("/sensors/{sensor_id}", response_model=SensorConfigData)
+async def update_sensor_endpoint(sensor_id: int, sensor: SensorConfigData, db: Session = Depends(get_db)):
+    """Actualiza un sensor existente."""
+    try:
+        # Excluir el ID del cuerpo, usar el de la URL
+        sensor_data = sensor.dict(exclude_unset=True, exclude={'sensor_id'})
+
+        # Validar si el modelo_id existe (si se proporciona y cambia)
+        if sensor_data.get('model_id') is not None:
+            model = get_model_by_id(db, sensor_data['model_id'])
+            if not model:
+                raise HTTPException(status_code=404, detail=f"Modelo con id {sensor_data['model_id']} no encontrado")
+
+        updated_sensor = update_existing_sensor(db=db, sensor_id=sensor_id, sensor_data=sensor_data)
+        if updated_sensor is None:
+            raise HTTPException(status_code=404, detail="Sensor no encontrado")
+        return SensorConfigData.from_orm(updated_sensor)
+    except Exception as e:
+        logger.error(f"Error actualizando sensor {sensor_id}: {e}")
+        raise HTTPException(status_code=400, detail=f"Error al actualizar sensor: {str(e)}")
+
+@app.delete("/sensors/{sensor_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_sensor_endpoint(sensor_id: int, db: Session = Depends(get_db)):
+    """Elimina un sensor."""
+    deleted = delete_sensor(db=db, sensor_id=sensor_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Sensor no encontrado")
+    return None # No content
+
+# ---------------------------------------------------------
+# ENDPOINTS CRUD PARA MÁQUINAS
+# ---------------------------------------------------------
+@app.get("/machines", response_model=List[MachineConfigData])
+async def get_machines_endpoint(db: Session = Depends(get_db)):
+    """Obtiene todas las máquinas registradas."""
+    try:
+        machines = get_all_machines(db)
+        return [MachineConfigData.from_orm(m) for m in machines]
+    except Exception as e:
+        logger.error(f"Error obteniendo máquinas: {e}")
+        raise HTTPException(status_code=500, detail="Error al obtener máquinas")
+
+@app.get("/machines/{machine_id}", response_model=MachineConfigData)
+async def get_machine_endpoint(machine_id: int, db: Session = Depends(get_db)):
+    """Obtiene una máquina específica por su ID."""
+    db_machine = get_machine_by_id(db, machine_id)
+    if db_machine is None:
+        raise HTTPException(status_code=404, detail="Máquina no encontrada")
+    return MachineConfigData.from_orm(db_machine)
+
+@app.post("/machines", response_model=MachineConfigData, status_code=status.HTTP_201_CREATED)
+async def create_machine_endpoint(machine: MachineConfigData, db: Session = Depends(get_db)):
+    """Crea una nueva máquina."""
+    try:
+        # Asegurarse de no pasar el ID al crear
+        machine_dict = machine.dict(exclude_unset=True, exclude={'machine_id'})
+        if not machine_dict.get('name'):
+             raise HTTPException(status_code=400, detail="Nombre es requerido para crear una máquina.")
+
+        # Validar si el sensor_id existe (si se proporciona)
+        if machine_dict.get('sensor_id') is not None:
+            sensor = get_sensor_by_id(db, machine_dict['sensor_id'])
+            if not sensor:
+                raise HTTPException(status_code=404, detail=f"Sensor con id {machine_dict['sensor_id']} no encontrado")
+
+        created_machine = create_new_machine(db=db, machine_data=machine_dict)
+        return MachineConfigData.from_orm(created_machine)
+    except Exception as e:
+        logger.error(f"Error creando máquina: {e}")
+        raise HTTPException(status_code=400, detail=f"Error al crear máquina: {str(e)}")
+
+@app.put("/machines/{machine_id}", response_model=MachineConfigData)
+async def update_machine_endpoint(machine_id: int, machine: MachineConfigData, db: Session = Depends(get_db)):
+    """Actualiza una máquina existente."""
+    try:
+        # Excluir ID del cuerpo, usar el de la URL
+        machine_data = machine.dict(exclude_unset=True, exclude={'machine_id'})
+
+        # Validar si el sensor_id existe (si se proporciona y cambia)
+        if machine_data.get('sensor_id') is not None:
+            sensor = get_sensor_by_id(db, machine_data['sensor_id'])
+            if not sensor:
+                raise HTTPException(status_code=404, detail=f"Sensor con id {machine_data['sensor_id']} no encontrado")
+
+        updated_machine = update_existing_machine(db=db, machine_id=machine_id, machine_data=machine_data)
+        if updated_machine is None:
+            raise HTTPException(status_code=404, detail="Máquina no encontrada")
+        return MachineConfigData.from_orm(updated_machine)
+    except Exception as e:
+        logger.error(f"Error actualizando máquina {machine_id}: {e}")
+        raise HTTPException(status_code=400, detail=f"Error al actualizar máquina: {str(e)}")
+
+@app.delete("/machines/{machine_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_machine_endpoint(machine_id: int, db: Session = Depends(get_db)):
+    """Elimina una máquina."""
+    deleted = delete_machine(db=db, machine_id=machine_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Máquina no encontrada")
+    return None # No content
+
+# ---------------------------------------------------------
+# ENDPOINTS CRUD PARA LÍMITES (ID=1 fijo)
+# ---------------------------------------------------------
+@app.get("/config/limits/1", response_model=LimitConfigData)
+async def get_limit_config_endpoint(db: Session = Depends(get_db)):
+    """Obtiene la configuración de límites activa (ID=1)."""
+    db_limit = get_latest_limit_config(db) # Esta función ya busca ID=1
+    if db_limit is None:
+        # Esto no debería pasar si ensure_default_limits_exist funciona
+        raise HTTPException(status_code=404, detail="Configuración de límites por defecto (ID=1) no encontrada.")
+    # Devolver usando el esquema Pydantic para asegurar la estructura
+    return LimitConfigData.from_orm(db_limit)
+
+@app.put("/config/limits/1", response_model=LimitConfigData)
+async def update_limit_config_endpoint(limit_data: LimitConfigData, db: Session = Depends(get_db)):
+    """Actualiza la configuración de límites activa (ID=1)."""
+    try:
+        # Usar la función CRUD existente que actualiza ID=1
+        updated_limit = create_or_update_limit_config(db, limit_data.dict(exclude_unset=True))
+        # Devolver usando el esquema Pydantic
+        return LimitConfigData.from_orm(updated_limit)
+    except HTTPException as he: # Errores HTTP lanzados desde create_or_update_limit_config
+        raise he
+    except Exception as e:
+        logger.error(f"Error actualizando límites (ID=1): {e}")
+        raise HTTPException(status_code=500, detail=f"Error interno al actualizar límites: {str(e)}")
 
 # ---------------------------------------------------------
 # ENDPOINT PARA SUBIR ARCHIVOS DE MODELO
 # ---------------------------------------------------------
-
-@app.post("/upload_model_files", status_code=status.HTTP_201_CREATED)
-async def upload_model_files(
-    model_file: UploadFile = File(None),
-    scaler_file: UploadFile = File(None)
-):
-    """
-    Sube archivos de modelo (.h5) y escalador (.pkl) al servidor.
-    
-    Esta función permite:
-    1. Subir archivo de modelo H5 para redes neuronales
-    2. Subir archivo de escalador PKL para normalización de datos
-    
-    Args:
-        model_file: Archivo del modelo (.h5)
-        scaler_file: Archivo del escalador (.pkl)
-        
-    Returns:
-        dict: Información sobre los archivos subidos
-    """
-    try:
-        result = {"uploaded_files": []}
-        
-        # Verificar que al menos se envió un archivo
-        if not model_file and not scaler_file:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Debe enviar al menos un archivo"
-            )
-        
-        # Manejar archivo del modelo
-        if model_file:
-            # Verificar la extensión
-            if not model_file.filename.lower().endswith('.h5'):
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="El archivo del modelo debe tener extensión .h5"
-                )
-            
-            # Guardar archivo
-            file_path = os.path.join(MODELO_DIR, model_file.filename)
-            
-            # Crear directorio si no existe
-            os.makedirs(MODELO_DIR, exist_ok=True)
-            
-            # Guardar archivo
-            with open(file_path, "wb") as buffer:
-                # Leer por partes para archivos grandes
-                shutil.copyfileobj(model_file.file, buffer)
-            
-            result["uploaded_files"].append({
-                "type": "model",
-                "filename": model_file.filename,
-                "path": os.path.join("Modelo", model_file.filename)
-            })
-            
-            logger.info(f"Archivo de modelo subido correctamente: {file_path}")
-        
-        # Manejar archivo del escalador
-        if scaler_file:
-            # Verificar la extensión
-            if not scaler_file.filename.lower().endswith('.pkl'):
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="El archivo del escalador debe tener extensión .pkl"
-                )
-            
-            # Guardar archivo
-            file_path = os.path.join(SCALER_DIR, scaler_file.filename)
-            
-            # Crear directorio si no existe
-            os.makedirs(SCALER_DIR, exist_ok=True)
-            
-            # Guardar archivo
-            with open(file_path, "wb") as buffer:
-                # Leer por partes para archivos grandes
-                shutil.copyfileobj(scaler_file.file, buffer)
-            
-            result["uploaded_files"].append({
-                "type": "scaler",
-                "filename": scaler_file.filename,
-                "path": os.path.join("Scaler", scaler_file.filename)
-            })
-            
-            logger.info(f"Archivo de escalador subido correctamente: {file_path}")
-        
-        return result
-    except HTTPException as e:
-        # Reenviar excepciones HTTP
-        raise e
-    except Exception as e:
-        logger.warning(f"Error al subir archivos: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error al subir archivos: {str(e)}"
-        )
-
-# ---------------------------------------------------------
-# PUNTO DE ENTRADA PRINCIPAL
-# ---------------------------------------------------------
-
-if __name__ == "__main__":
-    import uvicorn
-    print("Iniciando aplicación PdM Manager...")
-    load_ml_models()
-    uvicorn.run("app.main:app", host="0.0.0.0", port=8000)
+# ... (código existente) ...

@@ -3,6 +3,34 @@ from sqlalchemy.orm import Session
 from app.models import SystemConfig, Model, LimitConfig, Sensor, Machine
 from datetime import datetime
 from typing import Dict, Any, Optional, List, Union
+import logging
+from sqlalchemy.orm.exc import NoResultFound # Importar NoResultFound
+from fastapi import HTTPException, status
+
+logger = logging.getLogger("pdm_manager.crud_config") # Crear un logger específico
+
+# Nueva función para asegurar la existencia de los límites por defecto
+def ensure_default_limits_exist(db: Session):
+    """
+    Asegura que la configuración de límites con ID=1 exista.
+    Si no existe, la crea utilizando los valores por defecto definidos en el modelo.
+    Esta función debe llamarse al inicio de la aplicación.
+    """
+    default_limits = db.query(LimitConfig).filter(LimitConfig.limit_config_id == 1).first()
+    if not default_limits:
+        logger.info("Configuración de límites por defecto (ID=1) no encontrada. Creando...")
+        try:
+            # Crear una nueva instancia. Los valores `default` del modelo se usarán.
+            new_limits = LimitConfig(limit_config_id=1)
+            db.add(new_limits)
+            db.commit()
+            db.refresh(new_limits)
+            logger.info("Configuración de límites por defecto (ID=1) creada exitosamente.")
+        except Exception as e:
+            db.rollback()
+            logger.error(f"Error crítico al crear la configuración de límites por defecto (ID=1): {e}")
+            # Dependiendo de la criticidad, podrías querer que la app no inicie.
+            # raise RuntimeError(f"No se pudo crear la configuración de límites por defecto: {e}") from e
 
 def get_system_config(db: Session) -> SystemConfig:
     """
@@ -63,261 +91,294 @@ def update_system_config(db: Session, is_configured: Optional[int] = None,
 
 def get_latest_limit_config(db: Session) -> Optional[LimitConfig]:
     """
-    Obtiene la configuración más reciente de límites de alerta.
-    Si no existe, crea una nueva con valores predeterminados.
-    
+    Obtiene la configuración de límites con ID=1.
+    Se asume que esta es la configuración activa y por defecto.
+
     Args:
         db (Session): Sesión de base de datos activa
-        
+
     Returns:
-        Optional[LimitConfig]: Objeto de configuración de límites o None
+        Optional[LimitConfig]: Objeto de configuración de límites con ID=1 o None si no existe.
     """
-    # Buscar la configuración más reciente por ID (asumiendo que IDs más altos son más recientes)
-    config = db.query(LimitConfig).order_by(LimitConfig.limit_config_id.desc()).first()
+    # Buscar la configuración con ID=1 específicamente
+    config = db.query(LimitConfig).filter(LimitConfig.limit_config_id == 1).first()
     
-    # Si no existe, crear una nueva con valores predeterminados
+    # Ya no crea una configuración por defecto aquí. 
+    # Eso se maneja en ensure_default_limits_exist al inicio de la app.
     if not config:
-        config = LimitConfig(
-            # Valores predeterminados según especificación
-            x_2inf=-2.36, x_2sup=2.18, x_3inf=-3.5, x_3sup=3.32,
-            y_2inf=7.18, y_2sup=12.09, y_3inf=5.95, y_3sup=13.32,
-            z_2inf=-2.39, z_2sup=1.11, z_3inf=-3.26, z_3sup=1.98,
-            update_limits=datetime.now()
-        )
-        db.add(config)
-        db.commit()
-        db.refresh(config)
-    
+        logger.warning("No se encontró la configuración de límites por defecto (ID=1). Esto debería haber sido creado al inicio.")
+        # Podría lanzar una excepción aquí si se considera un estado irrecuperable.
+        # raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Configuración de límites por defecto (ID=1) no encontrada.")
+        
     return config
 
 def create_or_update_limit_config(db: Session, limit_data: Dict[str, float]) -> LimitConfig:
     """
-    Crea una nueva entrada en la tabla de configuración de límites.
-    
+    Actualiza la configuración de límites con ID=1.
+    Asume que la configuración con ID=1 siempre existe (creada al inicio).
+
     Args:
         db (Session): Sesión de base de datos activa
-        limit_data (Dict[str, float]): Datos de límites
-        
+        limit_data (Dict[str, float]): Datos de límites a actualizar validados previamente por Pydantic.
+
     Returns:
-        LimitConfig: Objeto de configuración de límites creado
+        LimitConfig: Objeto de configuración de límites actualizado.
         
     Raises:
-        ValueError: Si algún límite no es válido
+        HTTPException: Si la configuración con ID=1 no se encuentra.
     """
-    # Validar límites
-    if not validate_limits(limit_data):
-        raise ValueError("Los límites proporcionados no son válidos")
+    # Ya no se llama a validate_limits aquí. La validación ocurre en el schema Pydantic (main.py).
+    # if not validate_limits(limit_data): 
+    #     raise ValueError("Los límites proporcionados no son coherentes (ej. min >= max)")
     
-    # Obtener valores actuales para cualquier límite no proporcionado
-    current_config = get_latest_limit_config(db)
-    for field in [
-        "x_2inf", "x_2sup", "x_3inf", "x_3sup",
-        "y_2inf", "y_2sup", "y_3inf", "y_3sup",
-        "z_2inf", "z_2sup", "z_3inf", "z_3sup"
-    ]:
-        if field not in limit_data or limit_data[field] is None:
-            limit_data[field] = getattr(current_config, field)
+    # Obtener la configuración con ID=1
+    config = db.query(LimitConfig).filter(LimitConfig.limit_config_id == 1).first()
     
-    # Crear nueva configuración
-    limit_data["update_limits"] = datetime.now()
-    new_config = LimitConfig(**limit_data)
-    db.add(new_config)
-    db.commit()
-    db.refresh(new_config)
-    
-    return new_config
-
-def validate_limits(limit_data: Dict[str, float]) -> bool:
-    """
-    Valida que los límites proporcionados sean coherentes.
-    
-    Args:
-        limit_data (Dict[str, float]): Datos de límites a validar
-        
-    Returns:
-        bool: True si los límites son válidos, False en caso contrario
-        
-    Reglas de validación (con excepciones para valores por defecto):
-    - Eje X: Permite valores por defecto (Warning: -2.36 y 2.18; Critical: -3.5 y 3.32)
-    - Eje Y y Z: Sigue la validación estándar (min < max, warning < critical)
-    
-    Si no se están modificando los valores (no están en limit_data), no se realiza la validación.
-    """
-    # Casos especiales para valores por defecto
-    default_values = {
-        "x_2inf": -2.36,
-        "x_2sup": 2.18,
-        "x_3inf": -3.5,
-        "x_3sup": 3.32
-    }
-    
-    # Comprueba si se están usando los valores por defecto para el eje X
-    def is_default_x_values():
-        x_values = {
-            "x_2inf": -2.36,
-            "x_2sup": 2.18,
-            "x_3inf": -3.5,
-            "x_3sup": 3.32
-        }
-        
-        # Verifica que todos los valores definidos en limit_data estén cerca de los valores por defecto
-        for key in limit_data:
-            if key in x_values and key in limit_data and limit_data[key] is not None:
-                if abs(limit_data[key] - x_values[key]) > 0.001:  # Tolerancia para comparación de flotantes
-                    return False
-        return True
-    
-    # Si se están usando los valores por defecto para el eje X, no aplica la validación para estos valores
-    if is_default_x_values():
-        # Validar solo ejes Y y Z
-        pass
+    if not config:
+        logger.error("Intento de actualizar límites fallido: Configuración ID=1 no encontrada.")
+        # Si no existe, es un error porque ensure_default_limits_exist debió crearla.
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            detail="Error crítico: No se encontró la configuración de límites base (ID=1)."
+        )
+            
+    # Actualizar los campos del objeto existente con los datos proporcionados
+    updated = False
+    for field, value in limit_data.items():
+        # Asegurarse de que el campo existe en el modelo y el valor no es None
+        if hasattr(config, field) and value is not None:
+            # Solo actualizar si el valor nuevo es diferente al actual
+            if getattr(config, field) != value:
+                 setattr(config, field, value)
+                 updated = True
+            
+    # Actualizar timestamp solo si hubo cambios reales
+    if updated:
+        config.update_limits = datetime.now()
+        try:
+            db.commit()
+            db.refresh(config)
+            logger.info(f"Configuración de límites (ID=1) actualizada correctamente.")
+        except Exception as e:
+            db.rollback()
+            logger.error(f"Error al guardar cambios en límites (ID=1): {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+                detail=f"Error al guardar la actualización de límites: {e}"
+            )
     else:
-        # Validar eje X
-        if "x_2inf" in limit_data and "x_2sup" in limit_data:
-            if limit_data["x_2inf"] >= limit_data["x_2sup"]:
-                return False
+        logger.info("No se realizaron cambios en los límites (valores iguales a los existentes).")
         
-        if "x_3inf" in limit_data and "x_2inf" in limit_data:
-            if limit_data["x_3inf"] >= limit_data["x_2inf"]:
-                return False
-        
-        if "x_2sup" in limit_data and "x_3sup" in limit_data:
-            if limit_data["x_2sup"] >= limit_data["x_3sup"]:
-                return False
-    
-    # Validar eje Y
-    if "y_2inf" in limit_data and "y_2sup" in limit_data:
-        if limit_data["y_2inf"] >= limit_data["y_2sup"]:
-            return False
-    
-    if "y_3inf" in limit_data and "y_2inf" in limit_data:
-        if limit_data["y_3inf"] >= limit_data["y_2inf"]:
-            return False
-    
-    if "y_2sup" in limit_data and "y_3sup" in limit_data:
-        if limit_data["y_2sup"] >= limit_data["y_3sup"]:
-            return False
-    
-    # Validar eje Z
-    if "z_2inf" in limit_data and "z_2sup" in limit_data:
-        if limit_data["z_2inf"] >= limit_data["z_2sup"]:
-            return False
-    
-    if "z_3inf" in limit_data and "z_2inf" in limit_data:
-        if limit_data["z_3inf"] >= limit_data["z_2inf"]:
-            return False
-    
-    if "z_2sup" in limit_data and "z_3sup" in limit_data:
-        if limit_data["z_2sup"] >= limit_data["z_3sup"]:
-            return False
-    
-    return True
+    return config
 
 def get_or_create_model(db: Session, model_data: Dict[str, Any]) -> Model:
     """
-    Obtiene un modelo existente o crea uno nuevo.
-    
+    Obtiene un modelo existente por nombre o lo crea si no existe.
+    Actualiza las rutas y descripción si el modelo ya existe y los datos son diferentes.
+
     Args:
         db (Session): Sesión de base de datos activa
-        model_data (Dict[str, Any]): Datos del modelo
-        
+        model_data (Dict[str, Any]): Datos del modelo (debe incluir 'name', 'route_h5', 'route_pkl')
+
     Returns:
-        Model: Objeto modelo
+        Model: Objeto modelo existente o recién creado
+
+    Raises:
+        ValueError: Si falta el nombre o las rutas del modelo
     """
-    # Si se proporciona un ID, buscar el modelo
-    if "model_id" in model_data and model_data["model_id"]:
-        model = db.query(Model).filter(Model.model_id == model_data["model_id"]).first()
-        if model:
-            # Actualizar campos
-            for field in ["route_h5", "route_pkl", "name", "description"]:
-                if field in model_data and model_data[field] is not None:
-                    setattr(model, field, model_data[field])
-            
+    model_name = model_data.get("name")
+    if not model_name:
+        logger.error("Intento de obtener/crear modelo sin nombre.")
+        raise ValueError("El nombre ('name') es requerido para obtener o crear un modelo.")
+
+    try:
+        # Intentar buscar el modelo por nombre
+        existing_model = db.query(Model).filter(Model.name == model_name).one()
+        logger.info(f"Modelo encontrado por nombre '{model_name}'. Verificando actualizaciones...")
+
+        # Actualizar campos si se proporcionan y son diferentes
+        updated = False
+        for field in ["route_h5", "route_pkl", "description"]:
+            new_value = model_data.get(field)
+            if new_value is not None and getattr(existing_model, field) != new_value:
+                setattr(existing_model, field, new_value)
+                updated = True
+                logger.info(f"Modelo '{model_name}': Campo '{field}' actualizado.")
+
+        if updated:
             db.commit()
-            db.refresh(model)
-            return model
-    
-    # Crear un nuevo modelo
-    new_model = Model(
-        route_h5=model_data.get("route_h5"),
-        route_pkl=model_data.get("route_pkl"),
-        name=model_data.get("name"),
-        description=model_data.get("description")
-    )
-    db.add(new_model)
-    db.commit()
-    db.refresh(new_model)
-    return new_model
+            db.refresh(existing_model)
+            logger.info(f"Modelo '{model_name}' actualizado en la BD.")
+        else:
+            logger.info(f"Modelo '{model_name}' encontrado, sin cambios necesarios.")
+        return existing_model
+
+    except NoResultFound:
+        # Si no se encuentra, crear uno nuevo
+        logger.info(f"Modelo con nombre '{model_name}' no encontrado. Creando nuevo modelo...")
+        try:
+            # Asegurarse de que los campos requeridos (rutas) estén presentes para la creación
+            route_h5 = model_data.get("route_h5")
+            route_pkl = model_data.get("route_pkl")
+            if not route_h5 or not route_pkl:
+                 logger.error(f"Faltan rutas al intentar crear el modelo '{model_name}'.")
+                 raise ValueError("Las rutas 'route_h5' y 'route_pkl' son requeridas para crear un nuevo modelo.")
+
+            new_model = Model(
+                name=model_name,
+                route_h5=route_h5,
+                route_pkl=route_pkl,
+                description=model_data.get("description")
+            )
+            db.add(new_model)
+            db.commit()
+            db.refresh(new_model)
+            logger.info(f"Nuevo modelo '{model_name}' creado con ID: {new_model.model_id}")
+            return new_model
+        except Exception as create_err:
+            logger.error(f"Error al crear el nuevo modelo '{model_name}': {create_err}")
+            db.rollback() # Revertir cambios si la creación falla
+            raise ValueError(f"No se pudo crear el modelo: {create_err}")
+
+    except Exception as e:
+        logger.error(f"Error inesperado al obtener/crear modelo '{model_name}': {e}", exc_info=True)
+        db.rollback()
+        # Relanzar como ValueError para que update_full_config lo maneje como 400
+        raise ValueError(f"Error inesperado procesando el modelo: {e}")
 
 def get_or_create_sensor(db: Session, sensor_data: Dict[str, Any]) -> Sensor:
     """
-    Obtiene un sensor existente o crea uno nuevo.
-    
+    Obtiene un sensor existente por nombre o lo crea si no existe.
+    Actualiza la descripción y model_id si el sensor ya existe y los datos son diferentes.
+
     Args:
         db (Session): Sesión de base de datos activa
-        sensor_data (Dict[str, Any]): Datos del sensor
-        
+        sensor_data (Dict[str, Any]): Datos del sensor (debe incluir 'name')
+
     Returns:
-        Sensor: Objeto sensor
+        Sensor: Objeto sensor existente o recién creado
+
+    Raises:
+        ValueError: Si falta el nombre del sensor
     """
-    # Si se proporciona un ID, buscar el sensor
-    if "sensor_id" in sensor_data and sensor_data["sensor_id"]:
-        sensor = db.query(Sensor).filter(Sensor.sensor_id == sensor_data["sensor_id"]).first()
-        if sensor:
-            # Actualizar campos
-            for field in ["name", "description", "model_id"]:
-                if field in sensor_data and sensor_data[field] is not None:
-                    setattr(sensor, field, sensor_data[field])
-            
+    sensor_name = sensor_data.get("name")
+    if not sensor_name:
+        logger.error("Intento de obtener/crear sensor sin nombre.")
+        raise ValueError("El nombre ('name') es requerido para obtener o crear un sensor.")
+
+    try:
+        # Intentar buscar el sensor por nombre
+        existing_sensor = db.query(Sensor).filter(Sensor.name == sensor_name).one()
+        logger.info(f"Sensor encontrado por nombre '{sensor_name}'. Verificando actualizaciones...")
+
+        # Actualizar campos si se proporcionan y son diferentes
+        updated = False
+        for field in ["description", "model_id"]:
+            new_value = sensor_data.get(field)
+            # Permitir actualizar model_id a None si se pasa explícitamente
+            if field in sensor_data and getattr(existing_sensor, field) != new_value:
+                setattr(existing_sensor, field, new_value)
+                updated = True
+                logger.info(f"Sensor '{sensor_name}': Campo '{field}' actualizado a '{new_value}'.")
+
+        if updated:
             db.commit()
-            db.refresh(sensor)
-            return sensor
-    
-    # Crear un nuevo sensor
-    new_sensor = Sensor(
-        name=sensor_data.get("name"),
-        description=sensor_data.get("description"),
-        model_id=sensor_data.get("model_id")
-    )
-    db.add(new_sensor)
-    db.commit()
-    db.refresh(new_sensor)
-    return new_sensor
+            db.refresh(existing_sensor)
+            logger.info(f"Sensor '{sensor_name}' actualizado en la BD.")
+        else:
+            logger.info(f"Sensor '{sensor_name}' encontrado, sin cambios necesarios.")
+        return existing_sensor
+
+    except NoResultFound:
+        # Si no se encuentra, crear uno nuevo
+        logger.info(f"Sensor con nombre '{sensor_name}' no encontrado. Creando nuevo sensor...")
+        try:
+            new_sensor = Sensor(
+                name=sensor_name,
+                description=sensor_data.get("description"),
+                model_id=sensor_data.get("model_id") # Puede ser None
+            )
+            db.add(new_sensor)
+            db.commit()
+            db.refresh(new_sensor)
+            logger.info(f"Nuevo sensor '{sensor_name}' creado con ID: {new_sensor.sensor_id}")
+            return new_sensor
+        except Exception as create_err:
+            logger.error(f"Error al crear el nuevo sensor '{sensor_name}': {create_err}")
+            db.rollback()
+            raise ValueError(f"No se pudo crear el sensor: {create_err}")
+
+    except Exception as e:
+        logger.error(f"Error inesperado al obtener/crear sensor '{sensor_name}': {e}", exc_info=True)
+        db.rollback()
+        raise ValueError(f"Error inesperado procesando el sensor: {e}")
 
 def get_or_create_machine(db: Session, machine_data: Dict[str, Any]) -> Machine:
     """
-    Obtiene una máquina existente o crea una nueva.
-    
+    Obtiene una máquina existente por nombre o la crea si no existe.
+    Actualiza la descripción y sensor_id si la máquina ya existe y los datos son diferentes.
+
     Args:
         db (Session): Sesión de base de datos activa
-        machine_data (Dict[str, Any]): Datos de la máquina
-        
+        machine_data (Dict[str, Any]): Datos de la máquina (debe incluir 'name')
+
     Returns:
-        Machine: Objeto máquina
+        Machine: Objeto máquina existente o recién creado
+
+    Raises:
+        ValueError: Si falta el nombre de la máquina
     """
-    # Si se proporciona un ID, buscar la máquina
-    if "machine_id" in machine_data and machine_data["machine_id"]:
-        machine = db.query(Machine).filter(Machine.machine_id == machine_data["machine_id"]).first()
-        if machine:
-            # Actualizar campos
-            for field in ["name", "description", "sensor_id"]:
-                if field in machine_data and machine_data[field] is not None:
-                    setattr(machine, field, machine_data[field])
-            
+    machine_name = machine_data.get("name")
+    if not machine_name:
+        logger.error("Intento de obtener/crear máquina sin nombre.")
+        raise ValueError("El nombre ('name') es requerido para obtener o crear una máquina.")
+
+    try:
+        # Intentar buscar la máquina por nombre
+        existing_machine = db.query(Machine).filter(Machine.name == machine_name).one()
+        logger.info(f"Máquina encontrada por nombre '{machine_name}'. Verificando actualizaciones...")
+
+        # Actualizar campos si se proporcionan y son diferentes
+        updated = False
+        for field in ["description", "sensor_id"]:
+             new_value = machine_data.get(field)
+             # Permitir actualizar sensor_id a None si se pasa explícitamente
+             if field in machine_data and getattr(existing_machine, field) != new_value:
+                setattr(existing_machine, field, new_value)
+                updated = True
+                logger.info(f"Máquina '{machine_name}': Campo '{field}' actualizado a '{new_value}'.")
+
+        if updated:
             db.commit()
-            db.refresh(machine)
-            return machine
-    
-    # Crear una nueva máquina
-    new_machine = Machine(
-        name=machine_data.get("name"),
-        description=machine_data.get("description"),
-        sensor_id=machine_data.get("sensor_id")
-    )
-    db.add(new_machine)
-    db.commit()
-    db.refresh(new_machine)
-    return new_machine
+            db.refresh(existing_machine)
+            logger.info(f"Máquina '{machine_name}' actualizada en la BD.")
+        else:
+            logger.info(f"Máquina '{machine_name}' encontrada, sin cambios necesarios.")
+        return existing_machine
+
+    except NoResultFound:
+        # Si no se encuentra, crear una nueva
+        logger.info(f"Máquina con nombre '{machine_name}' no encontrada. Creando nueva máquina...")
+        try:
+            new_machine = Machine(
+                name=machine_name,
+                description=machine_data.get("description"),
+                sensor_id=machine_data.get("sensor_id") # Puede ser None
+            )
+            db.add(new_machine)
+            db.commit()
+            db.refresh(new_machine)
+            logger.info(f"Nueva máquina '{machine_name}' creada con ID: {new_machine.machine_id}")
+            return new_machine
+        except Exception as create_err:
+            logger.error(f"Error al crear la nueva máquina '{machine_name}': {create_err}")
+            db.rollback()
+            raise ValueError(f"No se pudo crear la máquina: {create_err}")
+
+    except Exception as e:
+        logger.error(f"Error inesperado al obtener/crear máquina '{machine_name}': {e}", exc_info=True)
+        db.rollback()
+        raise ValueError(f"Error inesperado procesando la máquina: {e}")
 
 def get_full_config(db: Session) -> Dict[str, Any]:
     """
@@ -410,10 +471,13 @@ def update_full_config(db: Session, config_data: Dict[str, Any]) -> Dict[str, An
     Returns:
         Dict[str, Any]: Configuración actualizada
     """
+    logger.info(f"Iniciando actualización de configuración completa con datos: {config_data}")
     try:
         # 1. Procesar datos del modelo
         model_id = None
+        model = None # Variable para almacenar el modelo creado/actualizado
         if "route_h5" in config_data or "route_pkl" in config_data:
+            logger.info("Procesando datos del modelo...")
             # Crear datos del modelo
             model_data = {}
             for field in ["route_h5", "route_pkl"]:
@@ -432,8 +496,13 @@ def update_full_config(db: Session, config_data: Dict[str, Any]) -> Dict[str, An
                 model_data["description"] = config_data["description"]
             
             # Crear o actualizar el modelo
-            model = get_or_create_model(db, model_data)
-            model_id = model.model_id
+            try:
+                model = get_or_create_model(db, model_data)
+                model_id = model.model_id
+                logger.info(f"Modelo {'actualizado' if model else 'creado'} con ID: {model_id}")
+            except Exception as model_err:
+                logger.error(f"Error al procesar modelo: {model_err}")
+                raise ValueError(f"Error al procesar el modelo: {model_err}")
         
         # 2. Procesar límites de vibración
         limit_data = {}
@@ -445,42 +514,93 @@ def update_full_config(db: Session, config_data: Dict[str, Any]) -> Dict[str, An
         
         # Crear o actualizar límites si hay datos
         if limit_data:
-            create_or_update_limit_config(db, limit_data)
+            logger.info("Actualizando límites de vibración...")
+            try:
+                create_or_update_limit_config(db, limit_data)
+                logger.info("Límites de vibración actualizados correctamente.")
+            except ValueError as limit_val_err:
+                logger.error(f"Error de validación al actualizar límites: {limit_val_err}")
+                raise # Relanzar error de validación
+            except Exception as limit_err:
+                logger.error(f"Error al actualizar límites: {limit_err}")
+                raise ValueError(f"Error al actualizar los límites: {limit_err}")
         
         # 3. Procesar información del sensor
         sensor_id = None
-        if "sensor_name" in config_data and config_data["sensor_name"]:
-            sensor_data = {
-                "name": config_data["sensor_name"],
-                "description": config_data.get("sensor_description"),
-                "model_id": model_id  # Asociar con el modelo creado/actualizado
-            }
-            sensor = get_or_create_sensor(db, sensor_data)
-            sensor_id = sensor.sensor_id
+        sensor = None # Variable para almacenar el sensor creado/actualizado
+        # Usar 'sensor_name' o buscar en 'sensor_info' si está presente
+        sensor_name = config_data.get("sensor_name")
+        sensor_info = config_data.get("sensor_info")
+        
+        if sensor_name or sensor_info:
+            logger.info("Procesando datos del sensor...")
+            sensor_data = {}
+            if sensor_info: # Dar prioridad a sensor_info si existe
+                sensor_data = sensor_info
+            else: # Usar campos individuales si no hay sensor_info
+                sensor_data["name"] = sensor_name
+                sensor_data["description"] = config_data.get("sensor_description")
+            
+            # Asociar con el modelo creado/actualizado si existe
+            if model_id:
+                 sensor_data["model_id"] = model_id
+            
+            try:
+                sensor = get_or_create_sensor(db, sensor_data)
+                sensor_id = sensor.sensor_id
+                logger.info(f"Sensor {'actualizado' if sensor else 'creado'} con ID: {sensor_id}")
+            except Exception as sensor_err:
+                logger.error(f"Error al procesar sensor: {sensor_err}")
+                raise ValueError(f"Error al procesar el sensor: {sensor_err}")
         
         # 4. Procesar información de la máquina
-        if "machine_name" in config_data and config_data["machine_name"]:
-            machine_data = {
-                "name": config_data["machine_name"],
-                "description": config_data.get("machine_description"),
-                "sensor_id": sensor_id  # Asociar con el sensor creado/actualizado
-            }
-            get_or_create_machine(db, machine_data)
+        machine_name = config_data.get("machine_name")
+        machine_info = config_data.get("machine_info")
         
+        if machine_name or machine_info:
+            logger.info("Procesando datos de la máquina...")
+            machine_data = {}
+            if machine_info:
+                machine_data = machine_info
+            else:
+                machine_data["name"] = machine_name
+                machine_data["description"] = config_data.get("machine_description")
+                
+            # Asociar con el sensor creado/actualizado si existe
+            if sensor_id:
+                 machine_data["sensor_id"] = sensor_id
+            
+            try:
+                get_or_create_machine(db, machine_data)
+                logger.info(f"Máquina {'actualizada' if 'machine_id' in machine_data else 'creada'}: {machine_data.get('name')}")
+            except Exception as machine_err:
+                logger.error(f"Error al procesar máquina: {machine_err}")
+                raise ValueError(f"Error al procesar la máquina: {machine_err}")
+
         # 5. Actualizar configuración del sistema
-        update_system_config(
-            db, 
-            is_configured=1,  # Sistema configurado
-            active_model_id=model_id
-        )
+        logger.info("Actualizando configuración global del sistema...")
+        try:
+            update_system_config(
+                db,
+                is_configured=1,  # Marcar como configurado
+                active_model_id=model_id # Establecer modelo activo
+            )
+            logger.info("Configuración global del sistema actualizada.")
+        except Exception as sys_err:
+            logger.error(f"Error al actualizar SystemConfig: {sys_err}")
+            raise ValueError(f"Error al finalizar la configuración del sistema: {sys_err}")
         
-        # Obtener la configuración actualizada
+        # Obtener la configuración actualizada para devolverla
+        logger.info("Actualización de configuración completa finalizada.")
         return get_full_config(db)
         
+    except ValueError as ve: # Capturar errores de validación específicos
+        logger.error(f"Error de validación durante la actualización de configuración: {ve}")
+        raise # Relanzar para que el endpoint lo maneje como 400
     except Exception as e:
-        # Registrar el error y relanzar excepción
-        print(f"Error al actualizar la configuración completa: {str(e)}")
-        raise 
+        # Registrar el error y relanzar una excepción genérica para 500
+        logger.error(f"Error inesperado al actualizar la configuración completa: {e}", exc_info=True)
+        raise Exception(f"Error inesperado durante la actualización: {e}")
 
 # ==========================================================================
 # FUNCIONES CRUD ESPECÍFICAS PARA ENTIDADES
