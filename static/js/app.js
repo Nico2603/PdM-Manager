@@ -112,21 +112,8 @@ function initConfigFields() {
   // Inicializar las pestañas de configuración
   initConfigTabs();
   
-  // Rellenar campos con los límites actuales
-  document.getElementById('x2infInput').value = globalState.limits.x.warning.min;
-  document.getElementById('x2supInput').value = globalState.limits.x.warning.max;
-  document.getElementById('x3infInput').value = globalState.limits.x.critical.min;
-  document.getElementById('x3supInput').value = globalState.limits.x.critical.max;
-  
-  document.getElementById('y2infInput').value = globalState.limits.y.warning.min;
-  document.getElementById('y2supInput').value = globalState.limits.y.warning.max;
-  document.getElementById('y3infInput').value = globalState.limits.y.critical.min;
-  document.getElementById('y3supInput').value = globalState.limits.y.critical.max;
-  
-  document.getElementById('z2infInput').value = globalState.limits.z.warning.min;
-  document.getElementById('z2supInput').value = globalState.limits.z.warning.max;
-  document.getElementById('z3infInput').value = globalState.limits.z.critical.min;
-  document.getElementById('z3supInput').value = globalState.limits.z.critical.max;
+  // Cargar límites y rellenar formulario + tabla
+  loadLimits(); // <- Llamada para cargar límites y actualizar UI
   
   // Inicializar los formularios CRUD
   initCrudForms();
@@ -1637,157 +1624,164 @@ async function loadMachines() {
 
 // Carga los límites desde el backend y actualiza el estado global y el formulario
 async function loadLimits() {
-  console.log("Cargando configuración de límites...");
+  console.log("Cargando límites desde /limits/latest...");
+  const endpoint = '/limits/latest'; // Endpoint GET
   try {
-    // Asumimos que siempre trabajamos con el ID=1 para la configuración de límites activa
-    const limitId = 1;
-    const data = await fetchAPI(`/config/limits/${limitId}`);
-    
-    if (data && data.limit_config) {
-      const limits = data.limit_config;
+    const limitsData = await fetchAPI(endpoint);
+    if (limitsData && limitsData.limit_config_id !== undefined) {
+      console.log("Límites recibidos:", limitsData);
       globalState.limits = {
         x: {
-          warning: { min: limits.x_2inf, max: limits.x_2sup },
-          critical: { min: limits.x_3inf, max: limits.x_3sup }
+          warning: { min: limitsData.x_2inf, max: limitsData.x_2sup },
+          critical: { min: limitsData.x_3inf, max: limitsData.x_3sup }
         },
         y: {
-          warning: { min: limits.y_2inf, max: limits.y_2sup },
-          critical: { min: limits.y_3inf, max: limits.y_3sup }
+          warning: { min: limitsData.y_2inf, max: limitsData.y_2sup },
+          critical: { min: limitsData.y_3inf, max: limitsData.y_3sup }
         },
         z: {
-          warning: { min: limits.z_2inf, max: limits.z_2sup },
-          critical: { min: limits.z_3inf, max: limits.z_3sup }
+          warning: { min: limitsData.z_2inf, max: limitsData.z_2sup },
+          critical: { min: limitsData.z_3inf, max: limitsData.z_3sup }
         }
       };
-      console.log("Límites cargados y estado global actualizado:", globalState.limits);
-      populateLimitsForm(); // Rellena el formulario con los datos cargados
-      updateChartsWithLimits(); // Actualiza las gráficas con los nuevos límites
-      return true;
+      populateLimitsForm(limitsData); // Rellenar el formulario
+      populateLimitsTable(limitsData); // Rellenar la tabla
+      // Actualizar timestamp
+      const lastUpdateSpan = document.getElementById('limitsLastUpdate');
+      if (lastUpdateSpan) {
+          lastUpdateSpan.textContent = limitsData.update_limits ? formatDate(new Date(limitsData.update_limits)) : '-';
+      }
     } else {
-      console.warn("No se encontraron datos de límites válidos en la respuesta.");
-      showToast("No se pudo cargar la configuración de límites.", "warning");
-      // Podríamos mantener los valores por defecto o limpiar el formulario
-      return false;
+      console.warn("No se encontraron datos de límites válidos.");
+      // Podrías mostrar un mensaje en la tabla o formulario
+       const tableBody = document.getElementById('limitsTableBody');
+      if(tableBody) tableBody.innerHTML = '<tr><td colspan="4" class="text-center">No se encontraron límites configurados.</td></tr>';
     }
   } catch (error) {
     console.error('Error al cargar los límites:', error);
-    showToast(`Error al cargar límites: ${error.message || 'Error desconocido'}`, 'error');
-    return false;
+    showToast('Error al cargar la configuración de límites.', 'error');
+     const tableBody = document.getElementById('limitsTableBody');
+     if(tableBody) tableBody.innerHTML = '<tr><td colspan="4" class="text-center">Error al cargar límites.</td></tr>';
   }
 }
 
-// Rellena el formulario de límites con los datos del estado global
-function populateLimitsForm() {
-  if (!globalState.limits) {
-    console.warn("populateLimitsForm: globalState.limits no está definido.");
-    return;
-  }
-  
-  // Verificar que los elementos existen antes de asignarles valor
-  const fields = {
-    'x2infInput': globalState.limits.x?.warning?.min,
-    'x2supInput': globalState.limits.x?.warning?.max,
-    'x3infInput': globalState.limits.x?.critical?.min,
-    'x3supInput': globalState.limits.x?.critical?.max,
-    'y2infInput': globalState.limits.y?.warning?.min,
-    'y2supInput': globalState.limits.y?.warning?.max,
-    'y3infInput': globalState.limits.y?.critical?.min,
-    'y3supInput': globalState.limits.y?.critical?.max,
-    'z2infInput': globalState.limits.z?.warning?.min,
-    'z2supInput': globalState.limits.z?.warning?.max,
-    'z3infInput': globalState.limits.z?.critical?.min,
-    'z3supInput': globalState.limits.z?.critical?.max
-  };
-
-  for (const id in fields) {
-    const element = document.getElementById(id);
-    if (element) {
-      // Asignar solo si el valor no es null o undefined
-      element.value = fields[id] !== null && fields[id] !== undefined ? fields[id] : '';
-    } else {
-      console.warn(`Elemento con ID '${id}' no encontrado en el DOM.`);
-    }
-  }
-  console.log("Formulario de límites poblado.");
+// Rellena el formulario con los datos de límites
+function populateLimitsForm(limits) {
+  document.getElementById('x2infInput').value = limits.x_2inf ?? '';
+  document.getElementById('x2supInput').value = limits.x_2sup ?? '';
+  document.getElementById('x3infInput').value = limits.x_3inf ?? '';
+  document.getElementById('x3supInput').value = limits.x_3sup ?? '';
+  document.getElementById('y2infInput').value = limits.y_2inf ?? '';
+  document.getElementById('y2supInput').value = limits.y_2sup ?? '';
+  document.getElementById('y3infInput').value = limits.y_3inf ?? '';
+  document.getElementById('y3supInput').value = limits.y_3sup ?? '';
+  document.getElementById('z2infInput').value = limits.z_2inf ?? '';
+  document.getElementById('z2supInput').value = limits.z_2sup ?? '';
+  document.getElementById('z3infInput').value = limits.z_3inf ?? '';
+  document.getElementById('z3supInput').value = limits.z_3sup ?? '';
 }
 
-// Guarda los límites actuales del formulario en el backend
-async function saveLimits() {
-  const saveButton = document.getElementById('saveLimitsBtn');
-  const originalText = saveButton.innerHTML; // Guardar contenido HTML (incluye icono)
-  saveButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
-  saveButton.disabled = true;
+// Rellena la tabla con los datos de límites
+function populateLimitsTable(limits) {
+    const tableBody = document.getElementById('limitsTableBody');
+    if (!tableBody) return;
+    tableBody.innerHTML = ''; // Limpiar tabla
 
-  try {
-    // Recopilar datos del formulario de límites
-    const limitData = {
-      x_2inf: parseFloat(document.getElementById('x2infInput').value),
-      x_2sup: parseFloat(document.getElementById('x2supInput').value),
-      x_3inf: parseFloat(document.getElementById('x3infInput').value),
-      x_3sup: parseFloat(document.getElementById('x3supInput').value),
-      y_2inf: parseFloat(document.getElementById('y2infInput').value),
-      y_2sup: parseFloat(document.getElementById('y2supInput').value),
-      y_3inf: parseFloat(document.getElementById('y3infInput').value),
-      y_3sup: parseFloat(document.getElementById('y3supInput').value),
-      z_2inf: parseFloat(document.getElementById('z2infInput').value),
-      z_2sup: parseFloat(document.getElementById('z2supInput').value),
-      z_3inf: parseFloat(document.getElementById('z3infInput').value),
-      z_3sup: parseFloat(document.getElementById('z3supInput').value),
+    const createRow = (axis, level, levelClass, inf, sup) => {
+        const row = document.createElement('tr');
+        row.classList.add(levelClass);
+        row.innerHTML = `
+            <td class="axis-${axis.toLowerCase()}">${axis}</td>
+            <td>${level} (±${level === 'Warning' ? 2 : 3}σ)</td>
+            <td>${inf ?? '-'}</td>
+            <td>${sup ?? '-'}</td>
+        `;
+        return row;
     };
 
-    // Validar que todos los campos sean números válidos (aunque Pydantic lo hará también)
-    for (const key in limitData) {
-      if (isNaN(limitData[key])) {
-        showToast(`El valor para ${key.replace('_', ' ')} no es un número válido.`, 'error');
-        saveButton.innerHTML = originalText;
-        saveButton.disabled = false;
-        return;
+    // Eje X
+    tableBody.appendChild(createRow('X', 'Warning', 'level-warning', limits.x_2inf, limits.x_2sup));
+    tableBody.appendChild(createRow('X', 'Critical', 'level-critical', limits.x_3inf, limits.x_3sup));
+    // Eje Y
+    tableBody.appendChild(createRow('Y', 'Warning', 'level-warning', limits.y_2inf, limits.y_2sup));
+    tableBody.appendChild(createRow('Y', 'Critical', 'level-critical', limits.y_3inf, limits.y_3sup));
+    // Eje Z
+    tableBody.appendChild(createRow('Z', 'Warning', 'level-warning', limits.z_2inf, limits.z_2sup));
+    tableBody.appendChild(createRow('Z', 'Critical', 'level-critical', limits.z_3inf, limits.z_3sup));
+}
+
+// Guarda los límites
+async function saveLimits() {
+  console.log("Intentando guardar límites...");
+  const form = document.getElementById('limitsForm');
+  if (!form.checkValidity()) {
+      form.reportValidity();
+      showToast('Por favor, complete todos los campos de límites.', 'warning');
+      return;
+  }
+
+  // Recoger datos del formulario
+  const limitsData = {
+    x_2inf: parseFloat(document.getElementById('x2infInput').value),
+    x_2sup: parseFloat(document.getElementById('x2supInput').value),
+    x_3inf: parseFloat(document.getElementById('x3infInput').value),
+    x_3sup: parseFloat(document.getElementById('x3supInput').value),
+    y_2inf: parseFloat(document.getElementById('y2infInput').value),
+    y_2sup: parseFloat(document.getElementById('y2supInput').value),
+    y_3inf: parseFloat(document.getElementById('y3infInput').value),
+    y_3sup: parseFloat(document.getElementById('y3supInput').value),
+    z_2inf: parseFloat(document.getElementById('z2infInput').value),
+    z_2sup: parseFloat(document.getElementById('z2supInput').value),
+    z_3inf: parseFloat(document.getElementById('z3infInput').value),
+    z_3sup: parseFloat(document.getElementById('z3supInput').value),
+  };
+
+  // Validación simple: inf < sup
+  for (const axis of ['x', 'y', 'z']) {
+      if (limitsData[`${axis}_2inf`] >= limitsData[`${axis}_2sup`]) {
+          showToast(`Error en Eje ${axis.toUpperCase()}: Límite inferior (Warning) debe ser menor que el superior.`, 'error');
+          return;
       }
-    }
+      if (limitsData[`${axis}_3inf`] >= limitsData[`${axis}_3sup`]) {
+          showToast(`Error en Eje ${axis.toUpperCase()}: Límite inferior (Critical) debe ser menor que el superior.`, 'error');
+          return;
+      }
+  }
 
-    console.log("Enviando datos de límites para guardar:", limitData);
+  const endpoint = '/limits/1'; // Endpoint PUT
+  console.log("Enviando límites a", endpoint, limitsData);
 
-    // Asumimos que siempre actualizamos la configuración con ID=1
-    const limitId = 1;
-    const response = await fetchAPI(`/config/limits/${limitId}`, {
+  try {
+    const updatedLimits = await fetchAPI(endpoint, {
       method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(limitData)
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(limitsData)
     });
 
-    // Actualizar estado global y UI si la operación fue exitosa
-    if (response && response.limit_config) { // Verificar la respuesta del endpoint específico
-      console.log("Respuesta del servidor al guardar límites:", response.limit_config);
-      // Volver a cargar los límites para asegurar consistencia
-      await loadLimits(); 
-      showToast('Límites guardados correctamente', 'success');
-      updateChartsWithLimits(); // Actualizar gráficas
+    if (updatedLimits && updatedLimits.limit_config_id !== undefined) {
+      showToast('Límites actualizados correctamente', 'success');
+      // Actualizar estado global y UI (formulario y tabla)
+      loadLimits();
     } else {
-      // Si la respuesta no es la esperada, mostrar error genérico o detalles si están disponibles
-      const errorDetail = response?.detail || 'Respuesta inesperada del servidor.';
-      console.error('Error al guardar límites - Respuesta inválida:', response);
-      showToast(`Error al guardar límites: ${errorDetail}`, 'error');
+      // fetchAPI maneja errores y muestra toast
+      console.error('Error al guardar límites, respuesta inválida:', updatedLimits);
     }
-
   } catch (error) {
-    console.error('Error al guardar los límites:', error);
-    showToast(`Error al guardar límites: ${error.message || 'Error desconocido'}`, 'error');
-  } finally {
-    // Restaurar botón independientemente del resultado
-    saveButton.innerHTML = originalText;
-    saveButton.disabled = false;
+    // Errores inesperados no capturados por fetchAPI
+    console.error('Error inesperado al guardar límites:', error);
+    // fetchAPI ya debería haber mostrado un toast
   }
 }
 
-// Resetea los campos del formulario de límites
+// Resetea el formulario de límites
 function resetLimitsForm() {
-  document.getElementById('limitsForm').reset(); // Usa el reset nativo del formulario
-  document.getElementById('limitIdInput').value = ''; // Limpiar ID oculto si se usara
-  console.log("Formulario de límites reseteado.");
-  // Opcional: Rellenar con los valores por defecto si es necesario después del reset
-  // populateLimitsForm(); 
+    console.log("Reseteando formulario de límites...");
+    const form = document.getElementById('limitsForm');
+    if (form) {
+        form.reset();
+        // Volver a cargar los valores actuales desde el estado global o API
+        loadLimits();
+    }
 }
 
 // --- Modelo ---

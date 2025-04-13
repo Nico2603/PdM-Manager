@@ -582,7 +582,7 @@ p {
     display: flex;
     justify-content: flex-end;
     align-items: center;
-    background-color: var(--card-bg);
+    background-color: var(--color-background-light);
     border-radius: 8px;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 }
@@ -1567,4 +1567,100 @@ select.form-control {
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
+}
+
+/* Layout específico para la sección de límites */
+.limits-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr; /* Dos columnas iguales */
+  gap: var(--spacing-lg);
+}
+
+/* Estilos para las tarjetas dentro del layout de límites */
+.config-card-form {
+  /* Estilos específicos si son necesarios */
+}
+
+.config-card-table {
+  /* Estilos específicos si son necesarios */
+}
+
+/* Ajuste responsivo para el layout de límites */
+@media (max-width: 1200px) {
+  .limits-layout {
+    grid-template-columns: 1fr; /* Una columna en pantallas más pequeñas */
+  }
+}
+
+.config-card .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: var(--header-bg);
+    padding: 15px 20px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+/* Estructura del formulario de límites mejorada */
+.form-section {
+  margin-bottom: 20px; /* Más espacio entre secciones de ejes */
+}
+
+.form-section h6 {
+  color: var(--color-primary); /* Color de acento para los títulos de eje */
+  margin-bottom: 10px;
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: 5px;
+}
+
+.limit-row {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr); /* Dos grupos por fila */
+  gap: 15px;
+}
+
+.limit-input-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.limit-input-group label {
+  font-size: 0.85rem; /* Tamaño de fuente más pequeño para etiquetas */
+  color: var(--color-text-secondary);
+  margin-bottom: 4px;
+}
+
+.input-pair {
+  display: flex;
+  gap: 5px;
+}
+
+.input-pair input {
+  /* Los inputs ya tienen estilo de .form-control */
+}
+
+/* Estilos para la tabla de límites */
+.table-limits th {
+  background-color: var(--color-background); /* Fondo más oscuro para cabecera */
+  color: var(--color-text-secondary);
+  font-weight: 600;
+}
+
+.table-limits td {
+  vertical-align: middle;
+  font-size: 0.9rem;
+}
+
+.table-limits .axis-x { color: var(--color-success); font-weight: 500; }
+.table-limits .axis-y { color: var(--color-warning); font-weight: 500; }
+.table-limits .axis-z { color: var(--color-danger); font-weight: 500; }
+
+.table-limits .level-warning { background-color: rgba(243, 156, 18, 0.1); }
+.table-limits .level-critical { background-color: rgba(231, 76, 60, 0.1); }
+
+.form-group label {
+    display: block;
+    margin-bottom: 5px;
+    color: var(--text-secondary);
+    font-weight: 500;
 }

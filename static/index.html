@@ -294,79 +294,77 @@
             <div class="config-content">
               <!-- Sección: Límites -->
               <div id="config-limits" class="config-tab-content active">
-                <div class="config-grid">
-                  <!-- Formulario para editar límites -->
-                  <div class="config-card animate-slide-up">
+                <div class="limits-layout"> <!-- Contenedor principal para límites -->
+                  <!-- Formulario para editar límites (izquierda) -->
+                  <div class="config-card config-card-form animate-slide-up">
                     <div class="card-header">
-                      <h5><i class="fas fa-exclamation-triangle"></i> Configuración de Límites</h5>
+                      <h5><i class="fas fa-edit"></i> Editar Límites</h5>
                     </div>
                     <div class="card-body">
                       <form id="limitsForm">
-                        <input type="hidden" id="limitIdInput" value="">
-                        
                         <!-- Límites Eje X -->
-                        <div class="form-group">
+                        <div class="form-section">
                           <h6>Eje X</h6>
-                          <div class="limit-inputs">
+                          <div class="limit-row">
                             <div class="limit-input-group">
-                              <label>Warning (±2σ):</label>
-                              <div class="d-flex">
+                              <label>Warning (±2σ)</label>
+                              <div class="input-pair">
                                 <input type="number" id="x2infInput" class="form-control" step="0.01" placeholder="Min" required>
                                 <input type="number" id="x2supInput" class="form-control" step="0.01" placeholder="Max" required>
                               </div>
                             </div>
                             <div class="limit-input-group">
-                              <label>Critical (±3σ):</label>
-                              <div class="d-flex">
+                              <label>Critical (±3σ)</label>
+                              <div class="input-pair">
                                 <input type="number" id="x3infInput" class="form-control" step="0.01" placeholder="Min" required>
                                 <input type="number" id="x3supInput" class="form-control" step="0.01" placeholder="Max" required>
                               </div>
                             </div>
                           </div>
                         </div>
-                        
+
                         <!-- Límites Eje Y -->
-                        <div class="form-group mt-3">
+                        <div class="form-section">
                           <h6>Eje Y</h6>
-                          <div class="limit-inputs">
+                          <div class="limit-row">
                             <div class="limit-input-group">
-                              <label>Warning (±2σ):</label>
-                              <div class="d-flex">
+                              <label>Warning (±2σ)</label>
+                              <div class="input-pair">
                                 <input type="number" id="y2infInput" class="form-control" step="0.01" placeholder="Min" required>
                                 <input type="number" id="y2supInput" class="form-control" step="0.01" placeholder="Max" required>
                               </div>
                             </div>
                             <div class="limit-input-group">
-                              <label>Critical (±3σ):</label>
-                              <div class="d-flex">
+                              <label>Critical (±3σ)</label>
+                              <div class="input-pair">
                                 <input type="number" id="y3infInput" class="form-control" step="0.01" placeholder="Min" required>
                                 <input type="number" id="y3supInput" class="form-control" step="0.01" placeholder="Max" required>
                               </div>
                             </div>
                           </div>
                         </div>
-                        
+
                         <!-- Límites Eje Z -->
-                        <div class="form-group mt-3">
+                        <div class="form-section">
                           <h6>Eje Z</h6>
-                          <div class="limit-inputs">
+                          <div class="limit-row">
                             <div class="limit-input-group">
-                              <label>Warning (±2σ):</label>
-                              <div class="d-flex">
+                              <label>Warning (±2σ)</label>
+                              <div class="input-pair">
                                 <input type="number" id="z2infInput" class="form-control" step="0.01" placeholder="Min" required>
                                 <input type="number" id="z2supInput" class="form-control" step="0.01" placeholder="Max" required>
                               </div>
                             </div>
                             <div class="limit-input-group">
-                              <label>Critical (±3σ):</label>
-                              <div class="d-flex">
+                              <label>Critical (±3σ)</label>
+                              <div class="input-pair">
                                 <input type="number" id="z3infInput" class="form-control" step="0.01" placeholder="Min" required>
                                 <input type="number" id="z3supInput" class="form-control" step="0.01" placeholder="Max" required>
                               </div>
                             </div>
                           </div>
                         </div>
-                        
+
                         <div class="form-buttons mt-3">
                           <button type="button" id="resetLimitsBtn" class="btn btn-outline-secondary">
                             <i class="fas fa-undo"></i> Limpiar
@@ -378,7 +376,38 @@
                       </form>
                     </div>
                   </div>
-                </div>
+
+                  <!-- Tabla de Límites Actuales (derecha) -->
+                  <div class="config-card config-card-table animate-slide-up">
+                     <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5><i class="fas fa-list-ul"></i> Límites Actuales</h5>
+                        <button id="refreshLimitsBtn" class="btn btn-sm btn-outline-primary">
+                            <i class="fas fa-sync-alt"></i> Actualizar
+                        </button>
+                     </div>
+                     <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-limits table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Eje</th>
+                                        <th>Nivel</th>
+                                        <th>Límite Inferior</th>
+                                        <th>Límite Superior</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="limitsTableBody">
+                                    <!-- Filas se cargarán dinámicamente -->
+                                    <tr><td colspan="4" class="text-center">Cargando límites...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <p class="text-muted mt-2" style="font-size: 0.8rem;">
+                            Última actualización: <span id="limitsLastUpdate">-</span>
+                        </p>
+                     </div>
+                  </div>
+                </div> <!-- Fin de limits-layout -->
               </div>
               
               <!-- Sección: Modelo -->

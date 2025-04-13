@@ -519,16 +519,17 @@ async def get_all_limits_endpoint(db: Session = Depends(get_db)):
         logger.error(f"Error al obtener límites: {e}", exc_info=True)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error interno al obtener límites")
 
-@router.get("/limits/latest", response_model=LimitResponse, summary="Obtener la última configuración de límites")
+@router.get("/limits/latest", response_model=LimitResponse, summary="Obtener la última configuración de límites (activa)")
 async def get_latest_limit_endpoint(db: Session = Depends(get_db)):
     """
-    Obtiene la configuración de límites más reciente.
+    Obtiene la configuración de límites más reciente (asumida como la activa).
+    Utiliza la función `get_latest_limit_config` que busca ID=1 o la más reciente.
     """
     try:
         limit_config = get_latest_limit_config(db)
         if not limit_config:
-            # Esto no debería pasar si get_latest_limit_config crea uno por defecto
-             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No se encontró configuración de límites.")
+             # Esto podría pasar si ensure_default_limits_exist falló o no se ejecutó
+             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No se encontró configuración de límites activa.")
         return limit_config
     except Exception as e:
         logger.error(f"Error al obtener la última configuración de límites: {e}", exc_info=True)
@@ -573,4 +574,47 @@ async def remove_limit_endpoint(
         return
     except Exception as e:
         logger.error(f"Error al eliminar límite ID {limit_id}: {e}", exc_info=True)
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error interno al eliminar límite: {str(e)}") 
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error interno al eliminar límite: {str(e)}")
+
+# --- Endpoint PUT para actualizar límites (usando ID 1) ---
+class LimitUpdateData(BaseModel):
+    """ Esquema específico para la actualización de límites. """
+    x_2inf: Optional[float] = None
+    x_2sup: Optional[float] = None
+    x_3inf: Optional[float] = None
+    x_3sup: Optional[float] = None
+    y_2inf: Optional[float] = None
+    y_2sup: Optional[float] = None
+    y_3inf: Optional[float] = None
+    y_3sup: Optional[float] = None
+    z_2inf: Optional[float] = None
+    z_2sup: Optional[float] = None
+    z_3inf: Optional[float] = None
+    z_3sup: Optional[float] = None
+
+    class Config:
+        protected_namespaces = ()
+
+@router.put("/limits/1", response_model=LimitResponse, summary="Actualizar la configuración de límites activa (ID=1)")
+async def update_active_limit_endpoint(limit_data: LimitUpdateData, db: Session = Depends(get_db)):
+    """
+    Actualiza la configuración de límites activa, que se asume tiene ID=1.
+    Utiliza la función `create_or_update_limit_config`.
+    """
+    try:
+        # Convertir Pydantic a dict, excluyendo los no establecidos para no sobrescribir con None
+        update_dict = limit_data.dict(exclude_unset=True)
+        if not update_dict:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No se proporcionaron datos para actualizar.")
+
+        # Llamar a la función CRUD que actualiza o crea la entrada ID=1
+        updated_limit = create_or_update_limit_config(db, update_dict)
+        return updated_limit
+    except HTTPException as he:
+        raise he # Re-lanzar excepciones HTTP de la función CRUD (e.g., 500 si ID=1 no existe)
+    except ValueError as ve: # Errores de validación (aunque Pydantic debería atrapar la mayoría)
+        logger.warning(f"Error de validación al actualizar límites: {ve}")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(ve))
+    except Exception as e:
+        logger.error(f"Error inesperado al actualizar límites (ID=1): {e}", exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error interno al actualizar límites: {str(e)}") 
