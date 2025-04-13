@@ -1495,57 +1495,38 @@ function toggleChartVisibility() {
 
 // Cargar modelos y poblar la tabla
 async function loadModels() {
+  const endpoint = '/models'; // Usar la nueva ruta
+  console.log("Cargando modelos desde", endpoint);
   try {
-    const models = await fetchAPI('/models');
+    const models = await fetchAPI(endpoint);
     const tableBody = document.getElementById('modelsTableBody');
-    const selectElement = document.getElementById('sensorModelIdInput');
-    
-    if (tableBody) {
-      tableBody.innerHTML = '';
-      
-      if (models.length === 0) {
-        tableBody.innerHTML = '<tr><td colspan="6" class="text-center">No hay modelos configurados</td></tr>';
-      } else {
-        models.forEach(model => {
-          tableBody.innerHTML += `
-            <tr>
-              <td>${model.model_id}</td>
-              <td>${model.name || '-'}</td>
-              <td>${model.description || '-'}</td>
-              <td>${truncateText(model.route_h5 || '-', 20)}</td>
-              <td>${truncateText(model.route_pkl || '-', 20)}</td>
-              <td>
-                <button class="btn btn-sm btn-primary" onclick="editModel(${model.model_id})">
-                  <i class="fas fa-edit"></i>
-                </button>
-                <button class="btn btn-sm btn-danger" onclick="deleteModel(${model.model_id})">
-                  <i class="fas fa-trash"></i>
-                </button>
-              </td>
-            </tr>
-          `;
-        });
-      }
-    }
-    
-    // Poblar el selector de modelos para sensores
-    if (selectElement) {
-      // Guardar el valor seleccionado actualmente
-      const currentValue = selectElement.value;
-      selectElement.innerHTML = '<option value="" disabled selected>Seleccione un modelo</option>';
-      
+    if (!tableBody) return;
+    tableBody.innerHTML = ''; // Limpiar tabla
+
+    if (models && models.length > 0) {
       models.forEach(model => {
-        selectElement.innerHTML += `<option value="${model.model_id}">${model.name || `Modelo ${model.model_id}`}</option>`;
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td>${model.model_id}</td>
+          <td>${model.name || '-'}</td>
+          <td title="${model.description || ''}">${truncateText(model.description || '-', 30)}</td>
+          <td title="${model.route_h5 || ''}">${truncateText(model.route_h5 || '-', 20)}</td>
+          <td title="${model.route_pkl || ''}">${truncateText(model.route_pkl || '-', 20)}</td>
+          <td class="action-buttons">
+            <button class="btn btn-sm btn-outline-primary" onclick="editModel(${model.model_id})"><i class="fas fa-edit"></i></button>
+            <button class="btn btn-sm btn-outline-danger" onclick="deleteModel(${model.model_id})"><i class="fas fa-trash"></i></button>
+          </td>
+        `;
+        tableBody.appendChild(row);
       });
-      
-      // Restaurar el valor seleccionado si existe
-      if (currentValue) {
-        selectElement.value = currentValue;
-      }
+    } else {
+      tableBody.innerHTML = '<tr><td colspan="6" class="text-center">No hay modelos configurados</td></tr>';
     }
   } catch (error) {
-    console.error('Error al cargar los modelos:', error);
-    showToast('Error al cargar los modelos', 'error');
+    console.error('Error cargando modelos:', error);
+    showToast('Error al cargar los modelos. Verifique la conexión.', 'error');
+    const tableBody = document.getElementById('modelsTableBody');
+    if (tableBody) tableBody.innerHTML = '<tr><td colspan="6" class="text-center">Error al cargar modelos</td></tr>';
   }
 }
 
@@ -1855,83 +1836,88 @@ async function editModel(modelId) {
 
 // Guarda (Crea o Actualiza) un modelo
 async function saveModel() {
-  const modelId = document.getElementById('modelIdInput').value;
-  const isUpdating = !!modelId; // True si hay un ID, indica actualización
-  const url = isUpdating ? `/models/${modelId}` : '/models';
-  const method = isUpdating ? 'PUT' : 'POST';
+  console.log("Intentando guardar modelo...");
+  const form = document.getElementById('modelForm');
+  if (!form) return;
 
-  const saveButton = document.getElementById('saveModelBtn');
-  const originalText = saveButton.innerHTML;
-  saveButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
-  saveButton.disabled = true;
-
-  // TODO: Manejar carga de archivos .h5 y .pkl si se seleccionaron nuevos.
-  // Esto requeriría enviar FormData en lugar de JSON, o un endpoint separado /upload.
-  // Por ahora, asumimos que las rutas se escriben manualmente.
-
-  const modelData = {
-    name: document.getElementById('modelNameInput').value.trim(),
-    description: document.getElementById('modelDescriptionInput').value.trim(),
-    route_h5: document.getElementById('modelRouteH5Input').value.trim(),
-    route_pkl: document.getElementById('modelRoutePklInput').value.trim(),
-  };
-
-  // Validación básica en frontend
-  if (!modelData.name || !modelData.route_h5 || !modelData.route_pkl) {
-    showToast('Nombre, Ruta H5 y Ruta PKL son obligatorios.', 'error');
-    saveButton.innerHTML = originalText;
-    saveButton.disabled = false;
+  // Validar campos requeridos del formulario HTML5
+  if (!form.checkValidity()) {
+    form.reportValidity(); // Mostrar mensajes de validación del navegador
+    showToast('Por favor, complete todos los campos requeridos.', 'warning');
     return;
   }
 
+  const modelId = document.getElementById('modelIdInput').value;
+  const name = document.getElementById('modelNameInput').value;
+  const description = document.getElementById('modelDescriptionInput').value;
+  const routeH5 = document.getElementById('modelRouteH5Input').value;
+  const routePkl = document.getElementById('modelRoutePklInput').value;
+
+  // Validación adicional para asegurar que las rutas no estén vacías
+  if (!routeH5 || !routePkl) {
+      showToast('Las rutas de los archivos de modelo y escalador son obligatorias.', 'warning');
+      return;
+  }
+
+  const modelData = {
+    name: name,
+    description: description,
+    route_h5: routeH5,
+    route_pkl: routePkl
+  };
+
+  const method = modelId ? 'PUT' : 'POST';
+  const endpoint = modelId ? `/models/${modelId}` : '/models';
+
+  console.log(`Enviando modelo ${modelId ? 'actualizado' : 'nuevo'} a ${endpoint}`, modelData);
+
   try {
-    const response = await fetchAPI(url, {
+    const result = await fetchAPI(endpoint, {
       method: method,
-      headers: {
-        'Content-Type': 'application/json'
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(modelData)
     });
 
-    // La respuesta debería ser el modelo creado/actualizado
-    if (response && response.model_id) {
-      showToast(`Modelo ${isUpdating ? 'actualizado' : 'creado'} correctamente`, 'success');
-      resetModelForm(); // Limpiar formulario
-      await loadModels(); // Recargar la tabla de modelos
+    if (result) {
+      showToast(`Modelo ${modelId ? 'actualizado' : 'creado'} correctamente`, 'success');
+      resetModelForm();
+      loadModels(); // Actualizar la tabla después de guardar
     } else {
-      // Si hay error, el backend debería devolver detalles
-      const errorDetail = response?.detail || 'Respuesta inesperada del servidor.';
-      console.error('Error al guardar modelo - Respuesta inválida:', response);
-      showToast(`Error al guardar modelo: ${errorDetail}`, 'error');
+      // fetchAPI ya muestra toast de error genérico
+      console.error('fetchAPI devolvió null o undefined al guardar modelo');
     }
   } catch (error) {
-    console.error('Error al guardar el modelo:', error);
-    showToast(`Error al guardar modelo: ${error.message || 'Error desconocido'}`, 'error');
-  } finally {
-    saveButton.innerHTML = originalText;
-    saveButton.disabled = false;
+    // Los errores específicos (404, 409, 500) deben ser manejados por fetchAPI
+    // y mostrar un toast adecuado. Aquí solo loggeamos si algo más falla.
+    console.error(`Error inesperado al guardar modelo:`, error);
   }
 }
 
 // Elimina un modelo
 async function deleteModel(modelId) {
-  // Confirmación
-  if (!confirm(`¿Está seguro de que desea eliminar el modelo con ID ${modelId}? Esta acción no se puede deshacer.`)) {
+  console.log(`Intentando eliminar modelo ID: ${modelId}`);
+  if (!confirm(`¿Está seguro de que desea eliminar el modelo con ID ${modelId}?`)) {
     return;
   }
 
-  console.log(`Eliminando modelo con ID: ${modelId}`);
+  const endpoint = `/models/${modelId}`;
+
   try {
-    // No se espera contenido en la respuesta (status 204)
-    await fetchAPI(`/models/${modelId}`, {
-      method: 'DELETE'
-    }); 
-    showToast('Modelo eliminado correctamente', 'success');
-    await loadModels(); // Recargar la tabla de modelos
+    const result = await fetchAPI(endpoint, { method: 'DELETE' });
+
+    // DELETE exitoso no devuelve cuerpo, fetchAPI puede devolver null o response
+    // Verificar status o si fetchAPI ya manejó el error
+    if (result !== false) { // fetchAPI devuelve false si hubo error y mostró toast
+        showToast(`Modelo ${modelId} eliminado correctamente`, 'success');
+        loadModels(); // Actualizar la tabla
+    } else {
+        // Si fetchAPI devolvió false, ya mostró un toast de error
+        console.log("fetchAPI indicó un error al eliminar el modelo.")
+    }
   } catch (error) {
-    console.error('Error al eliminar el modelo:', error);
-    // El error puede venir del fetchAPI (red) o si el backend devuelve error (ej. 400, 404, 500)
-    showToast(`Error al eliminar modelo: ${error.message || 'Error desconocido'}`, 'error');
+      // Error inesperado no capturado por fetchAPI
+      console.error(`Error inesperado al eliminar modelo ${modelId}:`, error);
+      showToast(`Error inesperado al eliminar modelo ${modelId}`, 'error');
   }
 }
 

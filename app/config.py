@@ -19,6 +19,7 @@ from typing import Optional, Dict, Any, List, ClassVar
 from datetime import datetime
 from sqlalchemy.exc import SQLAlchemyError
 import logging
+from app.models import Model, Sensor
 
 router = APIRouter(tags=["configuración"])
 logger = logging.getLogger("pdm_manager.config_router") # Logger para este módulo
@@ -31,7 +32,7 @@ logger = logging.getLogger("pdm_manager.config_router") # Logger para este módu
 class ModelCreate(BaseModel):
     """Esquema para crear un nuevo modelo"""
     name: str = Field(..., description="Nombre del modelo")
-    description: Optional[str] = Field(None, description="Descripción del modelo")
+    description: str = Field(..., description="Descripción del modelo")
     route_h5: str = Field(..., description="Ruta al archivo del modelo (.h5)")
     route_pkl: str = Field(..., description="Ruta al archivo del escalador (.pkl)")
 
