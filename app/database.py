@@ -17,7 +17,7 @@ ENCODED_PASSWORD = quote_plus(PASSWORD)
 DB_USER = os.getenv("DB_USER", "postgres")
 DB_HOST = os.getenv("DB_HOST", "localhost")
 DB_PORT = os.getenv("DB_PORT", "5432")
-DB_NAME = os.getenv("DB_NAME", "pdm_db")
+DB_NAME = os.getenv("DB_NAME", "PdM")
 
 # Opciones de conexión para asegurar la codificación correcta y manejo de timeouts
 connection_options = {
