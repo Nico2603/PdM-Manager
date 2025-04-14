@@ -865,7 +865,7 @@ async function loadDashboardData() {
     }
     
     // Verificar estado de configuración
-    checkConfiguration();
+    // checkConfiguration();
     
     // Cargar datos de vibración si hay un sensor seleccionado y el sistema está configurado
     if (globalState.currentSensor && isConfigured) {
