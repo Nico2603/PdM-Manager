@@ -438,7 +438,16 @@ def get_full_config(db: Session) -> Dict[str, Any]:
             "active_model_id": system_config.active_model_id,
             "last_update": system_config.last_update.isoformat() if system_config.last_update else None
         },
-        "limit_config": {
+        "limit_config": None, # Valor inicial por si no se encuentran límites
+        "model": model_info,
+        "sensors": sensors_info,
+        "machines": machines_info
+    }
+
+    # Agregar información de límites solo si existe
+    if limit_config:
+        config["limit_config"] = {
+            "limit_config_id": limit_config.limit_config_id, # Añadir ID para referencia
             "x_2inf": limit_config.x_2inf,
             "x_2sup": limit_config.x_2sup,
             "x_3inf": limit_config.x_3inf,
@@ -452,12 +461,13 @@ def get_full_config(db: Session) -> Dict[str, Any]:
             "z_3inf": limit_config.z_3inf,
             "z_3sup": limit_config.z_3sup,
             "update_limits": limit_config.update_limits.isoformat() if limit_config.update_limits else None
-        },
-        "model": model_info,
-        "sensors": sensors_info,
-        "machines": machines_info
-    }
-    
+        }
+    else:
+        # Si no hay límites, podemos poner valores por defecto o dejarlo null
+        # Opcional: Poblar con valores por defecto si es preferible a null
+        logger.warning("get_full_config: No se encontró limit_config (ID=1). Devolviendo null para limit_config.")
+        # config["limit_config"] = { ... valores por defecto ... }
+
     return config
 
 def update_full_config(db: Session, config_data: Dict[str, Any]) -> Dict[str, Any]:
