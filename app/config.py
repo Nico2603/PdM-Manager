@@ -1,5 +1,5 @@
 # app/config.py
-from fastapi import APIRouter, Depends, HTTPException, Body, status, Query, Path
+from fastapi import APIRouter, Depends, HTTPException, Body, status, Query, Path, File, UploadFile, Form
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.crud_config import (
@@ -20,9 +20,21 @@ from datetime import datetime
 from sqlalchemy.exc import SQLAlchemyError
 import logging
 from app.models import Model, Sensor
+# Imports necesarios para manejo de archivos
+import os
+import shutil
 
 router = APIRouter(tags=["configuración"])
 logger = logging.getLogger("pdm_manager.config_router") # Logger para este módulo
+
+# Directorios base (asegúrate que coincidan con los de main.py si los usas allí)
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+MODELO_DIR = os.path.join(BASE_DIR, "Modelo")
+SCALER_DIR = os.path.join(BASE_DIR, "Scaler")
+
+# Asegurar que los directorios existan
+os.makedirs(MODELO_DIR, exist_ok=True)
+os.makedirs(SCALER_DIR, exist_ok=True)
 
 # ---------------------------------------------------------
 # ESQUEMAS DE VALIDACIÓN Y RESPUESTA Pydantic
@@ -183,52 +195,224 @@ async def get_model(model_id: int = Path(..., description="ID del modelo a obten
         logger.error(f"Error al obtener modelo ID {model_id}: {e}", exc_info=True)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error interno al obtener modelo {model_id}")
 
-@router.post("/models", response_model=ModelResponse, status_code=status.HTTP_201_CREATED, summary="Crear un nuevo modelo")
-async def create_model(model_data: ModelCreate = Body(...), db: Session = Depends(get_db)):
+@router.post("/models", response_model=ModelResponse, status_code=status.HTTP_201_CREATED, summary="Crear un nuevo modelo con archivos")
+async def create_model_with_files(
+    name: str = Form(...),
+    description: str = Form(...),
+    file_h5: UploadFile = File(..., description="Archivo del modelo .h5"),
+    file_pkl: UploadFile = File(..., description="Archivo del escalador .pkl"),
+    db: Session = Depends(get_db)
+):
+    """Crea un nuevo modelo, guardando los archivos .h5 y .pkl en el servidor."""
+    logger.info(f"Recibida solicitud para crear modelo: {name}")
+    
+    # --- Validación básica de nombres de archivo ---
+    if not file_h5.filename.endswith('.h5'):
+        raise HTTPException(status_code=400, detail="El archivo de modelo debe tener extensión .h5")
+    if not file_pkl.filename.endswith('.pkl'):
+        raise HTTPException(status_code=400, detail="El archivo escalador debe tener extensión .pkl")
+        
+    # --- Guardar archivos --- 
+    try:
+        # Construir rutas de destino relativas y absolutas
+        h5_filename = file_h5.filename
+        pkl_filename = file_pkl.filename
+        
+        h5_relative_path = os.path.join("Modelo", h5_filename).replace("\\", "/") # Ruta relativa para BD
+        pkl_relative_path = os.path.join("Scaler", pkl_filename).replace("\\", "/") # Ruta relativa para BD
+        
+        h5_save_path = os.path.join(MODELO_DIR, h5_filename) # Ruta absoluta para guardar
+        pkl_save_path = os.path.join(SCALER_DIR, pkl_filename) # Ruta absoluta para guardar
+        
+        logger.info(f"Guardando archivo H5 en: {h5_save_path}")
+        with open(h5_save_path, "wb") as buffer:
+            shutil.copyfileobj(file_h5.file, buffer)
+            
+        logger.info(f"Guardando archivo PKL en: {pkl_save_path}")
+        with open(pkl_save_path, "wb") as buffer:
+            shutil.copyfileobj(file_pkl.file, buffer)
+            
+    except Exception as e:
+        logger.error(f"Error al guardar archivos para el modelo '{name}': {e}", exc_info=True)
+        # Intentar eliminar archivos si uno falló (opcional)
+        if os.path.exists(h5_save_path): os.remove(h5_save_path)
+        if os.path.exists(pkl_save_path): os.remove(pkl_save_path)
+        raise HTTPException(status_code=500, detail=f"Error interno al guardar los archivos del modelo: {str(e)}")
+    finally:
+        # Siempre cerrar los archivos
+        await file_h5.close()
+        await file_pkl.close()
+        
+    # --- Crear entrada en BD --- 
     try:
         # Verificar si ya existe un modelo con ese nombre
-        existing_model = db.query(Model).filter(Model.name == model_data.name).first()
+        existing_model = db.query(Model).filter(Model.name == name).first()
         if existing_model:
+            # Eliminar archivos guardados si el modelo ya existe
+            if os.path.exists(h5_save_path): os.remove(h5_save_path)
+            if os.path.exists(pkl_save_path): os.remove(pkl_save_path)
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail=f"Ya existe un modelo con el nombre '{model_data.name}'"
+                detail=f"Ya existe un modelo con el nombre '{name}'"
             )
         
-        new_model = create_new_model(db, model_data.dict())
+        model_data_dict = {
+            "name": name,
+            "description": description,
+            "route_h5": h5_relative_path, # Guardar ruta relativa
+            "route_pkl": pkl_relative_path # Guardar ruta relativa
+        }
+        new_model = create_new_model(db, model_data_dict)
+        logger.info(f"Modelo '{name}' creado en BD con ID {new_model.model_id}")
         return new_model
-    except HTTPException as http_exc: # Re-lanzar excepciones HTTP
+    except HTTPException as http_exc: 
+        # Eliminar archivos si la creación en BD falló por conflicto o error HTTP
+        if os.path.exists(h5_save_path): os.remove(h5_save_path)
+        if os.path.exists(pkl_save_path): os.remove(pkl_save_path)
         raise http_exc
     except Exception as e:
-        logger.error(f"Error al crear modelo '{model_data.name}': {e}", exc_info=True)
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error interno al crear modelo: {str(e)}")
+        logger.error(f"Error al crear el modelo '{name}' en la BD: {e}", exc_info=True)
+        # Eliminar archivos guardados si hay error de BD
+        if os.path.exists(h5_save_path): os.remove(h5_save_path)
+        if os.path.exists(pkl_save_path): os.remove(pkl_save_path)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error interno al crear modelo en BD: {str(e)}")
 
-@router.put("/models/{model_id}", response_model=ModelResponse, summary="Actualizar un modelo existente")
-async def update_model(model_id: int = Path(..., description="ID del modelo a actualizar"),
-                      model_data: ModelUpdate = Body(...),
-                      db: Session = Depends(get_db)):
-    try:
-        # Verificar si el nombre ya está en uso por otro modelo
-        if model_data.name:
-            existing_model_with_name = db.query(Model).filter(Model.name == model_data.name, Model.model_id != model_id).first()
+@router.put("/models/{model_id}", response_model=ModelResponse, summary="Actualizar un modelo existente (con opción de nuevos archivos)")
+async def update_model_with_files(
+    model_id: int = Path(..., description="ID del modelo a actualizar"),
+    name: Optional[str] = Form(None),
+    description: Optional[str] = Form(None),
+    file_h5: Optional[UploadFile] = File(None, description="Nuevo archivo .h5 (opcional)"),
+    file_pkl: Optional[UploadFile] = File(None, description="Nuevo archivo .pkl (opcional)"),
+    db: Session = Depends(get_db)
+):
+    logger.info(f"Recibida solicitud para actualizar modelo ID: {model_id}")
+    update_data = {}
+    h5_save_path = None
+    pkl_save_path = None
+    old_h5_path = None
+    old_pkl_path = None
+
+    # Obtener modelo existente
+    db_model = get_model_by_id(db, model_id)
+    if not db_model:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Modelo con ID {model_id} no encontrado")
+    
+    # Guardar rutas antiguas por si necesitamos revertir o eliminar
+    if db_model.route_h5: old_h5_path = os.path.join(BASE_DIR, db_model.route_h5)
+    if db_model.route_pkl: old_pkl_path = os.path.join(BASE_DIR, db_model.route_pkl)
+
+    # Validar y preparar actualización de nombre y descripción
+    if name is not None:
+        if name != db_model.name:
+            existing_model_with_name = db.query(Model).filter(Model.name == name, Model.model_id != model_id).first()
             if existing_model_with_name:
                  raise HTTPException(
                      status_code=status.HTTP_409_CONFLICT,
-                     detail=f"El nombre '{model_data.name}' ya está en uso por otro modelo."
+                     detail=f"El nombre '{name}' ya está en uso por otro modelo."
                  )
-                 
-        updated_model = update_existing_model(db, model_id, model_data.dict(exclude_unset=True))
+            update_data["name"] = name
+            
+    if description is not None and description != db_model.description:
+        update_data["description"] = description
+        
+    # --- Procesar y guardar archivo H5 si se proporcionó --- 
+    if file_h5:
+        if not file_h5.filename.endswith('.h5'):
+            raise HTTPException(status_code=400, detail="El archivo de modelo debe tener extensión .h5")
+        try:
+            h5_filename = file_h5.filename
+            h5_relative_path = os.path.join("Modelo", h5_filename).replace("\\", "/")
+            h5_save_path = os.path.join(MODELO_DIR, h5_filename)
+            
+            logger.info(f"Guardando nuevo archivo H5 en: {h5_save_path}")
+            with open(h5_save_path, "wb") as buffer:
+                shutil.copyfileobj(file_h5.file, buffer)
+            update_data["route_h5"] = h5_relative_path # Actualizar ruta en BD
+        except Exception as e:
+             logger.error(f"Error al guardar nuevo archivo H5 para modelo ID {model_id}: {e}", exc_info=True)
+             raise HTTPException(status_code=500, detail=f"Error interno al guardar el nuevo archivo .h5: {str(e)}")
+        finally:
+            await file_h5.close()
+
+    # --- Procesar y guardar archivo PKL si se proporcionó --- 
+    if file_pkl:
+        if not file_pkl.filename.endswith('.pkl'):
+             raise HTTPException(status_code=400, detail="El archivo escalador debe tener extensión .pkl")
+        try:
+            pkl_filename = file_pkl.filename
+            pkl_relative_path = os.path.join("Scaler", pkl_filename).replace("\\", "/")
+            pkl_save_path = os.path.join(SCALER_DIR, pkl_filename)
+            
+            logger.info(f"Guardando nuevo archivo PKL en: {pkl_save_path}")
+            with open(pkl_save_path, "wb") as buffer:
+                shutil.copyfileobj(file_pkl.file, buffer)
+            update_data["route_pkl"] = pkl_relative_path # Actualizar ruta en BD
+        except Exception as e:
+             logger.error(f"Error al guardar nuevo archivo PKL para modelo ID {model_id}: {e}", exc_info=True)
+             # Si H5 se guardó pero PKL falló, eliminar H5 guardado
+             if h5_save_path and os.path.exists(h5_save_path): os.remove(h5_save_path)
+             raise HTTPException(status_code=500, detail=f"Error interno al guardar el nuevo archivo .pkl: {str(e)}")
+        finally:
+             await file_pkl.close()
+             
+    # --- Actualizar BD si hay cambios --- 
+    if not update_data:
+        logger.info(f"No se proporcionaron datos nuevos para actualizar el modelo ID {model_id}")
+        # Devolver el modelo existente si no hubo cambios
+        return db_model
+        
+    try:
+        logger.info(f"Actualizando modelo ID {model_id} en BD con datos: {update_data}")
+        updated_model = update_existing_model(db, model_id, update_data)
         if not updated_model:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Modelo con ID {model_id} no encontrado para actualizar")
+            # Esto no debería pasar ya que verificamos antes, pero por si acaso
+            raise HTTPException(status_code=404, detail=f"Modelo con ID {model_id} no encontrado después de intentar actualizar")
+            
+        # --- Eliminar archivos antiguos si fueron reemplazados --- 
+        if "route_h5" in update_data and old_h5_path and os.path.exists(old_h5_path) and old_h5_path != h5_save_path:
+            logger.info(f"Eliminando archivo H5 antiguo: {old_h5_path}")
+            try:
+                os.remove(old_h5_path)
+            except OSError as rm_err:
+                logger.warning(f"No se pudo eliminar el archivo H5 antiguo {old_h5_path}: {rm_err}")
+                
+        if "route_pkl" in update_data and old_pkl_path and os.path.exists(old_pkl_path) and old_pkl_path != pkl_save_path:
+            logger.info(f"Eliminando archivo PKL antiguo: {old_pkl_path}")
+            try:
+                os.remove(old_pkl_path)
+            except OSError as rm_err:
+                 logger.warning(f"No se pudo eliminar el archivo PKL antiguo {old_pkl_path}: {rm_err}")
+                 
+        logger.info(f"Modelo ID {model_id} actualizado correctamente.")
         return updated_model
+        
     except HTTPException as http_exc:
+        # Si falla la actualización de BD, revertir guardado de archivos nuevos
+        if h5_save_path and os.path.exists(h5_save_path): os.remove(h5_save_path)
+        if pkl_save_path and os.path.exists(pkl_save_path): os.remove(pkl_save_path)
         raise http_exc
     except Exception as e:
-        logger.error(f"Error al actualizar modelo ID {model_id}: {e}", exc_info=True)
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error interno al actualizar modelo: {str(e)}")
+        logger.error(f"Error al actualizar modelo ID {model_id} en BD: {e}", exc_info=True)
+        # Revertir guardado de archivos nuevos
+        if h5_save_path and os.path.exists(h5_save_path): os.remove(h5_save_path)
+        if pkl_save_path and os.path.exists(pkl_save_path): os.remove(pkl_save_path)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error interno al actualizar modelo en BD: {str(e)}")
 
 @router.delete("/models/{model_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Eliminar un modelo")
 async def remove_model(model_id: int = Path(..., description="ID del modelo a eliminar"),
                       db: Session = Depends(get_db)):
+    # ... (código de eliminar modelo existente)
+    # Añadir lógica para eliminar archivos asociados
+    db_model = get_model_by_id(db, model_id) # Obtener modelo ANTES de eliminar
+    if not db_model:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Modelo con ID {model_id} no encontrado para eliminar")
+    
+    old_h5_path = None
+    old_pkl_path = None
+    if db_model.route_h5: old_h5_path = os.path.join(BASE_DIR, db_model.route_h5)
+    if db_model.route_pkl: old_pkl_path = os.path.join(BASE_DIR, db_model.route_pkl)
+    
     try:
         # Verificar si el modelo está activo
         system_config = get_system_config(db)
@@ -246,11 +430,23 @@ async def remove_model(model_id: int = Path(..., description="ID del modelo a el
                  detail=f"No se puede eliminar el modelo porque está siendo usado por {sensors_using_model} sensor(es)."
              )
              
+        # Eliminar de la BD
         deleted = delete_model(db, model_id)
         if not deleted:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Modelo con ID {model_id} no encontrado para eliminar")
-        # No retornar contenido en DELETE exitoso
-        return
+            # Esto no debería ocurrir si la verificación anterior pasó
+            raise HTTPException(status_code=404, detail=f"Modelo con ID {model_id} no encontrado al intentar eliminar de BD")
+
+        # Eliminar archivos asociados DESPUÉS de eliminar de la BD
+        if old_h5_path and os.path.exists(old_h5_path):
+            logger.info(f"Eliminando archivo H5 asociado: {old_h5_path}")
+            try: os.remove(old_h5_path)
+            except OSError as rm_err: logger.warning(f"No se pudo eliminar archivo H5 {old_h5_path}: {rm_err}")
+        if old_pkl_path and os.path.exists(old_pkl_path):
+            logger.info(f"Eliminando archivo PKL asociado: {old_pkl_path}")
+            try: os.remove(old_pkl_path)
+            except OSError as rm_err: logger.warning(f"No se pudo eliminar archivo PKL {old_pkl_path}: {rm_err}")
+            
+        return # Retornar 204 No Content
     except HTTPException as http_exc:
         raise http_exc
     except Exception as e:

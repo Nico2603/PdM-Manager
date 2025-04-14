@@ -190,7 +190,11 @@ function initCrudForms() {
   
   const modelForm = document.getElementById('modelForm');
   if (modelForm) {
-    modelForm.addEventListener('submit', modelFormSubmitHandler);
+    // Corregir el handler: llamar a saveModel y prevenir default
+    modelForm.addEventListener('submit', function(e) {
+      e.preventDefault(); // Prevenir envío estándar del formulario
+      saveModel();        // Llamar a la función correcta
+    });
   }
   
   const machineForm = document.getElementById('machineForm');
@@ -224,15 +228,16 @@ function handleFileSelection(fileInput, targetInputId) {
   try {
     if (fileInput.files.length > 0) {
       const file = fileInput.files[0];
-      // Guardamos el nombre del archivo en el input correspondiente
+      // Guardamos el nombre del archivo en el input correspondiente (visual)
       document.getElementById(targetInputId).value = file.name;
-      
-      // También guardamos el archivo completo en un objeto global para su posible uso posterior
+
+      // Guardamos el objeto File completo para usarlo al enviar
       if (!window.selectedFiles) {
         window.selectedFiles = {};
       }
+      // Usar el ID del input de texto como clave para guardar el archivo
       window.selectedFiles[targetInputId] = file;
-      
+
       console.log(`Archivo seleccionado para ${targetInputId}: ${file.name}`);
     }
   } catch (error) {
@@ -609,46 +614,76 @@ async function fetchAPI(endpoint, options = {}) {
   // Opciones por defecto
   const defaultOptions = {
     headers: {
-      'Content-Type': 'application/json',
+      // 'Content-Type': 'application/json', // REMOVED - Let browser set for FormData, default handled below
       'Accept': 'application/json'
     }
   };
   
   const requestOptions = { ...defaultOptions, ...options };
   
+  // Set default Content-Type ONLY if not FormData and not already set
+  if (!(requestOptions.body instanceof FormData) && !requestOptions.headers['Content-Type']) {
+      requestOptions.headers['Content-Type'] = 'application/json';
+  }
+  
+  // *** IMPORTANTE: Si el body es FormData, eliminar Content-Type ***
+  // El navegador lo establecerá automáticamente con el boundary correcto.
+  if (requestOptions.body instanceof FormData) {
+    delete requestOptions.headers['Content-Type']; // Ensure Content-Type is deleted for FormData
+  }
+  
   try {
     console.log(`Realizando petición a ${url}`);
     const response = await fetch(url, requestOptions);
     
     if (!response.ok) {
-      let errorMessage = `Error ${response.status}: ${response.statusText}`;
+      let errorMessage = response.statusText; // Default error message
       
       // Intentar extraer mensaje de error del cuerpo de la respuesta
       try {
         const errorData = await response.json();
-        if (errorData.message) {
+        if (errorData.message) { // Prefer 'message' if present
           errorMessage = errorData.message;
-        } else if (errorData.detail) {
-          errorMessage = errorData.detail;
+        } else if (errorData.detail) { // Handle FastAPI 'detail'
+          if (Array.isArray(errorData.detail)) {
+            // Format validation errors nicely
+            errorMessage = errorData.detail
+              .map(err => `Campo '${err.loc[err.loc.length - 1]}': ${err.msg}`) // Extract field name and message
+              .join('; ');
+          } else if (typeof errorData.detail === 'string') {
+            errorMessage = errorData.detail;
+          }
+          // Add other potential structures if needed
         }
+        // If no specific message found, keep the default status text
       } catch (e) {
-        // Si no se puede parsear como JSON, usar el mensaje por defecto
+        // Non-JSON error body, keep default status text
+        console.log("Could not parse error response body as JSON.");
       }
+      // Add the HTTP status to the error message for clarity
+      errorMessage = `Error ${response.status}: ${errorMessage || response.statusText}`;
       
-      throw new Error(errorMessage);
+      throw new Error(errorMessage); // Throw the potentially improved message
     }
     
-    // Para operaciones que no devuelven JSON (como DELETE)
+    // Para operaciones que no devuelven JSON (como DELETE con 204 No Content)
     if (response.status === 204) {
-      return { success: true };
+      return { success: true }; // Return a success indicator
     }
     
+    // Intentar parsear como JSON solo si hay contenido
+    if (response.headers.get("content-length") === "0") {
+        return { success: true }; // O considera devolver null/undefined si es apropiado
+    }
+
     const data = await response.json();
     console.log(`Respuesta exitosa de ${url}`);
     return data;
   } catch (error) {
-    console.error(`Error en petición a ${url}:`, error.message);
-    throw error;
+    // Log the error caught here, which might be from fetch() itself or the throw above
+    console.error(`Error en petición a ${url}:`, error.message); 
+    // Re-throw the error so the calling function's catch block can handle it
+    throw error; 
   }
 }
 
@@ -1231,7 +1266,8 @@ function setupUIButtons() {
   // LÍMITES
   const limitsForm = document.getElementById('limitsForm');
   if (limitsForm) {
-    limitsForm.addEventListener('submit', (e) => { e.preventDefault(); saveLimits(); });
+    // Este listener es redundante, ya se añade en initConfigFields
+    // limitsForm.addEventListener('submit', (e) => { e.preventDefault(); saveLimits(); }); 
   }
   const resetLimitsBtn = document.getElementById('resetLimitsBtn');
   if (resetLimitsBtn) {
@@ -1241,8 +1277,11 @@ function setupUIButtons() {
   // MODELO
   const modelForm = document.getElementById('modelForm');
   if (modelForm) {
-    // Llamar a saveModel en lugar del handler anterior
-    modelForm.addEventListener('submit', (e) => { e.preventDefault(); saveModel(); }); 
+    // Corregir el handler: llamar a saveModel y prevenir default
+    modelForm.addEventListener('submit', function(e) {
+      e.preventDefault(); // Prevenir envío estándar del formulario
+      saveModel();        // Llamar a la función correcta
+    });
   }
   const resetModelBtn = document.getElementById('resetModelBtn');
   if (resetModelBtn) {
@@ -1868,60 +1907,116 @@ async function editModel(modelId) {
 
 // Guarda (Crea o Actualiza) un modelo
 async function saveModel() {
-  console.log("Intentando guardar modelo...");
+  console.log("Intentando guardar modelo (con archivos)...");
   const form = document.getElementById('modelForm');
   if (!form) return;
 
-  // Validar campos requeridos del formulario HTML5
+  // Validar campos de texto requeridos
   if (!form.checkValidity()) {
-    form.reportValidity(); // Mostrar mensajes de validación del navegador
-    showToast('Por favor, complete todos los campos requeridos.', 'warning');
+    form.reportValidity();
+    showToast('Por favor, complete Nombre y Descripción.', 'warning');
     return;
   }
 
   const modelId = document.getElementById('modelIdInput').value;
   const name = document.getElementById('modelNameInput').value;
   const description = document.getElementById('modelDescriptionInput').value;
-  const routeH5 = document.getElementById('modelRouteH5Input').value;
-  const routePkl = document.getElementById('modelRoutePklInput').value;
+  const isUpdating = !!modelId;
 
-  // Validación adicional para asegurar que las rutas no estén vacías
-  if (!routeH5 || !routePkl) {
-      showToast('Las rutas de los archivos de modelo y escalador son obligatorias.', 'warning');
-      return;
+  // --- Crear FormData --- 
+  const formData = new FormData();
+  formData.append('name', name);
+  formData.append('description', description);
+
+  // --- Obtener y añadir archivos desde el almacenamiento global --- 
+  const fileH5 = window.selectedFiles ? window.selectedFiles['modelRouteH5Input'] : null;
+  const filePkl = window.selectedFiles ? window.selectedFiles['modelRoutePklInput'] : null;
+
+  // --- Validación y adición de archivos --- 
+  if (!isUpdating) {
+    // Al CREAR, los archivos son obligatorios
+    if (!fileH5) {
+        showToast('El archivo del modelo (.h5) es obligatorio al crear.', 'error');
+        return;
+    }
+    if (!filePkl) {
+        showToast('El archivo del escalador (.pkl) es obligatorio al crear.', 'error');
+        return;
+    }
+    formData.append('file_h5', fileH5);
+    formData.append('file_pkl', filePkl);
+  } else {
+    // Al ACTUALIZAR, los archivos son opcionales
+    if (fileH5) {
+        formData.append('file_h5', fileH5);
+        console.log("Añadiendo archivo H5 actualizado a FormData.");
+    }
+    if (filePkl) {
+        formData.append('file_pkl', filePkl);
+        console.log("Añadiendo archivo PKL actualizado a FormData.");
+    }
+    // Si no se seleccionan nuevos archivos al actualizar,
+    // el backend debe manejar la lógica para mantener los existentes si es necesario.
+    // Aquí solo enviamos los nuevos si se seleccionaron.
   }
+  
+  // --- NO limpiar selección visual/global aquí ---
+  
+  // --- Configurar endpoint y método --- 
+  const method = isUpdating ? 'PUT' : 'POST';
+  const endpoint = isUpdating ? `/models/${modelId}` : '/models';
 
-  const modelData = {
-    name: name,
-    description: description,
-    route_h5: routeH5,
-    route_pkl: routePkl
-  };
-
-  const method = modelId ? 'PUT' : 'POST';
-  const endpoint = modelId ? `/models/${modelId}` : '/models';
-
-  console.log(`Enviando modelo ${modelId ? 'actualizado' : 'nuevo'} a ${endpoint}`, modelData);
+  console.log(`Enviando modelo ${isUpdating ? 'actualizado' : 'nuevo'} a ${endpoint}`);
+  
+  const saveButton = document.getElementById('saveModelBtn');
+  const originalHtml = saveButton.innerHTML;
+  saveButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
+  saveButton.disabled = true;
 
   try {
     const result = await fetchAPI(endpoint, {
       method: method,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(modelData)
+      body: formData
+      // NO HEADERS HERE for FormData
     });
 
-    if (result) {
-      showToast(`Modelo ${modelId ? 'actualizado' : 'creado'} correctamente`, 'success');
-      resetModelForm();
-      loadModels(); // Actualizar la tabla después de guardar
+    if (result && result.model_id) {
+      showToast(`Modelo ${isUpdating ? 'actualizado' : 'creado'} correctamente`, 'success');
+
+      // --- Moved file clearing here (AFTER successful save) ---
+      const routeH5Input = document.getElementById('modelRouteH5Input');
+      const routePklInput = document.getElementById('modelRoutePklInput');
+      const fileInputH5 = document.getElementById('modelFileInputH5');
+      const fileInputPkl = document.getElementById('modelFileInputPkl');
+      
+      if (routeH5Input) routeH5Input.value = ''; // Limpiar texto visible
+      if (routePklInput) routePklInput.value = ''; // Limpiar texto visible
+      if (fileInputH5) fileInputH5.value = null; // Resetear input file
+      if (fileInputPkl) fileInputPkl.value = null; // Resetear input file
+      
+      if (window.selectedFiles) {
+        delete window.selectedFiles['modelRouteH5Input'];
+        delete window.selectedFiles['modelRoutePklInput'];
+        console.log("Archivos seleccionados limpiados después del éxito.");
+      }
+      // --- End of moved block ---
+
+      resetModelForm(); // Limpia el resto del formulario y el ID
+      loadModels(); // Recarga la tabla de modelos
     } else {
-      // fetchAPI ya muestra toast de error genérico
-      console.error('fetchAPI devolvió null o undefined al guardar modelo');
+      // Handle cases where API returns OK status but not the expected data structure
+      console.error('Respuesta inesperada o error al guardar modelo (pero status OK):', result);
+      // The improved fetchAPI error handling should prevent reaching here often on actual errors
+      showToast('Error al guardar el modelo: Respuesta inesperada del servidor.', 'error');
     }
   } catch (error) {
-    // Los errores específicos (404, 409, 500) deben ser manejados por fetchAPI
-    // y mostrar un toast adecuado. Aquí solo loggeamos si algo más falla.
-    console.error(`Error inesperado al guardar modelo:`, error);
+    // Error handling: fetchAPI now throws a potentially formatted error message
+    console.error(`Error durante la operación de guardar modelo:`, error);
+    // Show the error message thrown by fetchAPI (should be more informative now)
+    showToast(`Error al guardar: ${error.message}`, 'error'); 
+  } finally {
+      saveButton.innerHTML = originalHtml;
+      saveButton.disabled = false;
   }
 }
 
