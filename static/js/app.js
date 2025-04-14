@@ -1299,7 +1299,8 @@ function setupUIButtons() {
   // SENSOR
   const sensorForm = document.getElementById('sensorForm');
   if (sensorForm) {
-    sensorForm.addEventListener('submit', (e) => { e.preventDefault(); saveSensor(); });
+    // El listener principal se añade en initCrudForms. Comentamos el duplicado aquí:
+    // sensorForm.addEventListener('submit', (e) => { e.preventDefault(); saveSensor(); });
   }
   const resetSensorBtn = document.getElementById('resetSensorBtn');
   if (resetSensorBtn) {
@@ -1317,7 +1318,8 @@ function setupUIButtons() {
   // MÁQUINA
   const machineForm = document.getElementById('machineForm');
   if (machineForm) {
-    machineForm.addEventListener('submit', (e) => { e.preventDefault(); saveMachine(); });
+    // El listener principal se añade en initCrudForms. Comentamos el duplicado aquí:
+    // machineForm.addEventListener('submit', (e) => { e.preventDefault(); saveMachine(); });
   }
   const resetMachineBtn = document.getElementById('resetMachineBtn');
   if (resetMachineBtn) {
@@ -1542,6 +1544,8 @@ async function loadModels() {
   try {
     const models = await fetchAPI(endpoint);
     const tableBody = document.getElementById('modelsTableBody');
+    const modelSelect = document.getElementById('sensorModelIdInput'); // *** OBTENER REFERENCIA AL SELECT ***
+
     if (!tableBody) return;
     tableBody.innerHTML = ''; // Limpiar tabla
 
@@ -1564,11 +1568,53 @@ async function loadModels() {
     } else {
       tableBody.innerHTML = '<tr><td colspan="6" class="text-center">No hay modelos configurados</td></tr>';
     }
+
+    // --- *** POBLAR EL DROPDOWN DE MODELOS PARA SENSORES *** ---
+    if (modelSelect) {
+        // Guardar valor seleccionado actualmente (por si se está editando)
+        const currentSelectedValue = modelSelect.value;
+        
+        // Limpiar opciones existentes (excepto la primera "Seleccione...")
+        while (modelSelect.options.length > 1) {
+            modelSelect.remove(1);
+        }
+        
+        // Añadir nuevas opciones desde la lista de modelos
+        if (models && models.length > 0) {
+            models.forEach(model => {
+                const option = document.createElement('option');
+                option.value = model.model_id;
+                // Usar un texto descriptivo para la opción
+                option.textContent = `${model.name || 'Modelo sin nombre'} (ID: ${model.model_id})`; 
+                modelSelect.appendChild(option);
+            });
+        }
+        
+        // Intentar restaurar la selección anterior si aún es válida
+        if (currentSelectedValue && modelSelect.querySelector(`option[value="${currentSelectedValue}"]`)) {
+            modelSelect.value = currentSelectedValue;
+        } else {
+             // Si no hay selección previa o ya no es válida, asegurar que esté en "Seleccione..."
+             modelSelect.selectedIndex = 0; 
+        }
+        modelSelect.disabled = !(models && models.length > 0); // Deshabilitar si no hay modelos
+    } else {
+        console.warn("Elemento select 'sensorModelIdInput' no encontrado.");
+    }
+    // --- *** FIN POBLAR DROPDOWN *** ---
+
   } catch (error) {
     console.error('Error cargando modelos:', error);
     showToast('Error al cargar los modelos. Verifique la conexión.', 'error');
     const tableBody = document.getElementById('modelsTableBody');
     if (tableBody) tableBody.innerHTML = '<tr><td colspan="6" class="text-center">Error al cargar modelos</td></tr>';
+    
+    // Deshabilitar dropdown si falla la carga
+    const modelSelect = document.getElementById('sensorModelIdInput'); 
+    if(modelSelect) {
+        while (modelSelect.options.length > 1) { modelSelect.remove(1); }
+        modelSelect.disabled = true;
+    }
   }
 }
 

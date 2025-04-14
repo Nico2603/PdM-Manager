@@ -19,7 +19,7 @@ from typing import Optional, Dict, Any, List, ClassVar
 from datetime import datetime
 from sqlalchemy.exc import SQLAlchemyError
 import logging
-from app.models import Model, Sensor
+from app.models import Model, Sensor, Machine
 # Imports necesarios para manejo de archivos
 import os
 import shutil
