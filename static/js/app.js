@@ -1278,10 +1278,11 @@ function setupUIButtons() {
   const modelForm = document.getElementById('modelForm');
   if (modelForm) {
     // Corregir el handler: llamar a saveModel y prevenir default
-    modelForm.addEventListener('submit', function(e) {
-      e.preventDefault(); // Prevenir envío estándar del formulario
-      saveModel();        // Llamar a la función correcta
-    });
+    // El listener principal se añade en initCrudForms. Comentamos el duplicado aquí:
+    // modelForm.addEventListener('submit', function(e) {
+    //   e.preventDefault(); // Prevenir envío estándar del formulario
+    //   saveModel();        // Llamar a la función correcta
+    // });
   }
   const resetModelBtn = document.getElementById('resetModelBtn');
   if (resetModelBtn) {
