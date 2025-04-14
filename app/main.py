@@ -606,7 +606,13 @@ async def receive_sensor_data(
                                 data.acceleration_z
                             ]).reshape(1, -1)
                             normalized_features = scaler_local.transform(features)
-                            prediction = model_local.predict(normalized_features)
+                            
+                            # *** AJUSTAR SHAPE PARA EL MODELO KERAS ***
+                            # El modelo espera (None, 1, 3), añadimos la dimensión de paso de tiempo
+                            input_for_model = np.expand_dims(normalized_features, axis=1)
+                            # *** FIN AJUSTE SHAPE ***
+                            
+                            prediction = model_local.predict(input_for_model)
                             pred_value = float(prediction[0][0])
                             anomalia = pred_value > 0.5
                             if pred_value < 0.5: severidad = 0
@@ -739,16 +745,16 @@ async def get_vibration_data_endpoint(
     
     # Convertir a formato de respuesta
     result = []
-    for data in vibration_data:
+    for data_dict in vibration_data: # Iterar sobre los diccionarios devueltos por CRUD
         result.append({
-            "id": data.id,
-            "sensor_id": data.sensor_id,
-            "acceleration_x": data.acc_x,
-            "acceleration_y": data.acc_y,
-            "acceleration_z": data.acc_z,
-            "timestamp": data.timestamp.isoformat(),
-            "is_anomaly": data.is_anomaly,
-            "severity": data.severity
+            "id": data_dict.get("data_id"), # Usar .get() para acceder a claves del dict
+            "sensor_id": data_dict.get("sensor_id"),
+            "acceleration_x": data_dict.get("acceleration_x"), # Usar claves del dict
+            "acceleration_y": data_dict.get("acceleration_y"),
+            "acceleration_z": data_dict.get("acceleration_z"),
+            "timestamp": data_dict.get("timestamp"), # Ya debería estar en formato ISO
+            "is_anomaly": data_dict.get("is_anomaly", 0), # Usar get con default
+            "severity": data_dict.get("severity", 0)
         })
     
     return {"data": result}

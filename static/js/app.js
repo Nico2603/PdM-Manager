@@ -179,48 +179,42 @@ function initConfigTabs() {
 
 // Inicializa los formularios CRUD
 function initCrudForms() {
-  // Event Listeners para los formularios CRUD
-  const sensorForm = document.getElementById('sensorForm');
-  if (sensorForm) {
-    sensorForm.addEventListener('submit', function(e) {
-      e.preventDefault();
-      saveSensor();
-    });
-  }
-  
-  const modelForm = document.getElementById('modelForm');
-  if (modelForm) {
-    // Corregir el handler: llamar a saveModel y prevenir default
-    modelForm.addEventListener('submit', function(e) {
-      e.preventDefault(); // Prevenir envío estándar del formulario
-      saveModel();        // Llamar a la función correcta
-    });
-  }
-  
-  const machineForm = document.getElementById('machineForm');
-  if (machineForm) {
-    machineForm.addEventListener('submit', function(e) {
-      e.preventDefault();
-      saveMachine();
-    });
-  }
-  
-  const limitsForm = document.getElementById('limitsForm');
-  if (limitsForm) {
-    limitsForm.addEventListener('submit', function(e) {
-      e.preventDefault();
-      saveLimits();
-    });
-  }
-  
+  // Función helper para añadir listener de forma segura (remueve el anterior si existe)
+  const safeAddSubmitListener = (formId, handlerFn) => {
+    const form = document.getElementById(formId);
+    if (form) {
+        // Crear una nueva función para pasarla a removeEventListener
+        const submitWrapper = (e) => { 
+            e.preventDefault(); 
+            handlerFn(); 
+        };
+        // Intentar remover cualquier listener previo (puede que no exista)
+        // Nota: Para que removeEventListener funcione, necesita la misma referencia de función.
+        // Esto es difícil sin guardar la referencia original. Una alternativa es clonar el nodo.
+        // O, más simple para este caso, asumir que queremos uno solo y añadirlo.
+        // Vamos a simplificar y confiar en que la lógica de navegación evita múltiples llamadas a init.
+        
+        // Limpiar listeners previos clonando el nodo (forma más segura)
+        const newForm = form.cloneNode(true);
+        form.parentNode.replaceChild(newForm, form);
+        
+        // Añadir el nuevo listener al nodo clonado
+        newForm.addEventListener('submit', submitWrapper);
+        console.log(`Listener submit añadido para ${formId}`);
+    }
+  };
+
+  // Event Listeners para los formularios CRUD usando el helper
+  safeAddSubmitListener('sensorForm', saveSensor);
+  safeAddSubmitListener('modelForm', saveModel);
+  safeAddSubmitListener('machineForm', saveMachine);
+  safeAddSubmitListener('limitsForm', saveLimits);
+
   // Botones de reset
   document.getElementById('resetSensorBtn')?.addEventListener('click', () => resetForm('sensorForm'));
   document.getElementById('resetModelBtn')?.addEventListener('click', () => resetForm('modelForm'));
   document.getElementById('resetMachineBtn')?.addEventListener('click', () => resetForm('machineForm'));
   document.getElementById('resetLimitsBtn')?.addEventListener('click', () => resetForm('limitsForm'));
-  
-  // Los listeners para los botones de selección de archivos ahora están directamente en el HTML
-  // Ya no los necesitamos aquí
 }
 
 // Función para manejar la selección de archivos
@@ -344,11 +338,14 @@ async function loadConfiguration() {
     
     // Actualizar estado global isConfigured
     if (config && config.system_config) { 
+      // // *** DEBUG LOG ***
+      // console.log('[loadConfiguration] Recibido config.system_config:', config.system_config);
       isConfigured = config.system_config.is_configured === 1;
-      console.log("Estado isConfigured actualizado a:", isConfigured);
+      console.log(`[loadConfiguration] Estado global isConfigured actualizado a: ${isConfigured}`);
+      // // *** FIN DEBUG LOG ***
     } else {
       isConfigured = false;
-      console.warn("Respuesta de /config inválida o incompleta. Asumiendo no configurado.");
+      console.warn("[loadConfiguration] Respuesta de /config inválida o incompleta. Asumiendo no configurado.");
     }
     
     // Actualizar el resto del estado global solo si la config es válida
@@ -418,6 +415,10 @@ function updateConfigurationStatus() {
   const configurationWarning = document.getElementById('configurationWarning');
   const estadoSistemaText = document.querySelector('#estadoSistema .status-text'); 
   const estadoSistemaDot = document.querySelector('#estadoSistema .status-dot');
+
+  // // *** DEBUG LOG ***
+  // console.log(`[updateConfigurationStatus] Verificando estado... isConfigured = ${isConfigured}`);
+  // // *** FIN DEBUG LOG ***
 
   // Controlar botón de monitoreo
   if (startMonitoringBtn) {
@@ -2301,6 +2302,9 @@ async function saveMachine() {
       resetMachineForm();
       await loadMachines(); // Recargar tabla de máquinas
       // *** RECARGAR CONFIGURACIÓN Y ACTUALIZAR ESTADO GENERAL ***
+      // // *** DEBUG LOG ***
+      // console.log('[saveMachine] Llamando a loadConfiguration y updateConfigurationStatus');
+      // // *** FIN DEBUG LOG ***
       await loadConfiguration();
       updateConfigurationStatus();
       // *** FIN RECARGA ***

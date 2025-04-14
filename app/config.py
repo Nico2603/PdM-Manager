@@ -264,6 +264,16 @@ async def create_model_with_files(
         }
         new_model = create_new_model(db, model_data_dict)
         logger.info(f"Modelo '{name}' creado en BD con ID {new_model.model_id}")
+        
+        # *** Establecer como modelo activo ***
+        try:
+            update_system_config(db, active_model_id=new_model.model_id)
+            logger.info(f"Modelo ID {new_model.model_id} establecido como activo.")
+        except Exception as sys_err:
+            # Loguear error pero no fallar la creación del modelo
+            logger.error(f"Error al establecer modelo {new_model.model_id} como activo: {sys_err}")
+        # *** Fin establecer activo ***
+            
         return new_model
     except HTTPException as http_exc: 
         # Eliminar archivos si la creación en BD falló por conflicto o error HTTP
@@ -368,6 +378,15 @@ async def update_model_with_files(
         if not updated_model:
             # Esto no debería pasar ya que verificamos antes, pero por si acaso
             raise HTTPException(status_code=404, detail=f"Modelo con ID {model_id} no encontrado después de intentar actualizar")
+            
+        # *** Establecer como modelo activo ***
+        try:
+            update_system_config(db, active_model_id=updated_model.model_id)
+            logger.info(f"Modelo ID {updated_model.model_id} establecido como activo.")
+        except Exception as sys_err:
+            # Loguear error pero no fallar la actualización del modelo
+            logger.error(f"Error al establecer modelo {updated_model.model_id} como activo: {sys_err}")
+        # *** Fin establecer activo ***
             
         # --- Eliminar archivos antiguos si fueron reemplazados --- 
         if "route_h5" in update_data and old_h5_path and os.path.exists(old_h5_path) and old_h5_path != h5_save_path:
