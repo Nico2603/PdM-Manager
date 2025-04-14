@@ -249,6 +249,32 @@
                   </div>
                 </div>
               </div>
+              
+              <!-- Tabla de Datos de Vibración -->
+              <div class="data-table-card animate-slide-up" style="animation-delay: 0.9s">
+                <div class="card-header">
+                    <h5><i class="fas fa-table"></i> Datos Recientes de Vibración</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table id="vibrationDataTable" class="table table-sm table-striped table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Timestamp</th>
+                                    <th>Eje X (g)</th>
+                                    <th>Eje Y (g)</th>
+                                    <th>Eje Z (g)</th>
+                                    <th>Severidad</th>
+                                </tr>
+                            </thead>
+                            <tbody id="vibrationDataTableBody">
+                                <!-- Los datos se cargarán aquí -->
+                                <tr><td colspan="5" class="text-center">Seleccione un sensor para ver datos...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>

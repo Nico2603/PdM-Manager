@@ -1052,6 +1052,21 @@ async function loadVibrationData(sensorId, isUpdate = false) {
     
     // Actualizar gráficos
     updateCharts();
+    
+    // *** POBLAR TABLA DE DATOS ***
+    populateVibrationDataTable(globalState.vibrationData);
+    
+    // *** NOTIFICACIÓN DE ALERTA CRÍTICA ***
+    if (status.length > 0) {
+        const lastSeverity = status[status.length - 1]; // Obtener la severidad del último dato
+        // Considerar 2 y 3 como críticos para la notificación
+        if (lastSeverity >= 2) { 
+            // Evitar spam de notificaciones: podríamos añadir lógica para mostrar solo una vez cada X tiempo
+            showToast(`¡Alerta Crítica Detectada! Severidad: ${lastSeverity}`, 'error', 10000); // Duración más larga
+        }
+    }
+    // *** FIN NOTIFICACIÓN ***
+
   } catch (error) {
     console.error(`Error al cargar datos de vibración para sensor ${sensorId}:`, error);
     
@@ -1082,7 +1097,7 @@ function updateAlertCounters(statusArray) {
       case 2:
         level2Count++;
         break;
-      case 3:
+      case 3: // Asegurarse de contar el nivel 3 si existe
         level3Count++;
         break;
     }
@@ -1099,6 +1114,60 @@ function updateAlertCounters(statusArray) {
   if (level3Element) level3Element.textContent = level3Count;
   if (totalElement) totalElement.textContent = level1Count + level2Count + level3Count;
 }
+
+// *** NUEVA FUNCIÓN PARA POBLAR LA TABLA DE DATOS ***
+function populateVibrationDataTable(data) {
+  const tableBody = document.getElementById('vibrationDataTableBody');
+  if (!tableBody) {
+      console.warn("Elemento tbody 'vibrationDataTableBody' no encontrado.");
+      return;
+  }
+
+  tableBody.innerHTML = ''; // Limpiar tabla antes de poblar
+
+  if (!data || !data.timestamps || data.timestamps.length === 0) {
+      tableBody.innerHTML = '<tr><td colspan="5" class="text-center">No hay datos disponibles para este sensor.</td></tr>';
+      return;
+  }
+
+  // Mostrar los datos más recientes primero (invertir el array para iterar)
+  const reversedData = {
+    timestamps: [...data.timestamps].reverse(),
+    x: [...data.x].reverse(),
+    y: [...data.y].reverse(),
+    z: [...data.z].reverse(),
+    status: [...data.status].reverse()
+  };
+
+  for (let i = 0; i < reversedData.timestamps.length; i++) {
+    const row = tableBody.insertRow();
+    const timestamp = new Date(reversedData.timestamps[i]);
+    const severity = reversedData.status[i];
+    
+    // Determinar clase CSS para la severidad
+    let severityClass = 'severity-normal'; // Clase por defecto
+    let severityText = 'Normal (0)';
+    if (severity === 1) {
+      severityClass = 'severity-warning';
+      severityText = 'Leve (1)';
+    } else if (severity === 2) {
+      severityClass = 'severity-critical';
+      severityText = 'Grave (2)';
+    } else if (severity >= 3) { // Considerar 3 o más como crítico
+      severityClass = 'severity-critical';
+      severityText = 'Crítico (3+)';
+    }
+
+    row.innerHTML = `
+      <td>${timestamp.toLocaleString()}</td>
+      <td>${reversedData.x[i]?.toFixed(4) ?? '-'}</td>
+      <td>${reversedData.y[i]?.toFixed(4) ?? '-'}</td>
+      <td>${reversedData.z[i]?.toFixed(4) ?? '-'}</td>
+      <td class="${severityClass}">${severityText}</td>
+    `;
+  }
+}
+// *** FIN NUEVA FUNCIÓN ***
 
 // ==========================================================================
 // CONFIGURACIÓN DE EVENTOS DE UI
