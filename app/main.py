@@ -614,9 +614,9 @@ async def receive_sensor_data(
                             
                             prediction = model_local.predict(input_for_model)
                             pred_value = float(prediction[0][0])
-                            # *** DEBUG LOG: Mostrar valor de predicción crudo ***
-                            logger.info(f"[DEBUG] Predicción cruda del modelo para sensor {data.sensor_id}: {pred_value:.6f}")
-                            # *** FIN DEBUG LOG ***
+                            # # *** DEBUG LOG: Mostrar valor de predicción crudo ***
+                            # logger.info(f"[DEBUG] Predicción cruda del modelo para sensor {data.sensor_id}: {pred_value:.6f}")
+                            # # *** FIN DEBUG LOG ***
                             anomalia = pred_value > 0.5
                             if pred_value < 0.5: severidad = 0
                             elif pred_value < 0.8: severidad = 1
