@@ -119,18 +119,33 @@ function initConfigFields() {
   initCrudForms();
   
   // --- Añadir listeners para botones de selección de archivo ---
-  const selectModelFileBtn = document.getElementById('selectModelFileBtn');
-  if (selectModelFileBtn) {
-    selectModelFileBtn.addEventListener('click', () => {
-      document.getElementById('modelFileInput').click();
+  const selectModelFileBtnH5 = document.getElementById('selectModelFileBtnH5'); // ID actualizado
+  if (selectModelFileBtnH5) {
+    selectModelFileBtnH5.addEventListener('click', () => {
+      document.getElementById('modelFileInputH5').click(); // ID actualizado
     });
   }
 
-  const selectScalerFileBtn = document.getElementById('selectScalerFileBtn');
-  if (selectScalerFileBtn) {
-    selectScalerFileBtn.addEventListener('click', () => {
-      document.getElementById('scalerFileInput').click();
+  const selectModelFileBtnPkl = document.getElementById('selectModelFileBtnPkl'); // ID actualizado
+  if (selectModelFileBtnPkl) {
+    selectModelFileBtnPkl.addEventListener('click', () => {
+      document.getElementById('modelFileInputPkl').click(); // ID actualizado
     });
+  }
+
+  // --- Añadir listeners para los inputs de archivo ocultos ---
+  const modelFileInputH5 = document.getElementById('modelFileInputH5');
+  if(modelFileInputH5) {
+      modelFileInputH5.addEventListener('change', (event) => {
+          handleFileSelection(event.target, 'modelRouteH5Input');
+      });
+  }
+
+  const modelFileInputPkl = document.getElementById('modelFileInputPkl');
+  if(modelFileInputPkl) {
+      modelFileInputPkl.addEventListener('change', (event) => {
+          handleFileSelection(event.target, 'modelRoutePklInput');
+      });
   }
   // --- Fin de listeners añadidos ---
   
@@ -1630,6 +1645,7 @@ async function loadLimits() {
     const limitsData = await fetchAPI(endpoint);
     if (limitsData && limitsData.limit_config_id !== undefined) {
       console.log("Límites recibidos:", limitsData);
+      // Actualizar estado global (si aún se usa)
       globalState.limits = {
         x: {
           warning: { min: limitsData.x_2inf, max: limitsData.x_2sup },
@@ -1652,16 +1668,21 @@ async function loadLimits() {
           lastUpdateSpan.textContent = limitsData.update_limits ? formatDate(new Date(limitsData.update_limits)) : '-';
       }
     } else {
-      console.warn("No se encontraron datos de límites válidos.");
-      // Podrías mostrar un mensaje en la tabla o formulario
+      console.warn("No se encontraron datos de límites válidos. Usando valores por defecto en formulario.");
+      // Si no hay datos en BD, llenar formulario con defaults del estado global inicial
+      populateLimitsForm(globalState.limits); 
        const tableBody = document.getElementById('limitsTableBody');
       if(tableBody) tableBody.innerHTML = '<tr><td colspan="4" class="text-center">No se encontraron límites configurados.</td></tr>';
+       const lastUpdateSpan = document.getElementById('limitsLastUpdate');
+      if (lastUpdateSpan) lastUpdateSpan.textContent = '-';
     }
   } catch (error) {
     console.error('Error al cargar los límites:', error);
     showToast('Error al cargar la configuración de límites.', 'error');
      const tableBody = document.getElementById('limitsTableBody');
      if(tableBody) tableBody.innerHTML = '<tr><td colspan="4" class="text-center">Error al cargar límites.</td></tr>';
+     const lastUpdateSpan = document.getElementById('limitsLastUpdate');
+     if (lastUpdateSpan) lastUpdateSpan.textContent = 'Error';
   }
 }
 
@@ -1738,18 +1759,31 @@ async function saveLimits() {
 
   // Validación simple: inf < sup
   for (const axis of ['x', 'y', 'z']) {
-      if (limitsData[`${axis}_2inf`] >= limitsData[`${axis}_2sup`]) {
+      // Usar ?? 0 para manejar campos vacíos como cero en la comparación
+      const inf2 = limitsData[`${axis}_2inf`] ?? 0;
+      const sup2 = limitsData[`${axis}_2sup`] ?? 0;
+      const inf3 = limitsData[`${axis}_3inf`] ?? 0;
+      const sup3 = limitsData[`${axis}_3sup`] ?? 0;
+
+      if (inf2 >= sup2) {
           showToast(`Error en Eje ${axis.toUpperCase()}: Límite inferior (Warning) debe ser menor que el superior.`, 'error');
           return;
       }
-      if (limitsData[`${axis}_3inf`] >= limitsData[`${axis}_3sup`]) {
+      if (inf3 >= sup3) {
           showToast(`Error en Eje ${axis.toUpperCase()}: Límite inferior (Critical) debe ser menor que el superior.`, 'error');
           return;
       }
+      // Opcional: Validar que critical esté fuera de warning
+      // if (inf3 > inf2 || sup3 < sup2) { ... }
   }
 
   const endpoint = '/limits/1'; // Endpoint PUT
   console.log("Enviando límites a", endpoint, limitsData);
+
+  const saveButton = document.getElementById('saveLimitsBtn');
+  const originalHtml = saveButton.innerHTML;
+  saveButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
+  saveButton.disabled = true;
 
   try {
     const updatedLimits = await fetchAPI(endpoint, {
@@ -1763,13 +1797,17 @@ async function saveLimits() {
       // Actualizar estado global y UI (formulario y tabla)
       loadLimits();
     } else {
-      // fetchAPI maneja errores y muestra toast
-      console.error('Error al guardar límites, respuesta inválida:', updatedLimits);
+      // fetchAPI maneja errores y muestra toast si la respuesta no es JSON válido o hay error HTTP
+      console.error('Error al guardar límites, respuesta inválida o error HTTP:', updatedLimits);
+      // No mostrar doble toast si fetchAPI ya lo hizo
     }
   } catch (error) {
-    // Errores inesperados no capturados por fetchAPI
+    // Errores inesperados no capturados por fetchAPI (ej. error de red)
     console.error('Error inesperado al guardar límites:', error);
-    // fetchAPI ya debería haber mostrado un toast
+    showToast(`Error inesperado al guardar límites: ${error.message}`, 'error');
+  } finally {
+    saveButton.innerHTML = originalHtml;
+    saveButton.disabled = false;
   }
 }
 
