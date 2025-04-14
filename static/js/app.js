@@ -477,7 +477,9 @@ function updateConfigurationView(configData) {
   try {
       // Actualizar tabla de configuración general
       const configStatusEl = document.getElementById('configStatus');
-      if (configStatusEl) configStatusEl.textContent = sysConfig?.is_configured === 1 ? 'Configurado' : 'No configurado';
+      // Usar el valor booleano isConfigured global o el del objeto system_config si se pasa
+      const isSystemConfigured = sysConfig ? sysConfig.is_configured === 1 : isConfigured;
+      if (configStatusEl) configStatusEl.textContent = isSystemConfigured ? 'Configurado' : 'No configurado';
       
       const configLastUpdateEl = document.getElementById('configLastUpdate');
       if(configLastUpdateEl) configLastUpdateEl.textContent = sysConfig?.last_update ? new Date(sysConfig.last_update).toLocaleString() : '-';
