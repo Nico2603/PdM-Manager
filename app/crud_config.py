@@ -383,6 +383,7 @@ def get_or_create_machine(db: Session, machine_data: Dict[str, Any]) -> Machine:
 def get_full_config(db: Session) -> Dict[str, Any]:
     """
     Obtiene la configuración completa del sistema.
+    Calcula dinámicamente el estado 'is_configured'.
     
     Args:
         db (Session): Sesión de base de datos activa
@@ -398,6 +399,7 @@ def get_full_config(db: Session) -> Dict[str, Any]:
     
     # Obtener información del modelo activo
     model_info = None
+    model_routes_valid = False
     if system_config.active_model_id:
         model = db.query(Model).filter(Model.model_id == system_config.active_model_id).first()
         if model:
@@ -408,6 +410,9 @@ def get_full_config(db: Session) -> Dict[str, Any]:
                 "name": model.name,
                 "description": model.description
             }
+            # Verificar si las rutas del modelo son válidas (no None ni vacías)
+            if model.route_h5 and model.route_pkl:
+                model_routes_valid = True
     
     # Obtener todos los sensores
     sensors = db.query(Sensor).all()
@@ -430,11 +435,50 @@ def get_full_config(db: Session) -> Dict[str, Any]:
             "description": machine.description,
             "sensor_id": machine.sensor_id
         })
+        
+    # --- Calcular dinámicamente is_configured --- 
+    calculated_is_configured = (
+        limit_config is not None and 
+        model_info is not None and 
+        model_routes_valid and
+        len(sensors_info) > 0 and
+        len(machines_info) > 0
+    )
+    
+    # Actualizar bandera en BD si es necesario
+    # Si calculamos que está configurado pero la BD dice que no, actualizamos la BD.
+    if calculated_is_configured and system_config.is_configured == 0:
+        logger.info("Todos los componentes configurados detectados. Actualizando system_config.is_configured a 1.")
+        system_config.is_configured = 1
+        system_config.last_update = datetime.now()
+        try:
+            db.commit()
+            db.refresh(system_config)
+        except Exception as e:
+             logger.error(f"Error al actualizar system_config.is_configured a 1: {e}")
+             db.rollback()
+             # Continuar aunque falle la actualización de la bandera
+             
+    # Si calculamos que NO está configurado pero la BD dice que sí, actualizamos la BD.
+    # Esto podría pasar si se elimina un componente esencial.
+    elif not calculated_is_configured and system_config.is_configured == 1:
+        logger.info("Faltan componentes de configuración. Actualizando system_config.is_configured a 0.")
+        system_config.is_configured = 0
+        system_config.last_update = datetime.now()
+        try:
+            db.commit()
+            db.refresh(system_config)
+        except Exception as e:
+            logger.error(f"Error al actualizar system_config.is_configured a 0: {e}")
+            db.rollback()
+
+    # --- Fin del cálculo y actualización --- 
     
     # Construir respuesta
     config = {
         "system_config": {
-            "is_configured": system_config.is_configured,
+            # Usar el valor de la BD como referencia principal, pero el cálculo es clave para la lógica
+            "is_configured": system_config.is_configured, 
             "active_model_id": system_config.active_model_id,
             "last_update": system_config.last_update.isoformat() if system_config.last_update else None
         },
@@ -468,6 +512,7 @@ def get_full_config(db: Session) -> Dict[str, Any]:
         logger.warning("get_full_config: No se encontró limit_config (ID=1). Devolviendo null para limit_config.")
         # config["limit_config"] = { ... valores por defecto ... }
 
+    # Devolver la configuración completa. El frontend usará 'is_configured' de system_config.
     return config
 
 def update_full_config(db: Session, config_data: Dict[str, Any]) -> Dict[str, Any]:

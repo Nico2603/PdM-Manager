@@ -15,7 +15,7 @@ const char* password = "River1998";            // Contraseña WiFi
 // const char* serverBaseUrl = "http://191.98.43.133:8000"; // IP pública de Colombia, Pereira (Tigo)
 
 // IP LOCAL (usa esta para conexiones dentro de tu red local):
-const char* serverBaseUrl = "http://192.168.1.100:8000"; // Reemplaza con la IP local de tu servidor
+const char* serverBaseUrl = "http://192.168.1.11:8000"; // Reemplaza con la IP local de tu servidor
 
 // ID del sensor registrado en la base de datos
 // IMPORTANTE: Este ID debe existir en la base de datos del sistema

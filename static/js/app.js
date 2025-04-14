@@ -1882,6 +1882,10 @@ async function saveLimits() {
       showToast('Límites actualizados correctamente', 'success');
       // Actualizar estado global y UI (formulario y tabla)
       loadLimits();
+      // *** RECARGAR CONFIGURACIÓN Y ACTUALIZAR ESTADO GENERAL ***
+      await loadConfiguration();
+      updateConfigurationStatus();
+      // *** FIN RECARGA ***
     } else {
       // fetchAPI maneja errores y muestra toast si la respuesta no es JSON válido o hay error HTTP
       console.error('Error al guardar límites, respuesta inválida o error HTTP:', updatedLimits);
@@ -2050,6 +2054,10 @@ async function saveModel() {
 
       resetModelForm(); // Limpia el resto del formulario y el ID
       loadModels(); // Recarga la tabla de modelos
+      // *** RECARGAR CONFIGURACIÓN Y ACTUALIZAR ESTADO GENERAL ***
+      await loadConfiguration(); 
+      updateConfigurationStatus();
+      // *** FIN RECARGA ***
     } else {
       // Handle cases where API returns OK status but not the expected data structure
       console.error('Respuesta inesperada o error al guardar modelo (pero status OK):', result);
@@ -2172,6 +2180,10 @@ async function saveSensor() {
       resetSensorForm();
       await loadSensorsTable(); // Recargar tabla de sensores
       await loadSensors(); // Recargar selector de sensores en dashboard y máquinas
+      // *** RECARGAR CONFIGURACIÓN Y ACTUALIZAR ESTADO GENERAL ***
+      await loadConfiguration();
+      updateConfigurationStatus();
+      // *** FIN RECARGA ***
     } else {
       const errorDetail = response?.detail || 'Respuesta inesperada del servidor.';
       console.error('Error al guardar sensor - Respuesta inválida:', response);
@@ -2288,6 +2300,10 @@ async function saveMachine() {
       showToast(`Máquina ${isUpdating ? 'actualizada' : 'creada'} correctamente`, 'success');
       resetMachineForm();
       await loadMachines(); // Recargar tabla de máquinas
+      // *** RECARGAR CONFIGURACIÓN Y ACTUALIZAR ESTADO GENERAL ***
+      await loadConfiguration();
+      updateConfigurationStatus();
+      // *** FIN RECARGA ***
     } else {
       const errorDetail = response?.detail || 'Respuesta inesperada del servidor.';
       console.error('Error al guardar máquina - Respuesta inválida:', response);
