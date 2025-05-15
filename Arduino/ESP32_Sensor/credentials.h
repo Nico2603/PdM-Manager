@@ -7,8 +7,8 @@
 #define CREDENTIALS_H
 
 // Configuración WiFi
-const char* ssid = "Maria_Tigo";               // SSID WiFi (Tigo Colombia)
-const char* password = "River1998";            // Contraseña WiFi
+const char* ssid = "A55";               // SSID WiFi (Tigo Colombia)
+const char* password = "mukava123";            // Contraseña WiFi
 
 // Configuración del servidor
 // IP PÚBLICA (solo usar si tienes configurado port forwarding en tu router):
