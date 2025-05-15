@@ -224,4 +224,4 @@ Para ejecutar las pruebas, utilice los scripts proporcionados (`run_tests.bat` o
 - **Aprendizaje Continuo**: Permitir que el modelo se actualice con nuevos datos
 - **Integración IoT**: Ampliar la compatibilidad con más dispositivos y protocolos
 - **Análisis Avanzado**: Incorporar algoritmos de análisis espectral y wavelets
-- **App Móvil**: Desarrollar una aplicación móvil para monitoreo en tiempo real 
+- **App Móvil**: Desarrollar una aplicación móvil para monitoreo en tiempo real .
