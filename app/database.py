@@ -1,6 +1,6 @@
 # app/database.py
 from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import declarative_base # Cambio aquí
 from sqlalchemy.orm import sessionmaker
 from urllib.parse import quote_plus
 import logging
@@ -85,7 +85,7 @@ else:
 # Dependencia para obtener una conexión a BD en los endpoints
 def get_db():
     if SessionLocal is None:
-        logger.error("Intento de obtener sesión de BD (get_db) fallido porque SessionLocal no está inicializado.")
+        logger.error("Intento de obtener sesion de BD (get_db) fallido porque SessionLocal no está inicializado.")
         # Considera lanzar una excepción HTTP aquí si es en un request context
         raise RuntimeError("La configuración de la base de datos no está disponible.")
     
@@ -93,7 +93,7 @@ def get_db():
     try:
         yield db
     except Exception as e:
-        logger.error(f"Error durante la sesión de base de datos: {e}")
+        logger.error(f"Error durante la sesion de base de datos: {e}")
         db.rollback() # Hacer rollback en caso de error durante la transacción
         raise # Re-lanzar la excepción para que FastAPI la maneje
     finally:

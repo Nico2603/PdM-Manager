@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Registro - PdM Manager</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+
+</head>
+<body>
+  <div class="login-split-container">
+    <div class="login-visual">
+      <div class="login-visual-content">
+        <h1>PdM Manager</h1>
+        <p>Gestiona y monitorea tus sensores de manera inteligente.</p>
+        <img src="/static/img/LoginIMG.jpeg" alt="Ilustración PdM" class="login-illustration">
+      </div>
+    </div>
+    <div class="login-form-panel">
+      <div class="login-form-box">
+        <h2>Crear una cuenta</h2>
+        {# {% if error %} #}
+        {#   <p class="error">{{ error }}</p> #}
+        {# {% endif %} #}
+        {# {% if success %} #}
+        {#   <p class="success">{{ success }}</p> #}
+        {# {% endif %} #}
+        <form method="post" action="/register">
+          <input class="form-control" type="text" name="username" placeholder="Nombre de usuario" required>
+          <div class="password-container">
+            <input class="form-control" type="password" id="password" name="password" placeholder="Contraseña" required>
+            <span class="password-toggle" onclick="togglePassword('password')">👁️</span>
+          </div>
+          <button class="btn btn-primary btn-block" type="submit">Registrar</button>
+        </form>
+        <p>¿Ya tienes cuenta? <a href="/login">Inicia sesión</a></p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function togglePassword(fieldId) {
+        const passwordField = document.getElementById(fieldId);
+        const toggleIcon = passwordField.nextElementSibling;
+        
+        if (passwordField.type === 'password') {
+            passwordField.type = 'text';
+            toggleIcon.textContent = '🙈';
+        } else {
+            passwordField.type = 'password';
+            toggleIcon.textContent = '👁️';
+        }
+    }
+
+    // Nuevo script para mostrar alertas desde parámetros URL
+    window.onload = function() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const error = urlParams.get('error');
+        const success = urlParams.get('success');
+
+        if (error) {
+            alert("Error: " + error);
+            // Opcional: limpiar la URL
+            window.history.replaceState({}, document.title, window.location.pathname);
+        }
+        if (success) {
+            alert("Éxito: " + success);
+            // Opcional: limpiar la URL
+            window.history.replaceState({}, document.title, window.location.pathname);
+        }
+    };
+  </script>
+</body>
+</html>
