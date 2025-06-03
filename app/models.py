@@ -118,3 +118,13 @@ class SystemConfig(Base):
     
     # Relaciones
     active_model = relationship("Model")
+
+class User(Base):
+    __tablename__ = "users" # Ajustado para coincidir con tu SQL
+    __table_args__ = {'schema': 'public'} # Manteniendo el esquema si es necesario
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(50), unique=True, index=True, nullable=False) # Index=True añadido para username
+    hashed_password = Column(String(255), nullable=False)
+    # email = Column(String(100), unique=True, index=True, nullable=True) # Opcional, eliminado según tu especificación
+    # is_active = Column(Integer, default=1, nullable=False) # Eliminado según tu especificación

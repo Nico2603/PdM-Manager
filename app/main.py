@@ -9,11 +9,12 @@ from typing import Dict, Any, Union, Optional, List
 import shutil
 
 # FastAPI
-from fastapi import FastAPI, HTTPException, Depends, status, Request, Query, Body, UploadFile, Form, File
+from fastapi import FastAPI, HTTPException, Depends, status, Request, Query, Body, UploadFile, Form, File, Cookie, Response as FastAPIResponse
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse, HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel, Field, validator, root_validator
 
 # TensorFlow
@@ -22,7 +23,7 @@ from tensorflow.keras.models import load_model
 
 # SQLAlchemy
 from app.database import get_db, SessionLocal
-from app.models import VibrationData, Model, Sensor, Machine, LimitConfig, SystemConfig
+from app.models import VibrationData, Model, Sensor, Machine, LimitConfig, SystemConfig, User # Añadido User
 from app.crud import (
     create_vibration_data, get_vibration_data, get_sensors,
     create_alert, update_sensor_last_status
@@ -42,6 +43,7 @@ from sqlalchemy.orm import Session
 
 # Importar el módulo de configuración
 from app.config import router as config_router
+from app.auth import get_current_user, create_access_token, authenticate_user,ACCESS_TOKEN_EXPIRE_MINUTES,verify_password, decode_token, get_password_hash # Asegurar que decode_token también se importe si es necesario aquí, o solo get_current_user
 
 # ---------------------------------------------------------
 # CONFIGURACIÓN DE RUTAS Y VARIABLES GLOBALES
@@ -351,65 +353,68 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Configuración de plantillas Jinja2
+# STATIC_DIR está definido globalmente en la sección de CONFIGURACIÓN DE RUTAS Y VARIABLES GLOBALES
+templates = Jinja2Templates(directory=STATIC_DIR)
+
 # Montar archivos estáticos
-app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 # Incluir el router de configuración
 app.include_router(config_router)
 
-# Configurar templates para renderizar HTML
-templates = Jinja2Templates(directory=STATIC_DIR)
-
 # ---------------------------------------------------------
-# EVENTOS DE INICIO Y CIERRE
+# DEFINICIÓN DE RUTAS Y LÓGICA DE LA APLICACIÓN
 # ---------------------------------------------------------
 
-@app.on_event("startup")
-async def startup_event():
-    """
-    Evento que se ejecuta al iniciar la aplicación.
+@app.get("/")
+async def root(request: Request):
+    # Redirige a /login si no hay token, o a /panel si lo hay (o a donde prefieras)
+    # Esta lógica puede necesitar ajustarse según cómo manejes el token en el cliente
+    access_token = request.cookies.get("access_token")
+    if not access_token:
+        return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
+    # Aquí podrías intentar decodificar el token para verificar su validez antes de redirigir
+    # pero get_current_user ya lo hará en las rutas protegidas.
+    return RedirectResponse(url="/panel", status_code=status.HTTP_302_FOUND)
+
+@app.get("/login", response_class=HTMLResponse)
+async def login_page(request: Request):
+    return templates.TemplateResponse("login.html", {"request": request})
+
+@app.post("/login")
+async def login_for_access_token(response: RedirectResponse, db: Session = Depends(get_db), form_data: OAuth2PasswordRequestForm = Depends()):
+    user = authenticate_user(db, form_data.username, form_data.password)
+    if not user:
+        # Idealmente, redirigir de nuevo a /login con un mensaje de error
+        # Por ahora, lanzamos una excepción que se puede mejorar para la UX
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user.username}, expires_delta=access_token_expires
+    )
+    # Configura la cookie en la respuesta de redirección
+    response = RedirectResponse(url="/panel", status_code=status.HTTP_302_FOUND)
+    response.set_cookie(key="access_token", value=f"Bearer {access_token}", httponly=True, samesite="Lax") # samesite='Lax' es una buena práctica
+    return response
+
+@app.get("/panel")
+def dashboard(request: Request, user: User = Depends(get_current_user)):
     
-    Este evento realiza las siguientes tareas:
-    1. Intenta cargar los modelos de ML
-    2. Configura la base de datos si es necesario
-    3. Verifica y crea los límites por defecto si no existen (usando la función de crud_config)
-    4. Verifica y crea el modelo por defecto si no existe
-    """
-    global model, scaler
-    
-    try:
-        logger.info("Iniciando aplicación PdM-Manager")
-        
-        logger.info("Iniciando carga de modelos ML y configuración...")
-        if not load_ml_models():
-            logger.info("Modelos de ML no cargados. Configure el sistema en la sección 'Configuración'.") # Mensaje informativo único
-        
-        # Crear una sesión de base de datos para la inicialización
-        db = SessionLocal()
-        try:
-            logger.info("Verificando configuración de límites por defecto...")
-            ensure_default_limits_exist(db) # Llamar a la función importada
-            
-            # Verificar y crear modelo por defecto si es necesario
-            # ensure_default_model_exists() # Comentar o eliminar si no se necesita más
-            
-            # Verificar si la base de datos está configurada
-            system_config = get_system_config(db)
-            
-            if not system_config.is_configured:
-                logger.info("Sistema no configurado. Se mostrará la página de configuración al acceder.")
-            else:
-                logger.info("Sistema configurado correctamente.")
-        except Exception as e:
-            logger.warning(f"Error durante la inicialización de la BD: {str(e)}")
-        finally:
-            db.close()
-            
-    except Exception as e:
-        logger.warning(f"Error durante la inicialización general: {str(e)}")
+    return templates.TemplateResponse("index.html", {"request": request, "user": user})
+
+@app.get("/logout")
+def logout(response: Response):
+    response = RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER) # Usar 303 para GET tras POST/PUT/DELETE
+    response.delete_cookie("access_token", path="/", domain=None, secure=True, httponly=True, samesite="Lax")
+    return response
 
 # ---------------------------------------------------------
-# DEFINICIÓN DE ENDPOINTS
+# RUTAS DE LA API (JSON)
 # ---------------------------------------------------------
 
 @app.get("/")
@@ -873,4 +878,104 @@ async def get_config_endpoint(db: Session = Depends(get_db)):
 # ---------------------------------------------------------
 # ENDPOINT PARA SUBIR ARCHIVOS DE MODELO
 # ---------------------------------------------------------
-# ... (código existente) ...
+@app.get("/", tags=["Frontend"])
+async def read_root(request: Request, db: Session = Depends(get_db), current_user: Optional[User] = Depends(lambda request: get_current_user(request, db) if request.cookies.get("access_token") else None)):
+    """
+    Sirve la página principal del dashboard.
+    Intenta obtener el usuario actual si hay una cookie de acceso.
+    Si no hay usuario (no logueado), `current_user` será `None`.
+    """
+    if not current_user:
+        # Si el usuario no está autenticado y trata de acceder a la raíz,
+        # redirigirlo al login.
+        return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
+
+    # Si el usuario está autenticado, servir el dashboard.
+    # Asegúrate de que 'index.html' esté en el directorio correcto de plantillas.
+    # La variable 'templates' ya está definida globalmente.
+    return templates.TemplateResponse("index.html", {"request": request, "user": current_user})
+
+# Montar archivos estáticos (CSS, JS, imágenes)
+# Asegúrate de que la ruta "static" sea correcta y contenga tus archivos.
+# Esta línea ya existe en tu código original, la pongo aquí para contexto.
+# app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+# Incluir el router de configuración
+# Esta línea ya existe en tu código original.
+# app.include_router(config_router, prefix="/config", tags=["Configuración"])
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
+
+@app.exception_handler(HTTPException)
+async def custom_http_exception_handler(request: Request, exc: HTTPException):
+    if exc.status_code == 401:
+        # Redirige a la página de login con un mensaje de error específico para no autorizado
+        return RedirectResponse(url="/login?error=Acceso no autorizado. Por favor, inicie sesión.", status_code=status.HTTP_302_FOUND)
+    # Para otras excepciones HTTP, puedes decidir si quieres un comportamiento por defecto
+    # o alguna otra lógica. Aquí se mantiene una respuesta JSON genérica para otros errores HTTP.
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail},
+    )
+
+
+@app.get("/login", response_class=HTMLResponse)
+async def login_get(request: Request, error: Optional[str] = None, success: Optional[str] = None):
+    # Asegúrate de que el contexto para la plantilla incluya 'request', 'error' y 'success'
+    # Ya no necesitamos pasar 'error' y 'success' al contexto de la plantilla directamente si se manejan por JS desde la URL
+    return templates.TemplateResponse("login.html", {"request": request})
+
+@app.post("/login")
+async def login_post(request: Request, response: FastAPIResponse, form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    user = authenticate_user(db, form_data.username, form_data.password)
+    if not user:
+        # Redirige a login con parámetro de error para ser capturado por JS
+        return RedirectResponse(url="/login?error=Usuario o contraseña incorrectos", status_code=status.HTTP_302_FOUND)
+    
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user.username, "user_id": user.user_id}, expires_delta=access_token_expires
+    )
+    
+    # Establecer la cookie y luego redirigir
+    redirect_response = RedirectResponse(url="/", status_code=status.HTTP_302_FOUND)
+    # Es importante usar FastAPIResponse para poder manipular las cookies directamente en la respuesta de redirección.
+    # Sin embargo, set_cookie es un método del objeto Response de Starlette/FastAPI, no de RedirectResponse directamente en algunas versiones.
+    # La forma más robusta es crear la RedirectResponse y luego llamar a set_cookie sobre ella.
+    response.set_cookie(key="access_token", value=f"Bearer {access_token}", httponly=True, max_age=int(access_token_expires.total_seconds()), samesite="Lax")
+    # Para que la cookie se establezca correctamente ANTES de la redirección, 
+    # es mejor devolver la redirect_response y aplicar la cookie a esa respuesta.
+    # O, si se usa el parámetro 'response: FastAPIResponse', se puede modificar esa respuesta y retornarla.
+    # Aquí, para simplificar y asegurar que la cookie se envíe con la redirección:
+    final_response = RedirectResponse(url="/", status_code=status.HTTP_302_FOUND)
+    final_response.set_cookie(key="access_token", value=f"Bearer {access_token}", httponly=True, max_age=int(access_token_expires.total_seconds()), samesite="Lax")
+    return final_response
+
+@app.get("/register", response_class=HTMLResponse)
+async def register_get(request: Request, error: Optional[str] = None, success: Optional[str] = None):
+    # Ya no necesitamos pasar 'error' y 'success' al contexto de la plantilla directamente
+    return templates.TemplateResponse("register.html", {"request": request})
+
+@app.post("/register")
+async def register_post(request: Request, username: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)):
+    db_user = db.query(User).filter(User.username == username).first()
+    if db_user:
+        # Redirige a register con parámetro de error
+        return RedirectResponse(url="/register?error=El nombre de usuario ya existe", status_code=status.HTTP_302_FOUND)
+    
+    hashed_password = get_password_hash(password)
+    new_user = User(username=username, hashed_password=hashed_password)
+    db.add(new_user)
+    try:
+        db.commit()
+        db.refresh(new_user)
+        # Redirige a la página de login con un mensaje de éxito después de un registro correcto
+        return RedirectResponse(url="/login?success=Usuario registrado correctamente. Por favor, inicie sesión.", status_code=status.HTTP_302_FOUND)
+    except SQLAlchemyError as e:
+        db.rollback()
+        logger.error(f"Error al registrar usuario: {e}")
+        # Redirige a register con parámetro de error
+        return RedirectResponse(url="/register?error=Ocurrió un error durante el registro. Inténtelo de nuevo.", status_code=status.HTTP_302_FOUND)
