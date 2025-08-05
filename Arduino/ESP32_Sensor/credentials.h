@@ -1,24 +1,30 @@
 /**
- * Archivo de credenciales y configuración - PdM-Manager
- * Para ESP32 con sensor MPU6050
+ * Archivo de credenciales y configuración - PdM-Manager v2.0.0
+ * Para ESP32 con sensor MPU6050 + MQTT + SPIFFS + Watchdog
  */
 
 #ifndef CREDENTIALS_H
 #define CREDENTIALS_H
 
 // Configuración WiFi
-const char* ssid = "A55";               // SSID WiFi (Tigo Colombia)
-const char* password = "mukava123";            // Contraseña WiFi
+const char* ssid = "A55";                       // SSID WiFi (Tigo Colombia)
+const char* password = "mukava123";             // Contraseña WiFi
 
-// Configuración del servidor
-// IP PÚBLICA (solo usar si tienes configurado port forwarding en tu router):
-// const char* serverBaseUrl = "http://191.98.43.133:8000"; // IP pública de Colombia, Pereira (Tigo)
+// NUEVO: Configuración MQTT HiveMQ (reemplaza serverBaseUrl HTTP)
+const char* mqttBrokerHost = "broker.hivemq.com";    // Broker HiveMQ público
+const int mqttBrokerPort = 1883;                     // Puerto MQTT estándar
+const char* mqttUser = "";                           // Usuario MQTT (vacío para broker público)
+const char* mqttPassword = "";                       // Contraseña MQTT (vacío para broker público)
 
-// IP LOCAL (usa esta para conexiones dentro de tu red local):
-const char* serverBaseUrl = "http://192.168.1.11:8000"; // Reemplaza con la IP local de tu servidor
+// ALTERNATIVA: HiveMQ Cloud (descomenta si tienes cuenta HiveMQ Cloud)
+// const char* mqttBrokerHost = "tu-cluster.s1.eu.hivemq.cloud";
+// const int mqttBrokerPort = 8883;                   // Puerto TLS
+// const char* mqttUser = "tu_usuario";
+// const char* mqttPassword = "tu_contraseña";
 
 // ID del sensor registrado en la base de datos
 // IMPORTANTE: Este ID debe existir en la base de datos del sistema
+// Para múltiples sensores, solo cambiar este valor: 1, 2, 3, 4...
 const int sensorId = 1;
 
 // Configuración de tiempos

@@ -1,22 +1,26 @@
 /**
  * ESP32 Sensor - PdM-Manager
- * Lectura de aceleración y envío de datos vía HTTP
+ * Lectura de aceleración y envío de datos vía MQTT con almacenamiento local
  */
 
 #include <WiFi.h>
 #include <Wire.h>
-#include <HTTPClient.h>
+#include <PubSubClient.h>        // CAMBIO: Reemplaza HTTPClient para MQTT
 #include <Adafruit_MPU6050.h>
 #include <Adafruit_Sensor.h>
 #include <ArduinoJson.h>
-#include <time.h>  // Para NTP
+#include <time.h>               // Para NTP
+#include <SPIFFS.h>             // NUEVO: Almacenamiento local
+#include <esp_task_wdt.h>       // NUEVO: Watchdog Timer
 #include "credentials.h"
 
 // Configuración del sensor
 Adafruit_MPU6050 mpu;
 
-// URL completa para el envío de datos de vibración
-char apiUrl[100];
+// CAMBIO: Configuración MQTT (reemplaza apiUrl de HTTP)
+WiFiClient wifiClient;
+PubSubClient mqttClient(wifiClient);
+const char* mqttTopic = "GL_Ingenieros/sensores/vibracion";
 
 // Configuración NTP
 const char* ntpServer = "pool.ntp.org";
@@ -26,8 +30,15 @@ const int   daylightOffset_sec = 0;  // Sin horario de verano
 // Variables globales
 unsigned long lastSendTime = 0;
 unsigned long lastWifiCheckTime = 0;
-const int wifiCheckInterval = 30000; // Revisar WiFi cada 30 segundos
+unsigned long lastWatchdogTime = 0;       // NUEVO: Control Watchdog
+const int wifiCheckInterval = 30000;      // Revisar WiFi cada 30 segundos
+const int watchdogTimeout = 60000;        // NUEVO: Timeout Watchdog 60 segundos
 bool timeInitialized = false;
+bool spiffsInitialized = false;           // NUEVO: Estado SPIFFS
+
+// NUEVO: Cola de datos offline
+const int maxOfflineData = 50;            // Máximo 50 registros offline
+int offlineDataCount = 0;
 
 void setup() {
   Serial.begin(115200);
@@ -35,14 +46,29 @@ void setup() {
   delay(100);
   
   Serial.println("\n===== INICIALIZANDO ESP32 SENSOR =====");
-  Serial.println("Versión: 1.0.4 - PdM-Manager");
-  Serial.println("Desarrollado para monitoreo de vibraciones");
+  Serial.println("Versión: 2.0.0 - PdM-Manager MQTT+SPIFFS+Watchdog");
+  Serial.println("Desarrollado para monitoreo de vibraciones - GL Ingenieros");
   
-  // Construir la URL completa para la API
-  // IMPORTANTE: Este endpoint debe coincidir con el de tu backend
-  sprintf(apiUrl, "%s/sensor-data", serverBaseUrl);
-  Serial.print("URL de la API: ");
-  Serial.println(apiUrl);
+  // NUEVO: Inicializar Watchdog Timer
+  Serial.println("Configurando Watchdog Timer...");
+  esp_task_wdt_init(watchdogTimeout / 1000, true);  // 60 segundos, reset automático
+  esp_task_wdt_add(NULL);  // Agregar tarea actual al watchdog
+  Serial.println("✓ Watchdog Timer configurado (60s timeout)");
+  
+  // NUEVO: Inicializar SPIFFS para almacenamiento local
+  if (!initializeSPIFFS()) {
+    Serial.println("⚠️  SPIFFS no disponible - funcionando solo en modo online");
+  }
+  
+  // CAMBIO: Configuración MQTT (reemplaza construcción de URL HTTP)
+  mqttClient.setServer(mqttBrokerHost, mqttBrokerPort);
+  mqttClient.setCallback(mqttCallback);
+  Serial.print("Broker MQTT configurado: ");
+  Serial.print(mqttBrokerHost);
+  Serial.print(":");
+  Serial.println(mqttBrokerPort);
+  Serial.print("Tópico: ");
+  Serial.println(mqttTopic);
   
   Serial.print("ID del Sensor: ");
   Serial.println(sensorId);
@@ -62,23 +88,44 @@ void setup() {
   // Conectar a WiFi
   connectToWiFi();
   
+  // CAMBIO: Conectar a MQTT broker (reemplaza inicialización HTTP)
+  connectToMQTT();
+  
   // Configurar tiempo NTP
   configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
   initializeTime();
   
+  // NUEVO: Procesar datos offline almacenados
+  processOfflineData();
+  
   Serial.println("\n===== SISTEMA LISTO =====");
-  Serial.println("Iniciando monitoreo de vibraciones...");
+  Serial.println("Iniciando monitoreo de vibraciones con MQTT...");
 }
 
 void loop() {
   unsigned long currentTime = millis();
+  
+  // NUEVO: Alimentar Watchdog Timer
+  if (currentTime - lastWatchdogTime >= 30000) {  // Cada 30 segundos
+    esp_task_wdt_reset();
+    lastWatchdogTime = currentTime;
+    Serial.println("🐕 Watchdog alimentado");
+  }
   
   // Verificar si la conexión WiFi sigue activa
   if (WiFi.status() != WL_CONNECTED) {
     Serial.println("Conexión WiFi perdida. Reconectando...");
     connectToWiFi();
     initializeTime(); // Reinicializar el tiempo después de reconectar
+    connectToMQTT();  // NUEVO: Reconectar MQTT después de WiFi
   }
+  
+  // NUEVO: Mantener conexión MQTT activa
+  if (!mqttClient.connected()) {
+    Serial.println("Conexión MQTT perdida. Reconectando...");
+    connectToMQTT();
+  }
+  mqttClient.loop();  // Procesar mensajes MQTT
   
   // Verificar si es momento de tomar una lectura
   if (currentTime - lastSendTime >= sampleInterval) {
@@ -104,8 +151,8 @@ void loop() {
     String jsonData;
     serializeJson(jsonDoc, jsonData);
     
-    // Enviar datos al servidor
-    sendDataToServer(jsonData);
+    // CAMBIO: Enviar datos vía MQTT (reemplaza sendDataToServer HTTP)
+    sendDataViaMQTT(jsonData);
     
     // Actualizar tiempo de la última lectura
     lastSendTime = currentTime;
@@ -180,69 +227,90 @@ void connectToWiFi() {
   }
 }
 
-void sendDataToServer(String jsonData) {
-  const int MAX_RETRIES = 3;
-  int retries = 0;
-  bool success = false;
-  
-  Serial.println("\n------ ENVIANDO DATOS AL SERVIDOR ------");
+// NUEVO: Función MQTT que reemplaza sendDataToServer HTTP
+void sendDataViaMQTT(String jsonData) {
+  Serial.println("\n------ ENVIANDO DATOS VÍA MQTT ------");
   Serial.println("JSON a enviar:");
   Serial.println(jsonData);
-  Serial.println("---------------------------------------");
+  Serial.println("------------------------------------");
   
-  // Verificar si la API URL es correcta antes de enviar
-  if (strlen(apiUrl) < 10) {
-    Serial.println("Error: URL de API no válida. Revise la configuración.");
-    return;
-  }
-  
-  while (!success && retries < MAX_RETRIES) {
-    HTTPClient http;
-    http.begin(apiUrl);
-    http.addHeader("Content-Type", "application/json");
-    
-    int httpResponseCode = http.POST(jsonData);
-    
-    if (httpResponseCode > 0) {
-      String response = http.getString();
-      Serial.print("Código de respuesta HTTP: ");
-      Serial.println(httpResponseCode);
+  if (mqttClient.connected()) {
+    // Intentar enviar vía MQTT
+    if (mqttClient.publish(mqttTopic, jsonData.c_str())) {
+      Serial.println("✓ DATOS ENVIADOS VÍA MQTT CON ÉXITO ✓");
+      Serial.print("Tópico: ");
+      Serial.println(mqttTopic);
       
-      if (httpResponseCode == 200 || httpResponseCode == 201) {
-        success = true;
-        Serial.println("✓ DATOS ENVIADOS CON ÉXITO ✓");
-        Serial.println("Respuesta del servidor: ");
-        Serial.println(response);
-      } else {
-        Serial.println("✗ ERROR EN LA RESPUESTA DEL SERVIDOR ✗");
-        Serial.print("Código: ");
-        Serial.println(httpResponseCode);
-        Serial.println("Respuesta: ");
-        Serial.println(response);
+      // NUEVO: Si hay datos offline, intentar sincronizarlos
+      if (offlineDataCount > 0 && spiffsInitialized) {
+        Serial.println("📤 Sincronizando datos offline...");
+        processOfflineData();
       }
     } else {
-      Serial.println("✗ ERROR EN LA PETICIÓN HTTP ✗");
-      Serial.println(http.errorToString(httpResponseCode));
+      Serial.println("✗ ERROR AL ENVIAR VÍA MQTT ✗");
+      // NUEVO: Guardar en SPIFFS si MQTT falla
+      saveDataOffline(jsonData);
     }
+  } else {
+    Serial.println("⚠️ MQTT desconectado - Guardando datos offline");
+    // NUEVO: Guardar en SPIFFS si no hay conexión MQTT
+    saveDataOffline(jsonData);
+  }
+}
+
+// NUEVO: Función para conectar a broker MQTT
+void connectToMQTT() {
+  Serial.println("Conectando a broker MQTT...");
+  
+  String clientId = "ESP32_Sensor_" + String(sensorId);
+  
+  int attempts = 0;
+  while (!mqttClient.connected() && attempts < 5) {
+    Serial.print("Intento MQTT ");
+    Serial.print(attempts + 1);
+    Serial.print("/5... ");
     
-    http.end();
-    
-    if (!success) {
-      retries++;
-      if (retries < MAX_RETRIES) {
-        Serial.print("Reintentando envío... (");
-        Serial.print(retries);
-        Serial.println("/3)");
-        delay(1000);
-      }
+    if (mqttClient.connect(clientId.c_str(), mqttUser, mqttPassword)) {
+      Serial.println("✓ Conectado a MQTT");
+      Serial.print("Cliente ID: ");
+      Serial.println(clientId);
+      
+      // Suscribirse a tópico de comandos (opcional)
+      String commandTopic = "GL_Ingenieros/sensores/comandos/" + String(sensorId);
+      mqttClient.subscribe(commandTopic.c_str());
+      Serial.print("Suscrito a: ");
+      Serial.println(commandTopic);
+      
+    } else {
+      Serial.print("✗ Error MQTT: ");
+      Serial.println(mqttClient.state());
+      delay(2000);
     }
+    attempts++;
   }
   
-  if (!success) {
-    Serial.println("No se pudieron enviar los datos después de varios intentos");
-    Serial.println("Verifique que el servidor esté en ejecución y la URL sea correcta");
-    Serial.print("URL actual: ");
-    Serial.println(apiUrl);
+  if (!mqttClient.connected()) {
+    Serial.println("⚠️ No se pudo conectar a MQTT - Modo offline activado");
+  }
+}
+
+// NUEVO: Callback para mensajes MQTT recibidos
+void mqttCallback(char* topic, byte* payload, unsigned int length) {
+  Serial.print("📨 Mensaje MQTT recibido en tópico: ");
+  Serial.println(topic);
+  
+  String message;
+  for (int i = 0; i < length; i++) {
+    message += (char)payload[i];
+  }
+  Serial.print("Contenido: ");
+  Serial.println(message);
+  
+  // Procesar comandos (ej: cambio de frecuencia, reinicio, etc.)
+  if (message == "restart") {
+    Serial.println("🔄 Comando de reinicio recibido");
+    delay(1000);
+    ESP.restart();
   }
 }
 
@@ -288,4 +356,180 @@ void getISOTimestamp(char* buffer) {
   // Fallback en caso de error: usar un timestamp relativo al millis()
   time_t now = time(nullptr);
   sprintf(buffer, "2023-04-05T12:%02d:%02dZ", (now / 60) % 60, now % 60);
+}
+
+// NUEVO: Función para inicializar SPIFFS
+bool initializeSPIFFS() {
+  Serial.println("Inicializando SPIFFS...");
+  
+  if (!SPIFFS.begin(true)) {
+    Serial.println("✗ Error al montar SPIFFS");
+    spiffsInitialized = false;
+    return false;
+  }
+  
+  spiffsInitialized = true;
+  Serial.println("✓ SPIFFS inicializado correctamente");
+  
+  // Mostrar información del sistema de archivos
+  size_t totalBytes = SPIFFS.totalBytes();
+  size_t usedBytes = SPIFFS.usedBytes();
+  Serial.print("Espacio total: ");
+  Serial.print(totalBytes);
+  Serial.println(" bytes");
+  Serial.print("Espacio usado: ");
+  Serial.print(usedBytes);
+  Serial.print(" bytes (");
+  Serial.print((usedBytes * 100) / totalBytes);
+  Serial.println("%)");
+  
+  // Contar datos offline existentes
+  countOfflineData();
+  
+  return true;
+}
+
+// NUEVO: Función para guardar datos offline
+void saveDataOffline(String jsonData) {
+  if (!spiffsInitialized) {
+    Serial.println("⚠️ SPIFFS no disponible - Datos perdidos");
+    return;
+  }
+  
+  if (offlineDataCount >= maxOfflineData) {
+    Serial.println("⚠️ Almacenamiento offline lleno - Eliminando datos antiguos");
+    // Eliminar el archivo más antiguo
+    deleteOldestOfflineData();
+  }
+  
+  // Crear nombre de archivo único
+  String filename = "/data_" + String(millis()) + ".json";
+  
+  File file = SPIFFS.open(filename, "w");
+  if (!file) {
+    Serial.println("✗ Error al crear archivo offline");
+    return;
+  }
+  
+  file.print(jsonData);
+  file.close();
+  
+  offlineDataCount++;
+  Serial.print("💾 Datos guardados offline: ");
+  Serial.print(filename);
+  Serial.print(" (Total: ");
+  Serial.print(offlineDataCount);
+  Serial.println(")");
+}
+
+// NUEVO: Función para procesar datos offline
+void processOfflineData() {
+  if (!spiffsInitialized || offlineDataCount == 0) {
+    return;
+  }
+  
+  Serial.print("📤 Procesando ");
+  Serial.print(offlineDataCount);
+  Serial.println(" datos offline...");
+  
+  File root = SPIFFS.open("/");
+  File file = root.openNextFile();
+  
+  int processed = 0;
+  while (file && mqttClient.connected()) {
+    String filename = file.name();
+    
+    if (filename.startsWith("/data_") && filename.endsWith(".json")) {
+      // Leer contenido del archivo
+      String jsonData = file.readString();
+      
+      // Intentar enviar vía MQTT
+      if (mqttClient.publish(mqttTopic, jsonData.c_str())) {
+        Serial.print("✓ Sincronizado: ");
+        Serial.println(filename);
+        
+        // Eliminar archivo después de envío exitoso
+        file.close();
+        SPIFFS.remove(filename);
+        processed++;
+        offlineDataCount--;
+      } else {
+        Serial.print("✗ Error al sincronizar: ");
+        Serial.println(filename);
+        break; // Salir si hay error en el envío
+      }
+    }
+    
+    if (file) {
+      file = root.openNextFile();
+    }
+  }
+  
+  if (file) file.close();
+  root.close();
+  
+  Serial.print("📤 Sincronizados ");
+  Serial.print(processed);
+  Serial.print(" archivos. Restantes: ");
+  Serial.println(offlineDataCount);
+}
+
+// NUEVO: Función para contar datos offline
+void countOfflineData() {
+  offlineDataCount = 0;
+  
+  File root = SPIFFS.open("/");
+  File file = root.openNextFile();
+  
+  while (file) {
+    String filename = file.name();
+    if (filename.startsWith("/data_") && filename.endsWith(".json")) {
+      offlineDataCount++;
+    }
+    file = root.openNextFile();
+  }
+  
+  if (file) file.close();
+  root.close();
+  
+  if (offlineDataCount > 0) {
+    Serial.print("📁 Encontrados ");
+    Serial.print(offlineDataCount);
+    Serial.println(" datos offline para sincronizar");
+  }
+}
+
+// NUEVO: Función para eliminar datos offline antiguos
+void deleteOldestOfflineData() {
+  File root = SPIFFS.open("/");
+  File file = root.openNextFile();
+  
+  String oldestFile = "";
+  unsigned long oldestTime = ULONG_MAX;
+  
+  while (file) {
+    String filename = file.name();
+    if (filename.startsWith("/data_") && filename.endsWith(".json")) {
+      // Extraer timestamp del nombre del archivo
+      int start = filename.indexOf("_") + 1;
+      int end = filename.indexOf(".json");
+      unsigned long timestamp = filename.substring(start, end).toInt();
+      
+      if (timestamp < oldestTime) {
+        oldestTime = timestamp;
+        oldestFile = filename;
+      }
+    }
+    file = root.openNextFile();
+  }
+  
+  if (file) file.close();
+  root.close();
+  
+  if (oldestFile != "") {
+    SPIFFS.remove(oldestFile);
+    offlineDataCount--;
+    Serial.print("🗑️ Eliminado archivo antiguo: ");
+    Serial.println(oldestFile);
+  }
 }

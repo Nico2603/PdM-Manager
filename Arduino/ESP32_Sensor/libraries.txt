@@ -1,11 +1,14 @@
-# Bibliotecas requeridas para ESP32_Sensor
+# Bibliotecas requeridas para ESP32_Sensor v2.0.0
 
 # Incluidas con ESP32 (no requieren instalación manual)
 - WiFi
 - Wire
-- HTTPClient
+- SPIFFS (Sistema de archivos)
+- esp_task_wdt (Watchdog Timer)
 
+# CAMBIO: Reemplazar HTTPClient con PubSubClient para MQTT
 # Instalar desde el Gestor de Bibliotecas de Arduino IDE
+- PubSubClient (versión 2.8.0 o superior) - NUEVO: Para MQTT
 - Adafruit MPU6050 (versión 2.0.0 o superior)
 - Adafruit Unified Sensor (versión 1.1.4 o superior)
 - Adafruit BusIO (automáticamente instalado como dependencia)
