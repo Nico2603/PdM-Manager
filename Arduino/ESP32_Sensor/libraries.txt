@@ -25,4 +25,15 @@
 - Core Debug Level: None
 
 # Notas de compatibilidad
-Las versiones de biblioteca se han probado con Arduino IDE 1.8.19 y paquete ESP32 versión 2.0.2 
+- Arduino IDE 1.8.19 o superior / Arduino IDE 2.x
+- ESP32 Arduino Core v2.0.2+ (IDF 4.x) o v3.x (IDF 5.x)
+- El código es compatible con ambas versiones mediante compilación condicional
+
+# Versiones de ESP32 Core soportadas:
+- v2.0.2 - v2.0.17 (IDF 4.x) - API Watchdog antigua
+- v3.0.0+ (IDF 5.x) - API Watchdog nueva
+
+# Si tienes errores de compilación del Watchdog:
+1. Verifica tu versión: Herramientas → Placa → Gestor de Tarjetas → ESP32
+2. Actualiza a v3.x para mejor rendimiento
+3. O usa v2.0.17 si prefieres estabilidad 

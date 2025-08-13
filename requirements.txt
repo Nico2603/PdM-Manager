@@ -18,3 +18,4 @@ passlib[bcrypt]==1.7.4
 pytest==7.4.3
 pytest-cov==4.1.0
 httpx==0.25.1
+paho-mqtt==1.6.1
