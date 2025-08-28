@@ -47,6 +47,9 @@ let globalState = {
 // Flag para mostrar mensaje de config solo una vez por carga de página
 let initialConfigMessageShown = false; 
 
+// Tema actual
+let currentTheme = null;
+
 // ==========================================================================
 // INICIALIZACIÓN DE LA APLICACIÓN
 // ==========================================================================
@@ -60,9 +63,17 @@ document.addEventListener('DOMContentLoaded', function() {
   
   // Configurar eventos de UI
   setupUIButtons();
+  setupDataControls();
+  setupThemeToggle();
   
   // Cargar datos iniciales y configurar estado
   initApp(); 
+
+  // Activar revelado de tarjetas al hacer scroll
+  setupRevealOnScroll();
+
+  // Activar handlers de CSV
+  setupCsvButtons();
 });
 
 // Inicialización principal
@@ -106,6 +117,82 @@ async function initApp() {
     if (configWarning) configWarning.style.display = 'block'; 
   }
 }
+
+// ==========================================================================
+// TEMA CLARO/OSCURO
+// ==========================================================================
+function setupThemeToggle() {
+  // Leer preferencia de localStorage o media query
+  const stored = localStorage.getItem('theme');
+  if (stored === 'light' || stored === 'dark') {
+    applyTheme(stored);
+  } else {
+    const prefersLight = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
+    applyTheme(prefersLight ? 'light' : 'dark');
+  }
+
+  const btn = document.getElementById('themeToggle');
+  const icon = document.getElementById('themeIcon');
+  if (btn && icon) {
+    btn.addEventListener('click', () => {
+      const next = currentTheme === 'dark' ? 'light' : 'dark';
+      applyTheme(next, true);
+    });
+  }
+}
+
+function applyTheme(theme, withAnimation = false) {
+  currentTheme = theme;
+  const htmlEl = document.documentElement;
+  if (theme === 'light') {
+    htmlEl.setAttribute('data-theme', 'light');
+  } else {
+    htmlEl.removeAttribute('data-theme');
+  }
+  localStorage.setItem('theme', theme);
+
+  // Icono
+  const icon = document.getElementById('themeIcon');
+  if (icon) {
+    icon.className = theme === 'light' ? 'fas fa-moon' : 'fas fa-sun';
+  }
+
+  // Animación suave: fundido y cambio de bg
+  if (withAnimation) {
+    const body = document.body;
+    body.style.transition = 'background-color 300ms ease, color 300ms ease';
+    // disparar reflow para aplicar transición
+    void body.offsetWidth;
+    setTimeout(() => { body.style.transition = ''; }, 350);
+  }
+}
+// Lee y aplica controles de puntos y frecuencia de actualización
+function setupDataControls() {
+  const pointsInput = document.getElementById('maxPointsInput');
+  const freqInput = document.getElementById('updateFreqInput');
+  const applyBtn = document.getElementById('applyDataOptionsBtn');
+  if (pointsInput) pointsInput.value = globalState.maxDataPoints;
+  if (freqInput) freqInput.value = globalState.updateFrequency;
+  if (applyBtn) {
+    applyBtn.addEventListener('click', () => {
+      const pts = parseInt(pointsInput.value) || globalState.maxDataPoints;
+      const freq = parseInt(freqInput.value) || globalState.updateFrequency;
+      globalState.maxDataPoints = Math.max(10, Math.min(5000, pts));
+      globalState.updateFrequency = Math.max(500, freq);
+      showToast('Opciones de datos aplicadas', 'success');
+      // Reiniciar actualización automática si está activa
+      if (globalState.isUpdating) {
+        stopAutoUpdate();
+        startAutoUpdate();
+      }
+      // Recargar datos del sensor actual
+      if (currentPage === 'dashboard' && globalState.currentSensor && isConfigured) {
+        loadVibrationData(globalState.currentSensor);
+      }
+    });
+  }
+}
+
 
 // Inicializa los campos de configuración
 function initConfigFields() {
@@ -412,7 +499,10 @@ async function loadConfiguration() {
 // Actualiza la UI según el estado de configuración FINAL
 function updateConfigurationStatus() {
   const startMonitoringBtn = document.getElementById('startMonitoringBtn');
+  const startMonitoringBtnTop = document.getElementById('startMonitoringBtnTop');
   const configurationWarning = document.getElementById('configurationWarning');
+  const configStatusTop = null; // removido de topbar
+  const configStatusBottom = document.getElementById('configStatus');
   const estadoSistemaText = document.querySelector('#estadoSistema .status-text'); 
   const estadoSistemaDot = document.querySelector('#estadoSistema .status-dot');
 
@@ -425,10 +515,37 @@ function updateConfigurationStatus() {
     startMonitoringBtn.disabled = !isConfigured;
     startMonitoringBtn.title = isConfigured ? 'Iniciar monitoreo de datos' : 'Configure el sistema...';
   }
+  if (startMonitoringBtnTop) {
+    startMonitoringBtnTop.disabled = !isConfigured;
+    startMonitoringBtnTop.title = isConfigured ? 'Iniciar monitoreo de datos' : 'Configure el sistema...';
+  }
   
   // Controlar aviso visual en sidebar
   if (configurationWarning) {
     configurationWarning.style.display = isConfigured ? 'none' : 'block';
+  }
+  if (configStatusTop) {
+    const dot = configStatusTop.querySelector('.status-indicator');
+    const text = configStatusTop.querySelector('.status-text');
+    if (isConfigured) {
+      dot.classList.add('active');
+      text.textContent = 'Configuración lista';
+      // pinta en verde (usamos clase 'active' y CSS ya lo aplica, o podríamos añadir una clase específica)
+    } else {
+      dot.classList.remove('active');
+      text.textContent = 'Configuración requerida';
+    }
+  }
+  if (configStatusBottom) {
+    const dot = configStatusBottom.querySelector('.status-indicator');
+    const text = configStatusBottom.querySelector('.status-text');
+    if (isConfigured) {
+      dot.classList.add('active');
+      text.textContent = 'Configuración lista';
+    } else {
+      dot.classList.remove('active');
+      text.textContent = 'Configuración requerida';
+    }
   }
 
   // Actualizar estado general visual en sidebar
@@ -1082,6 +1199,35 @@ async function loadVibrationData(sensorId, isUpdate = false) {
     }
   }
 }
+// Exportar CSV de la tabla de vibración
+document.addEventListener('DOMContentLoaded', () => {
+  const exportBtn = document.getElementById('exportCsvBtn');
+  if (!exportBtn) return;
+  exportBtn.addEventListener('click', () => {
+    const rows = [['Timestamp','Eje X (g)','Eje Y (g)','Eje Z (g)','Severidad']];
+    const data = globalState.vibrationData;
+    if (data && data.timestamps && data.timestamps.length) {
+      for (let i = 0; i < data.timestamps.length; i++) {
+        rows.push([
+          new Date(data.timestamps[i]).toISOString(),
+          data.x[i] ?? '',
+          data.y[i] ?? '',
+          data.z[i] ?? '',
+          data.status[i] ?? ''
+        ]);
+      }
+    }
+    const csv = rows.map(r => r.map(v => `${v}`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'vibration_data.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+});
+
 
 // Actualiza los contadores de alertas en el dashboard
 function updateAlertCounters(statusArray) {
@@ -1128,7 +1274,7 @@ function populateVibrationDataTable(data) {
   tableBody.innerHTML = ''; // Limpiar tabla antes de poblar
 
   if (!data || !data.timestamps || data.timestamps.length === 0) {
-      tableBody.innerHTML = '<tr><td colspan="5" class="text-center">No hay datos disponibles para este sensor.</td></tr>';
+      tableBody.innerHTML = '<tr class="skeleton-row"><td colspan="5"><div class="skeleton skeleton-text" style="width: 100%"></div></td></tr>';
       return;
   }
 
@@ -1160,14 +1306,70 @@ function populateVibrationDataTable(data) {
       severityText = 'Crítico (3+)';
     }
 
+    // Badge de severidad
+    let badge = '';
+    if (severityClass === 'severity-normal') {
+      badge = `<span class="severity-badge severity-normal"><span class="severity-dot"></span>Normal</span>`;
+    } else if (severityClass === 'severity-warning') {
+      badge = `<span class="severity-badge severity-warning"><span class="severity-dot"></span>Leve</span>`;
+    } else {
+      badge = `<span class="severity-badge severity-critical"><span class="severity-dot"></span>Crítico</span>`;
+    }
+
     row.innerHTML = `
       <td>${timestamp.toLocaleString()}</td>
       <td>${reversedData.x[i]?.toFixed(4) ?? '-'}</td>
       <td>${reversedData.y[i]?.toFixed(4) ?? '-'}</td>
       <td>${reversedData.z[i]?.toFixed(4) ?? '-'}</td>
-      <td class="${severityClass}">${severityText}</td>
+      <td>${badge}</td>
     `;
   }
+}
+
+// CSV: exportar y copiar
+function setupCsvButtons() {
+  const exportBtn = document.getElementById('exportCsvBtn');
+  const copyBtn = document.getElementById('copyCsvBtn');
+  if (exportBtn) {
+    exportBtn.addEventListener('click', () => {
+      const csv = buildVibrationCsv();
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'vibration_data.csv';
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+  }
+  if (copyBtn) {
+    copyBtn.addEventListener('click', async () => {
+      try {
+        const csv = buildVibrationCsv();
+        await navigator.clipboard.writeText(csv);
+        showToast('CSV copiado al portapapeles', 'success');
+      } catch (e) {
+        showToast('No se pudo copiar el CSV', 'error');
+      }
+    });
+  }
+}
+
+function buildVibrationCsv() {
+  const rows = [['Timestamp','Eje X (g)','Eje Y (g)','Eje Z (g)','Severidad']];
+  const data = globalState.vibrationData;
+  if (data && data.timestamps && data.timestamps.length) {
+    for (let i = 0; i < data.timestamps.length; i++) {
+      rows.push([
+        new Date(data.timestamps[i]).toISOString(),
+        data.x[i] ?? '',
+        data.y[i] ?? '',
+        data.z[i] ?? '',
+        data.status[i] ?? ''
+      ]);
+    }
+  }
+  return rows.map(r => r.map(v => `${v}`).join(',')).join('\n');
 }
 // *** FIN NUEVA FUNCIÓN ***
 
@@ -1244,6 +1446,7 @@ function setupUIButtons() {
   // === Botones de Control de Monitoreo ===
   // Iniciar monitoreo
   const startMonitoringBtn = document.getElementById('startMonitoringBtn');
+  const startMonitoringBtnTop = document.getElementById('startMonitoringBtnTop');
   if (startMonitoringBtn) {
     startMonitoringBtn.addEventListener('click', function() {
       if (!isConfigured) {
@@ -1270,6 +1473,12 @@ function setupUIButtons() {
         this.classList.remove('btn-warning');
         this.classList.add('btn-success');
       }
+    });
+  }
+  if (startMonitoringBtnTop) {
+    startMonitoringBtnTop.addEventListener('click', function() {
+      const proxy = document.getElementById('startMonitoringBtn');
+      if (proxy) proxy.click();
     });
   }
   
@@ -1401,6 +1610,22 @@ function setupUIButtons() {
   if (refreshMachinesBtn) {
     refreshMachinesBtn.addEventListener('click', loadMachines);
   }
+}
+
+// Micro-animaciones al entrar en viewport
+function setupRevealOnScroll() {
+  const revealEls = document.querySelectorAll('.chart-card, .data-table-card, .config-card, .alert-card-wrapper');
+  revealEls.forEach(el => el.classList.add('reveal'));
+  const onIntersect = (entries, obs) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('in-view');
+        obs.unobserve(entry.target);
+      }
+    });
+  };
+  const observer = new IntersectionObserver(onIntersect, { threshold: 0.1 });
+  revealEls.forEach(el => observer.observe(el));
 }
 
 // Guarda la configuración en el servidor
@@ -1614,6 +1839,11 @@ async function loadModels() {
   const endpoint = '/models'; // Usar la nueva ruta
   console.log("Cargando modelos desde", endpoint);
   try {
+    // Shimmer: mostrar skeleton mientras carga
+    const tableBodyShimmer = document.getElementById('modelsTableBody');
+    if (tableBodyShimmer) {
+      tableBodyShimmer.innerHTML = '<tr class="skeleton-row"><td colspan="6"><div class="skeleton skeleton-text" style="width: 100%"></div></td></tr>';
+    }
     const models = await fetchAPI(endpoint);
     const tableBody = document.getElementById('modelsTableBody');
     const modelSelect = document.getElementById('sensorModelIdInput'); // *** OBTENER REFERENCIA AL SELECT ***
@@ -1699,6 +1929,10 @@ function truncateText(text, maxLength) {
 // Cargar sensores y poblar la tabla
 async function loadSensorsTable() {
   try {
+    const tableBodyShimmer = document.getElementById('sensorsTableBody');
+    if (tableBodyShimmer) {
+      tableBodyShimmer.innerHTML = '<tr class="skeleton-row"><td colspan="5"><div class="skeleton skeleton-text" style="width: 100%"></div></td></tr>';
+    }
     const sensors = await fetchAPI('/sensors');
     const tableBody = document.getElementById('sensorsTableBody');
     const selectElement = document.getElementById('machineSensorIdInput');
@@ -1754,6 +1988,10 @@ async function loadSensorsTable() {
 // Cargar máquinas y poblar la tabla
 async function loadMachines() {
   try {
+    const tableBodyShimmer = document.getElementById('machinesTableBody');
+    if (tableBodyShimmer) {
+      tableBodyShimmer.innerHTML = '<tr class="skeleton-row"><td colspan="5"><div class="skeleton skeleton-text" style="width: 100%"></div></td></tr>';
+    }
     const machines = await fetchAPI('/machines');
     const tableBody = document.getElementById('machinesTableBody');
     

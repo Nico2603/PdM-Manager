@@ -53,38 +53,34 @@
       </div>
       
       <div class="sidebar-footer">
-        <div class="system-status">
-          <div class="status-title">Estado del Sistema</div>
-          <div class="status-indicator">
-            <div class="status-dot connected"></div>
-            <div class="status-text">Sistema conectado</div>
-          </div>
-          <div class="text-muted mt-2">
-            <i class="far fa-clock mr-2"></i> Última actualización: 
-            <span id="lastUpdateTime">00:00:00</span>
-          </div>
-        </div>
         <div id="monitoringStatus" class="monitoring-status">
           <span class="status-indicator"></span>
           <span class="status-text">Monitoreo detenido</span>
         </div>
-        <div class="sidebar-actions">
-          <div class="sidebar-action-item">
-            <button id="startMonitoringBtn" class="btn btn-primary btn-block" disabled>
-              <i class="fas fa-play-circle mr-2"></i> Iniciar Monitoreo
-            </button>
-            <div id="configurationWarning" class="configuration-warning">
-              <i class="fas fa-exclamation-triangle mr-2"></i>
-              <span>Se requiere configurar el sistema antes de iniciar el monitoreo</span>
-            </div>
-          </div>
+        <div id="configStatus" class="monitoring-status">
+          <span class="status-indicator"></span>
+          <span class="status-text">Configuración requerida</span>
         </div>
-        <a href="/logout" class="logout-button btn mt-3"><i class="fas fa-sign-out-alt"></i> Cerrar sesión</a>
+        
       </div>
     </div>
     
     <!-- Contenido Principal -->
     <div class="main-content">
+      <!-- Barra superior con toggle de tema -->
+      <div class="topbar">
+        <div class="d-flex gap-2 align-items-center">
+          <button id="startMonitoringBtnTop" class="btn btn-primary btn-sm">
+            <i class="fas fa-play-circle mr-2"></i> Iniciar Monitoreo
+          </button>
+          <a href="/logout" class="icon-btn" aria-label="Cerrar sesión" title="Cerrar sesión">
+            <i class="fas fa-sign-out-alt"></i>
+          </a>
+          <button id="themeToggle" class="icon-btn" aria-label="Cambiar tema" title="Cambiar tema">
+            <i id="themeIcon" class="fas fa-sun"></i>
+          </button>
+        </div>
+      </div>
       <!-- Contenido -->
       <div class="content">
         <!-- Dashboard Section -->
@@ -209,6 +205,26 @@
                   </div>
                 </div>
               </div>
+
+              <!-- Controles de datos -->
+              <div class="filter-group">
+                <label>Opciones de datos:</label>
+                <div class="data-controls">
+                  <div class="control">
+                    <label for="maxPointsInput" class="sr-only">Puntos</label>
+                    <input type="number" id="maxPointsInput" class="form-control form-control-sm" min="10" max="5000" step="10" value="100" />
+                    <span class="control-help">Puntos</span>
+                  </div>
+                  <div class="control">
+                    <label for="updateFreqInput" class="sr-only">Frecuencia (ms)</label>
+                    <input type="number" id="updateFreqInput" class="form-control form-control-sm" min="1000" step="500" value="5000" />
+                    <span class="control-help">ms</span>
+                  </div>
+                  <button id="applyDataOptionsBtn" class="btn btn-outline-secondary btn-sm">
+                    <i class="fas fa-sliders-h"></i> Aplicar
+                  </button>
+                </div>
+              </div>
             </div>
             
             <!-- Gráficas de Aceleración -->
@@ -253,9 +269,13 @@
               <div class="data-table-card animate-slide-up" style="animation-delay: 0.9s">
                 <div class="card-header">
                     <h5><i class="fas fa-table"></i> Datos Recientes de Vibración</h5>
+                    <div class="d-flex gap-2">
+                      <button id="copyCsvBtn" class="btn btn-outline-secondary btn-sm"><i class="fas fa-copy"></i> Copiar CSV</button>
+                      <button id="exportCsvBtn" class="btn btn-outline-secondary btn-sm"><i class="fas fa-download"></i> Exportar CSV</button>
+                    </div>
                 </div>
                 <div class="card-body">
-                    <div class="table-responsive">
+                    <div class="table-responsive sticky-header">
                         <table id="vibrationDataTable" class="table table-sm table-striped table-hover">
                             <thead>
                                 <tr>

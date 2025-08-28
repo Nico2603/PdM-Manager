@@ -1,19 +1,20 @@
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
+import os
 from jose import jwt, JWTError
 from passlib.context import CryptContext
 import secrets
 
 from fastapi import Depends, HTTPException, status, Request, Cookie # Añadido
-from fastapi.responses import RedirectResponse
 
 from sqlalchemy.orm import Session # Añadido
 
 from app.models import User  # Añadido
 from app.database import get_db  # Añadido
 
-SECRET_KEY = secrets.token_hex(32)  # Clave generada y hardcodeada
+# Clave para firmas JWT: en local usar una clave estable por defecto
+SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-key-change-me")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
@@ -24,6 +25,14 @@ def verify_password(plain, hashed):
 
 def get_password_hash(password):
     return pwd_context.hash(password)
+
+def _strip_bearer_prefix(raw_token: Optional[str]) -> Optional[str]:
+    if not raw_token:
+        return raw_token
+    token = raw_token.strip()
+    if token.startswith("Bearer "):
+        return token.split(" ", 1)[1].strip()
+    return token
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
@@ -36,7 +45,8 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
 
 def decode_token(token: str):
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        clean_token = _strip_bearer_prefix(token)
+        payload = jwt.decode(clean_token, SECRET_KEY, algorithms=[ALGORITHM])
         return payload.get("sub")
     except JWTError:
         return None
@@ -44,17 +54,8 @@ def decode_token(token: str):
 async def get_current_user(request: Request, db: Session = Depends(get_db)):
     token = request.cookies.get("access_token")
 
-    #if token is None:
-    # Redirigir a login si no hay token y no es una ruta de API
-    #    if "/api/" not in request.url.path:
-    #        return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
-    #    raise HTTPException(
-    #        status_code=status.HTTP_401_UNAUTHORIZED,
-    #        detail="Not authenticated",
-    #        headers={"WWW-Authenticate": "Bearer"},
-    #    )
     if token is None and "/api/" in request.url.path:
-    # Solo aceptamos Authorization si es una ruta de API
+        # Solo aceptamos Authorization si es una ruta de API
         auth_header = request.headers.get("Authorization")
         if auth_header and auth_header.startswith("Bearer "):
             token = auth_header.split("Bearer ")[1]
@@ -69,11 +70,6 @@ async def get_current_user(request: Request, db: Session = Depends(get_db)):
 
     username = decode_token(token)
     if username is None:
-        # Redirigir a login si el token es inválido y no es una ruta de API
-        if "/api/" not in request.url.path:
-            response = RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
-            response.delete_cookie("access_token") # Asegurar que se borre la cookie inválida
-            return response
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token",
@@ -82,11 +78,6 @@ async def get_current_user(request: Request, db: Session = Depends(get_db)):
 
     user = db.query(User).filter(User.username == username).first()
     if user is None:
-        # Redirigir a login si el usuario no existe y no es una ruta de API
-        if "/api/" not in request.url.path:
-            response = RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
-            response.delete_cookie("access_token") # Asegurar que se borre la cookie inválida
-            return response
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User not found",

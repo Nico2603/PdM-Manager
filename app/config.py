@@ -14,7 +14,7 @@ from app.crud_config import (
     get_all_machines, get_machine_by_id, create_new_machine, update_existing_machine, delete_machine,
     get_all_limits, get_limit_by_id, delete_limit
 )
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, validator, ConfigDict
 from typing import Optional, Dict, Any, List, ClassVar
 from datetime import datetime
 from sqlalchemy.exc import SQLAlchemyError
@@ -48,8 +48,7 @@ class ModelCreate(BaseModel):
     route_h5: str = Field(..., description="Ruta al archivo del modelo (.h5)")
     route_pkl: str = Field(..., description="Ruta al archivo del escalador (.pkl)")
 
-    class Config:
-        protected_namespaces = ()
+    model_config = ConfigDict(protected_namespaces=())
 
 class ModelUpdate(BaseModel):
     """Esquema para actualizar un modelo existente"""
@@ -58,8 +57,7 @@ class ModelUpdate(BaseModel):
     route_h5: Optional[str] = None
     route_pkl: Optional[str] = None
 
-    class Config:
-        protected_namespaces = ()
+    model_config = ConfigDict(protected_namespaces=())
 
 class ModelResponse(BaseModel):
     """Esquema para la respuesta de un modelo"""
@@ -69,9 +67,7 @@ class ModelResponse(BaseModel):
     route_h5: Optional[str] = None
     route_pkl: Optional[str] = None
 
-    class Config:
-        orm_mode = True
-        protected_namespaces = ()
+    model_config = ConfigDict(from_attributes=True, protected_namespaces=())
 
 class SensorCreate(BaseModel):
     """Esquema para crear un nuevo sensor"""
@@ -79,8 +75,7 @@ class SensorCreate(BaseModel):
     description: Optional[str] = Field(None, description="Descripción del sensor")
     model_id: Optional[int] = Field(None, description="ID del modelo asociado")
 
-    class Config:
-        protected_namespaces = ()
+    model_config = ConfigDict(protected_namespaces=())
 
 class SensorUpdate(BaseModel):
     """Esquema para actualizar un sensor existente"""
@@ -88,8 +83,7 @@ class SensorUpdate(BaseModel):
     description: Optional[str] = None
     model_id: Optional[int] = None
 
-    class Config:
-        protected_namespaces = ()
+    model_config = ConfigDict(protected_namespaces=())
 
 class SensorResponse(BaseModel):
     """Esquema para la respuesta de un sensor"""
@@ -98,9 +92,7 @@ class SensorResponse(BaseModel):
     description: Optional[str] = None
     model_id: Optional[int] = None
 
-    class Config:
-        orm_mode = True
-        protected_namespaces = ()
+    model_config = ConfigDict(from_attributes=True, protected_namespaces=())
 
 class MachineCreate(BaseModel):
     """Esquema para crear una nueva máquina"""
@@ -108,8 +100,7 @@ class MachineCreate(BaseModel):
     description: Optional[str] = Field(None, description="Descripción de la máquina")
     sensor_id: Optional[int] = Field(None, description="ID del sensor asociado")
 
-    class Config:
-        protected_namespaces = ()
+    model_config = ConfigDict(protected_namespaces=())
 
 class MachineUpdate(BaseModel):
     """Esquema para actualizar una máquina existente"""
@@ -117,8 +108,7 @@ class MachineUpdate(BaseModel):
     description: Optional[str] = Field(None, description="Descripción de la máquina")
     sensor_id: Optional[int] = Field(None, description="ID del sensor asociado")
 
-    class Config:
-        protected_namespaces = ()
+    model_config = ConfigDict(protected_namespaces=())
 
 class MachineResponse(BaseModel):
     """Esquema para la respuesta de una máquina"""
@@ -127,9 +117,7 @@ class MachineResponse(BaseModel):
     description: Optional[str] = None
     sensor_id: Optional[int] = None
 
-    class Config:
-        orm_mode = True
-        protected_namespaces = ()
+    model_config = ConfigDict(from_attributes=True, protected_namespaces=())
 
 class LimitResponse(BaseModel):
     """Esquema para la respuesta de límites"""
@@ -148,9 +136,7 @@ class LimitResponse(BaseModel):
     z_3sup: Optional[float] = None
     update_limits: Optional[datetime] = None
 
-    class Config:
-        orm_mode = True
-        protected_namespaces = ()
+    model_config = ConfigDict(from_attributes=True, protected_namespaces=())
 
 class SystemConfigResponse(BaseModel):
     """Esquema para la respuesta de la configuración del sistema"""
@@ -159,9 +145,7 @@ class SystemConfigResponse(BaseModel):
     last_update: Optional[datetime] = None
     active_model_id: Optional[int] = None
 
-    class Config:
-        orm_mode = True
-        protected_namespaces = ()
+    model_config = ConfigDict(from_attributes=True, protected_namespaces=())
 
 # ---------------------------------------------------------
 # ENDPOINTS CRUD
@@ -531,7 +515,7 @@ async def create_sensor_endpoint(
                      detail=f"El modelo con ID {sensor_data.model_id} no existe."
                  )
         
-        new_sensor = create_new_sensor(db, sensor_data.dict())
+        new_sensor = create_new_sensor(db, sensor_data.model_dump())
         return new_sensor
     except HTTPException as http_exc:
         raise http_exc
@@ -567,7 +551,7 @@ async def update_sensor_endpoint(
             else: # Permitir desasignar modelo
                 sensor_data.model_id = None
         
-        updated_sensor = update_existing_sensor(db, sensor_id, sensor_data.dict(exclude_unset=True))
+        updated_sensor = update_existing_sensor(db, sensor_id, sensor_data.model_dump(exclude_unset=True))
         if not updated_sensor:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Sensor con ID {sensor_id} no encontrado para actualizar")
         return updated_sensor
@@ -660,7 +644,7 @@ async def create_machine_endpoint(
                      detail=f"El sensor con ID {machine_data.sensor_id} no existe."
                  )
         
-        new_machine = create_new_machine(db, machine_data.dict())
+        new_machine = create_new_machine(db, machine_data.model_dump())
         return new_machine
     except HTTPException as http_exc:
         raise http_exc
@@ -696,7 +680,7 @@ async def update_machine_endpoint(
             else: # Permitir desasignar sensor
                 machine_data.sensor_id = None
                 
-        updated_machine = update_existing_machine(db, machine_id, machine_data.dict(exclude_unset=True))
+        updated_machine = update_existing_machine(db, machine_id, machine_data.model_dump(exclude_unset=True))
         if not updated_machine:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Máquina con ID {machine_id} no encontrada para actualizar")
         return updated_machine
@@ -807,8 +791,7 @@ class LimitUpdateData(BaseModel):
     z_3inf: Optional[float] = None
     z_3sup: Optional[float] = None
 
-    class Config:
-        protected_namespaces = ()
+    model_config = ConfigDict(protected_namespaces=())
 
 @router.put("/limits/1", response_model=LimitResponse, summary="Actualizar la configuración de límites activa (ID=1)")
 async def update_active_limit_endpoint(limit_data: LimitUpdateData, db: Session = Depends(get_db)):
@@ -818,7 +801,7 @@ async def update_active_limit_endpoint(limit_data: LimitUpdateData, db: Session 
     """
     try:
         # Convertir Pydantic a dict, excluyendo los no establecidos para no sobrescribir con None
-        update_dict = limit_data.dict(exclude_unset=True)
+        update_dict = limit_data.model_dump(exclude_unset=True)
         if not update_dict:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No se proporcionaron datos para actualizar.")
 

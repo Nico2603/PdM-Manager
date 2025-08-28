@@ -1,5 +1,6 @@
 # app/main.py
 import os
+from pathlib import Path
 import pickle
 import joblib
 from datetime import datetime, timedelta
@@ -15,7 +16,7 @@ from fastapi.responses import JSONResponse, RedirectResponse, HTMLResponse, Resp
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.security import OAuth2PasswordRequestForm
-from pydantic import BaseModel, Field, validator, root_validator
+from pydantic import BaseModel, Field, validator, root_validator, ConfigDict
 
 # TensorFlow
 import tensorflow as tf
@@ -49,20 +50,21 @@ from app.auth import get_current_user, create_access_token, authenticate_user,AC
 # CONFIGURACIÓN DE RUTAS Y VARIABLES GLOBALES
 # ---------------------------------------------------------
 
-# Rutas para modelos
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-MODELO_DIR = os.path.join(BASE_DIR, "Modelo")
-SCALER_DIR = os.path.join(BASE_DIR, "Scaler")
-STATIC_DIR = os.path.join(BASE_DIR, "static")
+# Rutas para modelos (normalizadas a minúsculas para entornos Linux)
+BASE_DIR = Path(__file__).resolve().parent.parent
+MODELO_DIR = BASE_DIR / "modelo"
+SCALER_DIR = BASE_DIR / "scaler"
+STATIC_DIR = BASE_DIR / "static"
 
-# Rutas por defecto para el modelo y el escalador
-DEFAULT_MODEL_PATH = r"C:\Users\nicol\Documentos\GitHub\PdM-Manager\Modelo\anomaly_detection_model.h5"
-DEFAULT_SCALER_PATH = r"C:\Users\nicol\Documentos\GitHub\PdM-Manager\Scaler\scaler.pkl"
+# Rutas por defecto para el modelo y el escalador (relativas al proyecto)
+DEFAULT_MODEL_PATH = MODELO_DIR / "anomaly_detection_model.h5"
+DEFAULT_SCALER_PATH = SCALER_DIR / "scaler.pkl"
 
 # Variables globales para modelo y escalador
 # IMPORTANTE: Estas variables se inicializan en None y se cargan mediante la función load_ml_models
 model = None
 scaler = None
+active_model_loaded_id = None
 
 # ---------------------------------------------------------
 # CONFIGURACIÓN DE LOGGING
@@ -91,12 +93,12 @@ def load_ml_models():
     
     Retorna True si la carga fue exitosa, False en caso contrario.
     """
-    global model, scaler
+    global model, scaler, active_model_loaded_id
     
     try:
         # Definir rutas predeterminadas
-        model_path = DEFAULT_MODEL_PATH
-        scaler_path = DEFAULT_SCALER_PATH
+        model_path = Path(DEFAULT_MODEL_PATH)
+        scaler_path = Path(DEFAULT_SCALER_PATH)
         
         # Intentar obtener configuración de la base de datos si es posible
         try:
@@ -106,40 +108,37 @@ def load_ml_models():
                 if system_config.active_model_id:
                     db_model = get_model_by_id(db, system_config.active_model_id)
                     if db_model and db_model.route_h5 and db_model.route_pkl:
-                        model_path = db_model.route_h5
-                        scaler_path = db_model.route_pkl
+                        mp = Path(db_model.route_h5)
+                        sp = Path(db_model.route_pkl)
+                        model_path = mp if mp.is_absolute() else BASE_DIR / mp
+                        scaler_path = sp if sp.is_absolute() else BASE_DIR / sp
                         logger.info(f"Usando modelo configurado: {model_path}")
+                        active_model_loaded_id = system_config.active_model_id
             finally:
                 db.close()
         except Exception as db_err:
             logger.warning(f"No se pudo obtener configuración de la BD: {str(db_err)}. Usando valores predeterminados.")
         
-        # Verificar si las rutas son absolutas
-        if not os.path.isabs(model_path):
-            model_path = os.path.join(BASE_DIR, model_path)
-        if not os.path.isabs(scaler_path):
-            scaler_path = os.path.join(BASE_DIR, scaler_path)
-        
         # Verificar si los archivos existen
-        if not os.path.exists(model_path):
+        if not Path(model_path).exists():
             logger.info(f"El archivo del modelo no existe: {model_path}")
             # Volver a la ruta predeterminada si el archivo no existe
-            model_path = DEFAULT_MODEL_PATH
-            if not os.path.exists(model_path):
+            model_path = Path(DEFAULT_MODEL_PATH)
+            if not model_path.exists():
                 logger.info(f"El archivo del modelo predeterminado no existe: {model_path}")
                 return False
         
-        if not os.path.exists(scaler_path):
+        if not Path(scaler_path).exists():
             logger.info(f"El archivo del escalador no existe: {scaler_path}")
             # Volver a la ruta predeterminada si el archivo no existe
-            scaler_path = DEFAULT_SCALER_PATH
-            if not os.path.exists(scaler_path):
+            scaler_path = Path(DEFAULT_SCALER_PATH)
+            if not scaler_path.exists():
                 logger.info(f"El archivo del escalador predeterminado no existe: {scaler_path}")
                 return False
         
         # Cargar modelo
         try:
-            model = load_model(model_path, compile=False)
+            model = load_model(str(model_path), compile=False)
             logger.info(f"Modelo cargado correctamente: {type(model)}")
         except Exception as model_err:
             logger.warning(f"Error al cargar el modelo: {str(model_err)}")
@@ -148,7 +147,7 @@ def load_ml_models():
         # Cargar escalador
         try:
             # Intentar primero con joblib
-            scaler = joblib.load(scaler_path)
+            scaler = joblib.load(str(scaler_path))
             logger.info(f"Escalador cargado correctamente con joblib: {type(scaler)}")
         except Exception as joblib_err:
             logger.warning(f"Error al cargar con joblib: {str(joblib_err)}. Intentando con pickle.")
@@ -166,6 +165,23 @@ def load_ml_models():
         logger.warning(f"Error al cargar los modelos de ML: {str(e)}")
         return False
 
+def ensure_models_loaded(db: Session) -> tuple[Any | None, Any | None]:
+    """
+    Garantiza que el modelo/escalador estén cargados y corresponden al modelo activo.
+    Reutiliza los globales y solo recarga si cambió el active_model_id.
+    """
+    global model, scaler, active_model_loaded_id
+    try:
+        system_config = get_system_config(db)
+        if model is not None and scaler is not None and active_model_loaded_id == system_config.active_model_id:
+            return model, scaler
+    except Exception:
+        # Si falla obtener system_config, intentar una carga estándar
+        pass
+    # Forzar carga (respetará configuración en BD si existe)
+    load_ml_models()
+    return model, scaler
+
 def ensure_default_model_exists():
     """
     Verifica si existe un modelo por defecto en la base de datos.
@@ -181,13 +197,15 @@ def ensure_default_model_exists():
             if not models:
                 logger.info("Creando modelo por defecto")
                 
-                # Crear modelo con las rutas predeterminadas
+                # Crear modelo con rutas relativas para portabilidad
                 default_model = create_new_model(
                     db,
-                    name="Modelo por defecto",
-                    description="Modelo de detección de anomalías por defecto",
-                    route_h5=DEFAULT_MODEL_PATH,
-                    route_pkl=DEFAULT_SCALER_PATH
+                    {
+                        "name": "Modelo por defecto",
+                        "description": "Modelo de detección de anomalías por defecto",
+                        "route_h5": os.path.join("modelo", "anomaly_detection_model.h5").replace("\\", "/"),
+                        "route_pkl": os.path.join("scaler", "scaler.pkl").replace("\\", "/"),
+                    }
                 )
                 
                 # Actualizar configuración del sistema para usar este modelo
@@ -230,8 +248,7 @@ class SensorData(BaseModel):
         except ValueError:
             raise ValueError('timestamp debe estar en formato ISO8601')
             
-    class Config:
-        protected_namespaces = ()  # Eliminar advertencias de namespace
+    model_config = ConfigDict(protected_namespaces=())  # Eliminar advertencias de namespace
 
 class SimpleSensorData(BaseModel):
     """
@@ -261,8 +278,7 @@ class SimpleSensorData(BaseModel):
             raise ValueError('axis debe ser X, Y o Z')
         return v
         
-    class Config:
-        protected_namespaces = ()  # Eliminar advertencias de namespace
+    model_config = ConfigDict(protected_namespaces=())  # Eliminar advertencias de namespace
 
 class LimitConfigData(BaseModel):
     """
@@ -281,8 +297,7 @@ class LimitConfigData(BaseModel):
     z_3inf: float = Field(None, description="Límite inferior nivel 3 para el eje Z")
     z_3sup: float = Field(None, description="Límite superior nivel 3 para el eje Z")
     
-    class Config:
-        protected_namespaces = ()  # Eliminar advertencias de namespace
+    model_config = ConfigDict(protected_namespaces=())  # Eliminar advertencias de namespace
 
 class ModelConfigData(BaseModel):
     """
@@ -294,8 +309,7 @@ class ModelConfigData(BaseModel):
     name: str = Field(None, description="Nombre del modelo")
     description: str = Field(None, description="Descripción del modelo")
     
-    class Config:
-        protected_namespaces = ()  # Eliminar advertencias de namespace model_
+    model_config = ConfigDict(protected_namespaces=())  # Eliminar advertencias de namespace model_
 
 class SensorConfigData(BaseModel):
     """
@@ -306,8 +320,7 @@ class SensorConfigData(BaseModel):
     description: str = Field(None, description="Descripción del sensor")
     model_id: int = Field(None, description="ID del modelo asignado al sensor")
     
-    class Config:
-        protected_namespaces = ()  # Eliminar advertencias de namespace
+    model_config = ConfigDict(protected_namespaces=())  # Eliminar advertencias de namespace
 
 class MachineConfigData(BaseModel):
     """
@@ -318,8 +331,7 @@ class MachineConfigData(BaseModel):
     description: str = Field(None, description="Descripción de la máquina")
     sensor_id: int = Field(None, description="ID del sensor asignado a la máquina")
     
-    class Config:
-        protected_namespaces = ()  # Eliminar advertencias de namespace
+    model_config = ConfigDict(protected_namespaces=())  # Eliminar advertencias de namespace
 
 class ConfigurationData(BaseModel):
     """
@@ -331,8 +343,7 @@ class ConfigurationData(BaseModel):
     machines: list[MachineConfigData] = Field(None, description="Configuración de máquinas")
     is_configured: bool = Field(False, description="Indica si el sistema ha sido configurado")
     
-    class Config:
-        protected_namespaces = ()  # Eliminar advertencias de namespace
+    model_config = ConfigDict(protected_namespaces=())  # Eliminar advertencias de namespace
 
 # ---------------------------------------------------------
 # CONFIGURACIÓN DE LA APLICACIÓN FASTAPI
@@ -344,10 +355,11 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Configurar CORS
+# Configurar CORS para uso local simple pero compatible con cookies
+origins = os.getenv("CORS_ORIGINS", "http://localhost:8000,http://127.0.0.1:8000").split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # En producción, restringe a dominios específicos
+    allow_origins=[o.strip() for o in origins if o.strip()],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -356,6 +368,11 @@ app.add_middleware(
 # Configuración de plantillas Jinja2
 # STATIC_DIR está definido globalmente en la sección de CONFIGURACIÓN DE RUTAS Y VARIABLES GLOBALES
 templates = Jinja2Templates(directory=STATIC_DIR)
+try:
+    # Pydantic v2: suprime warnings por 'orm_mode'
+    from pydantic.v1.config import BaseConfig  # type: ignore
+except Exception:
+    pass
 
 # Montar archivos estáticos
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
@@ -369,38 +386,12 @@ app.include_router(config_router)
 
 @app.get("/")
 async def root(request: Request):
-    # Redirige a /login si no hay token, o a /panel si lo hay (o a donde prefieras)
-    # Esta lógica puede necesitar ajustarse según cómo manejes el token en el cliente
     access_token = request.cookies.get("access_token")
     if not access_token:
         return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
-    # Aquí podrías intentar decodificar el token para verificar su validez antes de redirigir
-    # pero get_current_user ya lo hará en las rutas protegidas.
     return RedirectResponse(url="/panel", status_code=status.HTTP_302_FOUND)
 
-@app.get("/login", response_class=HTMLResponse)
-async def login_page(request: Request):
-    return templates.TemplateResponse("login.html", {"request": request})
-
-@app.post("/login")
-async def login_for_access_token(response: RedirectResponse, db: Session = Depends(get_db), form_data: OAuth2PasswordRequestForm = Depends()):
-    user = authenticate_user(db, form_data.username, form_data.password)
-    if not user:
-        # Idealmente, redirigir de nuevo a /login con un mensaje de error
-        # Por ahora, lanzamos una excepción que se puede mejorar para la UX
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        data={"sub": user.username}, expires_delta=access_token_expires
-    )
-    # Configura la cookie en la respuesta de redirección
-    response = RedirectResponse(url="/panel", status_code=status.HTTP_302_FOUND)
-    response.set_cookie(key="access_token", value=f"Bearer {access_token}", httponly=True, samesite="Lax") # samesite='Lax' es una buena práctica
-    return response
+ 
 
 @app.get("/panel")
 def dashboard(request: Request, user: User = Depends(get_current_user)):
@@ -409,20 +400,15 @@ def dashboard(request: Request, user: User = Depends(get_current_user)):
 
 @app.get("/logout")
 def logout(response: Response):
-    response = RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER) # Usar 303 para GET tras POST/PUT/DELETE
-    response.delete_cookie("access_token", path="/", domain=None, secure=True, httponly=True, samesite="Lax")
+    response = RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
+    response.delete_cookie("access_token", path="/", httponly=True, samesite="Lax")
     return response
 
 # ---------------------------------------------------------
 # RUTAS DE LA API (JSON)
 # ---------------------------------------------------------
 
-@app.get("/")
-async def root(request: Request):
-    """
-    Renderiza la página principal con el dashboard.
-    """
-    return templates.TemplateResponse("index.html", {"request": request})
+ 
 
 @app.get("/health")
 async def health_check(db: Session = Depends(get_db)):
@@ -562,78 +548,31 @@ async def receive_sensor_data(
         if is_sys_configured and active_model_id:
             logger.info(f"Sistema configurado con modelo activo ID {active_model_id}. Intentando predicción.")
             try:
-                # Obtener el modelo activo desde la base de datos
-                db_model = get_model_by_id(db, active_model_id)
-                
-                if not db_model or not db_model.route_h5 or not db_model.route_pkl:
-                    logger.warning(f"Modelo activo ID {active_model_id} sin rutas configuradas. Omitiendo predicción.")
-                    # No retornamos error, solo omitimos la predicción
-                else:
-                    # Usar rutas configuradas en la base de datos
-                    model_path = db_model.route_h5
-                    scaler_path = db_model.route_pkl
-                    
-                    # Verificar si las rutas son absolutas, si no, convertirlas
-                    if not os.path.isabs(model_path):
-                        model_path = os.path.join(BASE_DIR, model_path)
-                    if not os.path.isabs(scaler_path):
-                        scaler_path = os.path.join(BASE_DIR, scaler_path)
-                    
-                    # Verificar si los archivos existen
-                    if not os.path.exists(model_path):
-                        logger.warning(f"El archivo del modelo no existe: {model_path}. Omitiendo predicción.")
-                    elif not os.path.exists(scaler_path):
-                         logger.warning(f"El archivo del escalador no existe: {scaler_path}. Omitiendo predicción.")
+                model_local, scaler_local = ensure_models_loaded(db)
+                if model_local and scaler_local:
+                    features = np.array([
+                        data.acceleration_x,
+                        data.acceleration_y,
+                        data.acceleration_z
+                    ]).reshape(1, -1)
+                    normalized_features = scaler_local.transform(features)
+                    # Ajustar shape para el modelo Keras (batch, timesteps, features)
+                    input_for_model = np.expand_dims(normalized_features, axis=1)
+                    prediction = model_local.predict(input_for_model)
+                    pred_value = float(prediction[0][0])
+                    anomalia = pred_value > 0.5
+                    if pred_value < 0.5:
+                        severidad = 0
+                    elif pred_value < 0.8:
+                        severidad = 1
                     else:
-                        # Cargar el modelo desde el archivo .h5 utilizando tensorflow
-                        model_local = load_model(model_path, compile=False) # Añadido compile=False por si acaso
-                        
-                        # Cargar el escalador
-                        scaler_local = None
-                        try:
-                            scaler_local = joblib.load(scaler_path)
-                            logger.info(f"Escalador cargado con joblib: {type(scaler_local)}")
-                        except Exception as joblib_err:
-                            logger.warning(f"Error con joblib: {joblib_err}. Intentando con pickle.")
-                            try:
-                                with open(scaler_path, 'rb') as f:
-                                    scaler_local = pickle.load(f)
-                                logger.info(f"Escalador cargado con pickle: {type(scaler_local)}")
-                            except Exception as pickle_err:
-                                logger.warning(f"Error al cargar el escalador: {pickle_err}. Omitiendo predicción.")
-                                scaler_local = None # Asegurar que es None
-                        
-                        # Proceder con la predicción solo si modelo y escalador se cargaron
-                        if model_local and scaler_local:
-                            features = np.array([
-                                data.acceleration_x,
-                                data.acceleration_y,
-                                data.acceleration_z
-                            ]).reshape(1, -1)
-                            normalized_features = scaler_local.transform(features)
-                            
-                            # *** AJUSTAR SHAPE PARA EL MODELO KERAS ***
-                            # El modelo espera (None, 1, 3), añadimos la dimensión de paso de tiempo
-                            input_for_model = np.expand_dims(normalized_features, axis=1)
-                            # *** FIN AJUSTE SHAPE ***
-                            
-                            prediction = model_local.predict(input_for_model)
-                            pred_value = float(prediction[0][0])
-                            # # *** DEBUG LOG: Mostrar valor de predicción crudo ***
-                            # logger.info(f"[DEBUG] Predicción cruda del modelo para sensor {data.sensor_id}: {pred_value:.6f}")
-                            # # *** FIN DEBUG LOG ***
-                            anomalia = pred_value > 0.5
-                            if pred_value < 0.5: severidad = 0
-                            elif pred_value < 0.8: severidad = 1
-                            else: severidad = 2
-                            logger.info(f"Predicción para sensor {data.sensor_id}: anomalía={anomalia}, severidad={severidad}")
-                        else:
-                            logger.warning("No se pudo cargar modelo o escalador. Omitiendo predicción.")
-
+                        severidad = 2
+                    logger.info(f"Predicción para sensor {data.sensor_id}: anomalía={anomalia}, severidad={severidad}")
+                else:
+                    logger.warning("Modelo/escalador no disponibles. Omitiendo predicción.")
             except Exception as e:
                 logger.error(f"Error inesperado durante el procesamiento ML para sensor {data.sensor_id}: {str(e)}", exc_info=True)
-                # No devolver error 500, solo registrar y usar valores por defecto
-                severidad = 0 
+                severidad = 0
                 anomalia = False
         else:
              logger.info(f"Sistema no configurado o sin modelo activo. Guardando datos crudos para sensor {data.sensor_id}.")
@@ -878,22 +817,21 @@ async def get_config_endpoint(db: Session = Depends(get_db)):
 # ---------------------------------------------------------
 # ENDPOINT PARA SUBIR ARCHIVOS DE MODELO
 # ---------------------------------------------------------
-@app.get("/", tags=["Frontend"])
-async def read_root(request: Request, db: Session = Depends(get_db), current_user: Optional[User] = Depends(lambda request: get_current_user(request, db) if request.cookies.get("access_token") else None)):
-    """
-    Sirve la página principal del dashboard.
-    Intenta obtener el usuario actual si hay una cookie de acceso.
-    Si no hay usuario (no logueado), `current_user` será `None`.
-    """
-    if not current_user:
-        # Si el usuario no está autenticado y trata de acceder a la raíz,
-        # redirigirlo al login.
-        return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
-
-    # Si el usuario está autenticado, servir el dashboard.
-    # Asegúrate de que 'index.html' esté en el directorio correcto de plantillas.
-    # La variable 'templates' ya está definida globalmente.
-    return templates.TemplateResponse("index.html", {"request": request, "user": current_user})
+@app.on_event("startup")
+def on_startup():
+    try:
+        db = SessionLocal()
+        try:
+            # Asegurar límites por defecto (ID=1)
+            ensure_default_limits_exist(db)
+            # Asegurar modelo por defecto en BD
+            ensure_default_model_exists()
+        finally:
+            db.close()
+    except Exception as e:
+        logger.warning(f"Startup warnings: {e}")
+    # Cargar modelos ML al inicio (si existen)
+    load_ml_models()
 
 # Montar archivos estáticos (CSS, JS, imágenes)
 # Asegúrate de que la ruta "static" sea correcta y contenga tus archivos.
@@ -937,7 +875,7 @@ async def login_post(request: Request, response: FastAPIResponse, form_data: OAu
     
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
-        data={"sub": user.username, "user_id": user.user_id}, expires_delta=access_token_expires
+        data={"sub": user.username}, expires_delta=access_token_expires
     )
     
     # Establecer la cookie y luego redirigir
