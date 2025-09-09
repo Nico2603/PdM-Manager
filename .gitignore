@@ -120,12 +120,24 @@ celerybeat.pid
 
 # Environments
 .env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
 .venv
 env/
 venv/
 ENV/
 env.bak/
 venv.bak/
+# Virtual environments (additional patterns)
+*/venv/
+*/env/
+*/.venv/
+*/.env/
+# Python virtual environments
+pyvenv.cfg
+pip-selfcheck.json
 
 # Spyder project settings
 .spyderproject
@@ -151,5 +163,56 @@ dmypy.json
 # Cython debug symbols
 cython_debug/
 
-# VS Code settings
-.vscode/ 
+# IDE and Editor settings
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Operating System Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.backup
+
+# Log files
+*.log
+logs/
+log/
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Configuration files with sensitive data
+config.ini
+settings.ini
+secrets.json
+
+# Compiled files
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
+
+# Package files
+*.egg-info/
+dist/
+build/
+
+# Machine learning models and data (large files)
+*.h5
+*.pkl
+*.model
+*.weights 
