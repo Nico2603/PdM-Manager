@@ -46,6 +46,9 @@ from sqlalchemy.orm import Session
 from app.config import router as config_router
 from app.auth import get_current_user, create_access_token, authenticate_user,ACCESS_TOKEN_EXPIRE_MINUTES,verify_password, decode_token, get_password_hash # Asegurar que decode_token también se importe si es necesario aquí, o solo get_current_user
 
+# Importar el cliente MQTT
+from app.mqtt_client import init_mqtt_client, start_mqtt_client, stop_mqtt_client, get_mqtt_status
+
 # ---------------------------------------------------------
 # CONFIGURACIÓN DE RUTAS Y VARIABLES GLOBALES
 # ---------------------------------------------------------
@@ -181,6 +184,60 @@ def ensure_models_loaded(db: Session) -> tuple[Any | None, Any | None]:
     # Forzar carga (respetará configuración en BD si existe)
     load_ml_models()
     return model, scaler
+
+def process_ml_data(sensor_data: dict, db: Session) -> Optional[dict]:
+    """
+    Función de procesamiento ML que se inyecta al cliente MQTT.
+    Usa la misma lógica que el endpoint HTTP para procesar datos de sensores.
+    
+    Args:
+        sensor_data: Diccionario con datos del sensor
+        db: Sesión de base de datos
+        
+    Returns:
+        Dict con severity e is_anomaly, o None si no se pudo procesar
+    """
+    try:
+        model_local, scaler_local = ensure_models_loaded(db)
+        if not model_local or not scaler_local:
+            logger.warning("Modelo/escalador no disponibles para procesamiento ML")
+            return None
+            
+        # Extraer características
+        features = np.array([
+            sensor_data['acceleration_x'],
+            sensor_data['acceleration_y'],
+            sensor_data['acceleration_z']
+        ]).reshape(1, -1)
+        
+        # Normalizar con el escalador
+        normalized_features = scaler_local.transform(features)
+        
+        # Ajustar shape para el modelo Keras (batch, timesteps, features)
+        input_for_model = np.expand_dims(normalized_features, axis=1)
+        
+        # Hacer predicción
+        prediction = model_local.predict(input_for_model)
+        pred_value = float(prediction[0][0])
+        
+        # Calcular severidad y anomalía
+        anomalia = pred_value > 0.5
+        if pred_value < 0.5:
+            severidad = 0
+        elif pred_value < 0.8:
+            severidad = 1
+        else:
+            severidad = 2
+            
+        return {
+            'severity': severidad,
+            'is_anomaly': anomalia,
+            'prediction_value': pred_value
+        }
+        
+    except Exception as e:
+        logger.error(f"Error en procesamiento ML: {str(e)}", exc_info=True)
+        return None
 
 def ensure_default_model_exists():
     """
@@ -414,12 +471,13 @@ def logout(response: Response):
 async def health_check(db: Session = Depends(get_db)):
     """
     Endpoint para verificar el estado de salud de la aplicación.
-    Comprueba la conectividad con la base de datos y la disponibilidad de los modelos.
+    Comprueba la conectividad con la base de datos, la disponibilidad de los modelos y el estado del MQTT.
     """
     health_status = {
         "status": "ok",
         "database": "connected",
         "models": "loaded" if model is not None and scaler is not None else "not_loaded",
+        "mqtt": "unknown",
         "timestamp": datetime.now().isoformat(),
         "version": "1.0.0",
         "environment": "production",
@@ -487,6 +545,19 @@ async def health_check(db: Session = Depends(get_db)):
                         health_status.pop("warning_details", None)
                         if health_status["database"] != "error":
                             health_status["status"] = "ok"
+    
+    # Verificar estado del cliente MQTT
+    try:
+        mqtt_status = get_mqtt_status()
+        if mqtt_status["running"]:
+            health_status["mqtt"] = "running"
+        elif mqtt_status["status"] == "initialized":
+            health_status["mqtt"] = "initialized_not_running"
+        else:
+            health_status["mqtt"] = "not_initialized"
+    except Exception as e:
+        health_status["mqtt"] = "error"
+        logger.warning(f"Error al verificar estado MQTT: {e}")
     
     # Siempre devolver código 200, incluso con warnings, para no romper la app
     return health_status
@@ -814,6 +885,31 @@ async def get_config_endpoint(db: Session = Depends(get_db)):
             content={"status": "error", "message": error_msg}
         )
 
+@app.get("/mqtt/status")
+async def get_mqtt_status_endpoint():
+    """
+    Obtiene el estado actual del cliente MQTT.
+    
+    Retorna:
+    - Información sobre el estado de conexión MQTT
+    - Configuración del broker y tópico
+    - Estado de ejecución del cliente
+    """
+    try:
+        mqtt_status = get_mqtt_status()
+        return {
+            "status": "ok",
+            "mqtt": mqtt_status,
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        error_msg = f"Error al obtener estado MQTT: {str(e)}"
+        logger.warning(error_msg)
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"status": "error", "message": error_msg}
+        )
+
 # ---------------------------------------------------------
 # ENDPOINT PARA SUBIR ARCHIVOS DE MODELO
 # ---------------------------------------------------------
@@ -830,8 +926,28 @@ def on_startup():
             db.close()
     except Exception as e:
         logger.warning(f"Startup warnings: {e}")
+    
     # Cargar modelos ML al inicio (si existen)
     load_ml_models()
+    
+    # Inicializar y arrancar cliente MQTT
+    try:
+        logger.info("Inicializando cliente MQTT...")
+        init_mqtt_client(process_ml_data)
+        start_mqtt_client()
+        logger.info("Cliente MQTT inicializado y arrancado")
+    except Exception as e:
+        logger.error(f"Error al inicializar cliente MQTT: {e}")
+
+@app.on_event("shutdown")
+def on_shutdown():
+    """Cleanup al cerrar la aplicación."""
+    try:
+        logger.info("Deteniendo cliente MQTT...")
+        stop_mqtt_client()
+        logger.info("Cliente MQTT detenido")
+    except Exception as e:
+        logger.error(f"Error al detener cliente MQTT: {e}")
 
 # Montar archivos estáticos (CSS, JS, imágenes)
 # Asegúrate de que la ruta "static" sea correcta y contenga tus archivos.

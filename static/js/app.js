@@ -499,7 +499,6 @@ async function loadConfiguration() {
 // Actualiza la UI según el estado de configuración FINAL
 function updateConfigurationStatus() {
   const startMonitoringBtn = document.getElementById('startMonitoringBtn');
-  const startMonitoringBtnTop = document.getElementById('startMonitoringBtnTop');
   const configurationWarning = document.getElementById('configurationWarning');
   const configStatusTop = null; // removido de topbar
   const configStatusBottom = document.getElementById('configStatus');
@@ -514,10 +513,6 @@ function updateConfigurationStatus() {
   if (startMonitoringBtn) {
     startMonitoringBtn.disabled = !isConfigured;
     startMonitoringBtn.title = isConfigured ? 'Iniciar monitoreo de datos' : 'Configure el sistema...';
-  }
-  if (startMonitoringBtnTop) {
-    startMonitoringBtnTop.disabled = !isConfigured;
-    startMonitoringBtnTop.title = isConfigured ? 'Iniciar monitoreo de datos' : 'Configure el sistema...';
   }
   
   // Controlar aviso visual en sidebar
@@ -1446,7 +1441,6 @@ function setupUIButtons() {
   // === Botones de Control de Monitoreo ===
   // Iniciar monitoreo
   const startMonitoringBtn = document.getElementById('startMonitoringBtn');
-  const startMonitoringBtnTop = document.getElementById('startMonitoringBtnTop');
   if (startMonitoringBtn) {
     startMonitoringBtn.addEventListener('click', function() {
       if (!isConfigured) {
@@ -1473,12 +1467,6 @@ function setupUIButtons() {
         this.classList.remove('btn-warning');
         this.classList.add('btn-success');
       }
-    });
-  }
-  if (startMonitoringBtnTop) {
-    startMonitoringBtnTop.addEventListener('click', function() {
-      const proxy = document.getElementById('startMonitoringBtn');
-      if (proxy) proxy.click();
     });
   }
   
