@@ -78,9 +78,9 @@ CREATE TABLE public.alert (
 );
 ALTER TABLE public.alert OWNER TO postgres;
 
--- Tabla: vibration_data  
--- Se quita la columna magnitude  
-CREATE TABLE public.vibration_data (
+-- Tabla: classified_data  
+-- Datos procesados y clasificados por el modelo ML (antes vibration_data)
+CREATE TABLE public.classified_data (
     data_id        integer          NOT NULL,
     sensor_id      integer          NOT NULL,
     date           timestamp with time zone DEFAULT now() NOT NULL,
@@ -89,9 +89,10 @@ CREATE TABLE public.vibration_data (
     acceleration_z double precision,
     severity       integer          DEFAULT 0,
     is_anomaly     integer          DEFAULT 0,
-    CONSTRAINT vibration_data_pkey PRIMARY KEY (data_id)
+    raw_data_id    integer,         -- FK opcional hacia vibration_data (datos crudos)
+    CONSTRAINT classified_data_pkey PRIMARY KEY (data_id)
 );
-ALTER TABLE public.vibration_data OWNER TO postgres;
+ALTER TABLE public.classified_data OWNER TO postgres;
 
 -- Tabla: limit_config  
 -- Se quitan el prefijo "acc_" y se renombra updated_at a update_limits
@@ -144,9 +145,9 @@ CREATE SEQUENCE public.alert_log_id_seq AS integer START WITH 1 INCREMENT BY 1 N
 ALTER SEQUENCE public.alert_log_id_seq OWNER TO postgres;
 ALTER SEQUENCE public.alert_log_id_seq OWNED BY public.alert.log_id;
 
-CREATE SEQUENCE public.vibration_data_data_id_seq AS integer START WITH 1 INCREMENT BY 1 NO MINVALUE NO MAXVALUE CACHE 1;
-ALTER SEQUENCE public.vibration_data_data_id_seq OWNER TO postgres;
-ALTER SEQUENCE public.vibration_data_data_id_seq OWNED BY public.vibration_data.data_id;
+CREATE SEQUENCE public.classified_data_data_id_seq AS integer START WITH 1 INCREMENT BY 1 NO MINVALUE NO MAXVALUE CACHE 1;
+ALTER SEQUENCE public.classified_data_data_id_seq OWNER TO postgres;
+ALTER SEQUENCE public.classified_data_data_id_seq OWNED BY public.classified_data.data_id;
 
 CREATE SEQUENCE public.limit_config_id_seq AS integer START WITH 1 INCREMENT BY 1 NO MINVALUE NO MAXVALUE CACHE 1;
 ALTER SEQUENCE public.limit_config_id_seq OWNER TO postgres;
@@ -157,7 +158,7 @@ ALTER TABLE ONLY public.sensor ALTER COLUMN sensor_id SET DEFAULT nextval('publi
 ALTER TABLE ONLY public.model ALTER COLUMN model_id SET DEFAULT nextval('public.model_id_seq'::regclass);
 ALTER TABLE ONLY public.machine ALTER COLUMN machine_id SET DEFAULT nextval('public.machine_id_seq'::regclass);
 ALTER TABLE ONLY public.alert ALTER COLUMN log_id SET DEFAULT nextval('public.alert_log_id_seq'::regclass);
-ALTER TABLE ONLY public.vibration_data ALTER COLUMN data_id SET DEFAULT nextval('public.vibration_data_data_id_seq'::regclass);
+ALTER TABLE ONLY public.classified_data ALTER COLUMN data_id SET DEFAULT nextval('public.classified_data_data_id_seq'::regclass);
 ALTER TABLE ONLY public.limit_config ALTER COLUMN limit_config_id SET DEFAULT nextval('public.limit_config_id_seq'::regclass);
 
 -- 7) Inicializa las secuencias (setval)
@@ -165,7 +166,7 @@ SELECT pg_catalog.setval('public.sensor_id_seq', 1, false);
 SELECT pg_catalog.setval('public.model_id_seq', 1, false);
 SELECT pg_catalog.setval('public.machine_id_seq', 1, false);
 SELECT pg_catalog.setval('public.alert_log_id_seq', 1, false);
-SELECT pg_catalog.setval('public.vibration_data_data_id_seq', 1, false);
+SELECT pg_catalog.setval('public.classified_data_data_id_seq', 1, false);
 SELECT pg_catalog.setval('public.limit_config_id_seq', 1, false);
 
 -- 8) Constraints (PRIMARY KEY, UNIQUE, FOREIGN KEY)
@@ -180,10 +181,10 @@ ALTER TABLE ONLY public.sensor ADD CONSTRAINT fk_sensor_model FOREIGN KEY (model
 ALTER TABLE ONLY public.alert ADD CONSTRAINT fk_alert_sensor FOREIGN KEY (sensor_id)
     REFERENCES public.sensor(sensor_id) ON DELETE CASCADE;
 
-ALTER TABLE ONLY public.alert ADD CONSTRAINT fk_alert_vibration_data FOREIGN KEY (data_id)
-    REFERENCES public.vibration_data(data_id) ON DELETE CASCADE;
+ALTER TABLE ONLY public.alert ADD CONSTRAINT fk_alert_classified_data FOREIGN KEY (data_id)
+    REFERENCES public.classified_data(data_id) ON DELETE CASCADE;
 
-ALTER TABLE ONLY public.vibration_data ADD CONSTRAINT fk_vibration_data_sensor FOREIGN KEY (sensor_id)
+ALTER TABLE ONLY public.classified_data ADD CONSTRAINT fk_classified_data_sensor FOREIGN KEY (sensor_id)
     REFERENCES public.sensor(sensor_id) ON DELETE CASCADE;
 
 -- system_config.active_model_id se define en su tabla
@@ -196,7 +197,7 @@ DECLARE
 BEGIN
     IF NEW.severity = 2 THEN
         SELECT COUNT(*) INTO repeated_count
-        FROM public.vibration_data
+        FROM public.classified_data
         WHERE sensor_id = NEW.sensor_id
           AND severity = 2
           AND date BETWEEN (NEW.date - time_interval) AND NEW.date
@@ -211,31 +212,50 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Disparador: después de insertar en vibration_data, se ejecuta la función
+-- Disparador: después de insertar en classified_data, se ejecuta la función
 CREATE TRIGGER trigger_check_severity_pattern
-AFTER INSERT ON public.vibration_data
+AFTER INSERT ON public.classified_data
 FOR EACH ROW
 EXECUTE FUNCTION check_severity_pattern();
 
 -- 10) Optimización de índices y trigger de severidad
-CREATE INDEX IF NOT EXISTS idx_vibration_sensor_id ON public.vibration_data (sensor_id);
-CREATE INDEX IF NOT EXISTS idx_vibration_date ON public.vibration_data (date);
-CREATE INDEX IF NOT EXISTS idx_vibration_severity ON public.vibration_data (severity);
-CREATE INDEX IF NOT EXISTS idx_vibration_sensor_date ON public.vibration_data (sensor_id, date);
-CREATE INDEX IF NOT EXISTS idx_vibration_sensor_severity ON public.vibration_data (sensor_id, severity);
+CREATE INDEX IF NOT EXISTS idx_classified_sensor_id ON public.classified_data (sensor_id);
+CREATE INDEX IF NOT EXISTS idx_classified_date ON public.classified_data (date);
+CREATE INDEX IF NOT EXISTS idx_classified_severity ON public.classified_data (severity);
+CREATE INDEX IF NOT EXISTS idx_classified_sensor_date ON public.classified_data (sensor_id, date);
+CREATE INDEX IF NOT EXISTS idx_classified_sensor_severity ON public.classified_data (sensor_id, severity);
 CREATE INDEX IF NOT EXISTS idx_alert_sensor_id ON public.alert (sensor_id);
 CREATE INDEX IF NOT EXISTS idx_alert_timestamp ON public.alert ("timestamp");
 CREATE INDEX IF NOT EXISTS idx_alert_error_type ON public.alert (error_type);
 CREATE INDEX IF NOT EXISTS idx_alert_data_id ON public.alert (data_id);
 CREATE INDEX IF NOT EXISTS idx_alert_sensor_timestamp ON public.alert (sensor_id, "timestamp");
 CREATE INDEX IF NOT EXISTS idx_alert_error_timestamp ON public.alert (error_type, "timestamp");
-CREATE INDEX IF NOT EXISTS idx_vibration_severity_pattern ON public.vibration_data (sensor_id, severity, date DESC);
-ANALYZE public.vibration_data;
+CREATE INDEX IF NOT EXISTS idx_classified_severity_pattern ON public.classified_data (sensor_id, severity, date DESC);
+ANALYZE public.classified_data;
 ANALYZE public.alert;
 
 -- ============================================
 -- Fin del script
 -- ============================================
+
+-- NOTA IMPORTANTE: 
+-- La tabla 'vibration_data' será creada automáticamente por mqtt_ingestor
+-- con la siguiente estructura para datos crudos del broker MQTT:
+-- 
+-- CREATE TABLE IF NOT EXISTS public.vibration_data (
+--     id BIGSERIAL PRIMARY KEY,
+--     sensor_id INTEGER NOT NULL,
+--     ts TIMESTAMPTZ NOT NULL,
+--     acceleration_x DOUBLE PRECISION NOT NULL,
+--     acceleration_y DOUBLE PRECISION NOT NULL,
+--     acceleration_z DOUBLE PRECISION NOT NULL,
+--     raw_json JSONB NOT NULL DEFAULT '{}'::jsonb
+-- );
+--
+-- El flujo de datos será:
+-- 1. mqtt_ingestor lee datos del broker y los guarda en 'vibration_data' (datos crudos)
+-- 2. PdM-Manager lee de 'vibration_data', procesa con modelo ML, y guarda en 'classified_data'
+-- 3. La interfaz web lee de 'classified_data' para mostrar datos procesados y alertas
 
 CREATE TABLE IF NOT EXISTS public.users (
     id SERIAL PRIMARY KEY,
