@@ -69,6 +69,7 @@ class ClassifiedData(Base):
     # Relationships
     sensor = relationship("Sensor", back_populates="classified_data")
     alerts = relationship("Alert", back_populates="classified_data", cascade="all, delete-orphan")
+    alerts = relationship("Alert", back_populates="classified_data", cascade="all, delete-orphan")
 
 # Modelo para leer datos crudos del mqtt_ingestor (solo lectura)
 class RawVibrationData(Base):
@@ -96,7 +97,7 @@ class Alert(Base):
     sensor_id = Column(Integer, ForeignKey('public.sensor.sensor_id', ondelete='CASCADE'), nullable=False)
     timestamp = Column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
     error_type = Column(Integer, nullable=True)  # 1: leve, 2: grave, 3: software
-    data_id = Column(Integer, ForeignKey('public.vibration_data.data_id', ondelete='CASCADE'), nullable=True)
+    data_id = Column(Integer, ForeignKey('public.classified_data.data_id', ondelete='CASCADE'), nullable=True)
     
     # Relationships
     sensor = relationship("Sensor", back_populates="alerts")
