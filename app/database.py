@@ -5,6 +5,10 @@ from sqlalchemy.orm import sessionmaker
 from urllib.parse import quote_plus
 import logging
 import os
+from dotenv import load_dotenv
+
+# Cargar variables de entorno
+load_dotenv()
 
 # Configuración del logger
 logger = logging.getLogger("pdm_manager.database")

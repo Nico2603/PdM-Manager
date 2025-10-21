@@ -24,7 +24,7 @@ from tensorflow.keras.models import load_model
 
 # SQLAlchemy
 from app.database import get_db, SessionLocal
-from app.models import VibrationData, Model, Sensor, Machine, LimitConfig, SystemConfig, User # Añadido User
+from app.models import ClassifiedData, Model, Sensor, Machine, LimitConfig, SystemConfig, User, RawVibrationData # Actualizado
 from app.crud import (
     create_vibration_data, get_vibration_data, get_sensors,
     create_alert, update_sensor_last_status
@@ -48,6 +48,9 @@ from app.auth import get_current_user, create_access_token, authenticate_user,AC
 
 # Importar el cliente MQTT
 from app.mqtt_client import init_mqtt_client, start_mqtt_client, stop_mqtt_client, get_mqtt_status
+
+# Importar procesador ML en background
+from app.background_processor import background_processor
 
 # ---------------------------------------------------------
 # CONFIGURACIÓN DE RUTAS Y VARIABLES GLOBALES
@@ -914,7 +917,7 @@ async def get_mqtt_status_endpoint():
 # ENDPOINT PARA SUBIR ARCHIVOS DE MODELO
 # ---------------------------------------------------------
 @app.on_event("startup")
-def on_startup():
+async def on_startup():
     try:
         db = SessionLocal()
         try:
@@ -938,9 +941,17 @@ def on_startup():
         logger.info("Cliente MQTT inicializado y arrancado")
     except Exception as e:
         logger.error(f"Error al inicializar cliente MQTT: {e}")
+    
+    # Iniciar procesador ML en background
+    try:
+        logger.info("Iniciando procesador ML en background...")
+        await background_processor.start()
+        logger.info("✅ Procesador ML en background iniciado")
+    except Exception as e:
+        logger.error(f"❌ Error al iniciar procesador ML en background: {e}")
 
 @app.on_event("shutdown")
-def on_shutdown():
+async def on_shutdown():
     """Cleanup al cerrar la aplicación."""
     try:
         logger.info("Deteniendo cliente MQTT...")
@@ -948,6 +959,14 @@ def on_shutdown():
         logger.info("Cliente MQTT detenido")
     except Exception as e:
         logger.error(f"Error al detener cliente MQTT: {e}")
+        
+    # Detener procesador ML en background
+    try:
+        logger.info("Deteniendo procesador ML en background...")
+        await background_processor.stop()
+        logger.info("✅ Procesador ML en background detenido")
+    except Exception as e:
+        logger.error(f"❌ Error al detener procesador ML en background: {e}")
 
 # Montar archivos estáticos (CSS, JS, imágenes)
 # Asegúrate de que la ruta "static" sea correcta y contenga tus archivos.

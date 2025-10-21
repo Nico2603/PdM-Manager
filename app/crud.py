@@ -1,7 +1,7 @@
 # app/crud.py
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, asc
-from app.models import VibrationData, Sensor, Model, Machine, Alert, LimitConfig, SystemConfig
+from app.models import RawVibrationData, ClassifiedData, Sensor, Model, Machine, Alert, LimitConfig, SystemConfig, User
 from datetime import datetime
 from typing import List, Optional, Dict, Any, Union
 
@@ -10,7 +10,7 @@ from typing import List, Optional, Dict, Any, Union
 # Módulo CRUD: Operaciones de acceso a la base de datos
 # ---------------------------------------------------------
 
-# ======== CRUD para VibrationData ========
+# ======== CRUD para RawVibrationData ========
 
 def create_vibration_data(
     db: Session, 
@@ -18,10 +18,8 @@ def create_vibration_data(
     acceleration_x: float = None, 
     acceleration_y: float = None, 
     acceleration_z: float = None, 
-    date: Optional[datetime] = None, 
-    severity: int = 0,
-    is_anomaly: int = 0
-) -> VibrationData:
+    date: Optional[datetime] = None
+) -> RawVibrationData:
     """
     Inserta un nuevo registro de datos de vibración en la base de datos.
     
@@ -34,19 +32,17 @@ def create_vibration_data(
     - is_anomaly: Indicador de anomalía (0: normal, 1: anomalía)
     
     Retorna:
-    - Objeto VibrationData creado y guardado
+    - Objeto RawVibrationData creado y guardado
     
     IMPORTANTE: Esta función debe ser transaccional; si ocurre un error,
     asegúrate de hacer rollback() en el bloque try/except que la llama.
     """
-    db_vibration = VibrationData(
+    db_vibration = RawVibrationData(
         sensor_id=sensor_id,
         acceleration_x=acceleration_x,
         acceleration_y=acceleration_y,
         acceleration_z=acceleration_z,
-        date=date or datetime.now(),
-        severity=severity,
-        is_anomaly=is_anomaly
+        ts=date or datetime.now()
     )
     db.add(db_vibration)
     db.commit()
@@ -73,16 +69,16 @@ def get_vibration_data(db: Session, sensor_id: int = None, limit: int = 100,
         list: Lista de diccionarios con datos de vibración serializados
         
     NOTA IMPORTANTE: Esta función es compatible con dos estructuras de datos diferentes:
-    1. En producción: VibrationData con campos date, acceleration_x/y/z, severity
-    2. En pruebas: VibrationData con campos timestamp, value, axis
+    1. En producción: RawVibrationData con campos ts, acceleration_x/y/z
+    2. En pruebas: RawVibrationData con campos timestamp, value, axis
     """
-    query = db.query(VibrationData)
+    query = db.query(RawVibrationData)
     
     if sensor_id:
-        query = query.filter(VibrationData.sensor_id == sensor_id)
+        query = query.filter(RawVibrationData.sensor_id == sensor_id)
     
     # Determinar qué campo de fecha usar según el modelo (compatible con pruebas y producción)
-    date_field = VibrationData.date if hasattr(VibrationData, 'date') else VibrationData.timestamp
+    date_field = RawVibrationData.ts if hasattr(RawVibrationData, 'ts') else RawVibrationData.timestamp
     
     if start_date:
         query = query.filter(date_field >= start_date)
@@ -134,11 +130,11 @@ def update_vibration_data(
     db: Session,
     data_id: int,
     update_data: Dict[str, Any]
-) -> Optional[VibrationData]:
+) -> Optional[RawVibrationData]:
     """
     Actualiza un registro de datos de vibración existente.
     """
-    db_vibration = db.query(VibrationData).filter(VibrationData.data_id == data_id).first()
+    db_vibration = db.query(RawVibrationData).filter(RawVibrationData.id == data_id).first()
     if not db_vibration:
         return None
     
@@ -157,7 +153,7 @@ def delete_vibration_data(
     Elimina un registro de datos de vibración.
     Retorna True si se eliminó correctamente, False si no se encontró.
     """
-    db_vibration = db.query(VibrationData).filter(VibrationData.data_id == data_id).first()
+    db_vibration = db.query(RawVibrationData).filter(RawVibrationData.id == data_id).first()
     if not db_vibration:
         return False
     

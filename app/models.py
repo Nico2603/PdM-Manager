@@ -32,7 +32,7 @@ class Sensor(Base):
     # Relationships
     model = relationship("Model", back_populates="sensors")
     machines = relationship("Machine", back_populates="sensor", cascade="all, delete-orphan")
-    vibration_data = relationship("VibrationData", back_populates="sensor", cascade="all, delete-orphan")
+    classified_data = relationship("ClassifiedData", back_populates="sensor", cascade="all, delete-orphan")
     alerts = relationship("Alert", back_populates="sensor", cascade="all, delete-orphan")
 
 class Machine(Base):
@@ -47,12 +47,12 @@ class Machine(Base):
     # Relationships
     sensor = relationship("Sensor", back_populates="machines")
 
-class VibrationData(Base):
-    __tablename__ = 'vibration_data'
+class ClassifiedData(Base):
+    __tablename__ = 'classified_data'
     __table_args__ = (
-        Index('idx_vibration_sensor_id', 'sensor_id'),
-        Index('idx_vibration_date', 'date'),
-        Index('idx_vibration_severity', 'severity'),
+        Index('idx_classified_sensor_id', 'sensor_id'),
+        Index('idx_classified_date', 'date'),
+        Index('idx_classified_severity', 'severity'),
         {'schema': 'public'}
     )
     
@@ -64,10 +64,25 @@ class VibrationData(Base):
     acceleration_z = Column(Float, nullable=True)
     severity = Column(Integer, default=0, nullable=True)  # 0: normal, 1: leve, 2: grave
     is_anomaly = Column(Integer, default=0, nullable=True)  # 0: normal, 1: anomalía
+    raw_data_id = Column(Integer, nullable=True)  # FK opcional hacia vibration_data (tabla del mqtt_ingestor)
     
     # Relationships
-    sensor = relationship("Sensor", back_populates="vibration_data")
-    alerts = relationship("Alert", back_populates="vibration_data", cascade="all, delete-orphan")
+    sensor = relationship("Sensor", back_populates="classified_data")
+    alerts = relationship("Alert", back_populates="classified_data", cascade="all, delete-orphan")
+    alerts = relationship("Alert", back_populates="classified_data", cascade="all, delete-orphan")
+
+# Modelo para leer datos crudos del mqtt_ingestor (solo lectura)
+class RawVibrationData(Base):
+    __tablename__ = 'vibration_data'
+    __table_args__ = {'schema': 'public'}
+    
+    id = Column(Integer, primary_key=True, index=True)
+    sensor_id = Column(Integer, nullable=False)
+    ts = Column(TIMESTAMP(timezone=True), nullable=False)
+    acceleration_x = Column(Float, nullable=False)
+    acceleration_y = Column(Float, nullable=False)
+    acceleration_z = Column(Float, nullable=False)
+    # raw_json = Column(Text, nullable=True)  # JSONB como Text para compatibilidad
 
 class Alert(Base):
     __tablename__ = 'alert'
@@ -82,11 +97,11 @@ class Alert(Base):
     sensor_id = Column(Integer, ForeignKey('public.sensor.sensor_id', ondelete='CASCADE'), nullable=False)
     timestamp = Column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
     error_type = Column(Integer, nullable=True)  # 1: leve, 2: grave, 3: software
-    data_id = Column(Integer, ForeignKey('public.vibration_data.data_id', ondelete='CASCADE'), nullable=True)
+    data_id = Column(Integer, ForeignKey('public.classified_data.data_id', ondelete='CASCADE'), nullable=True)
     
     # Relationships
     sensor = relationship("Sensor", back_populates="alerts")
-    vibration_data = relationship("VibrationData", back_populates="alerts")
+    classified_data = relationship("ClassifiedData", back_populates="alerts")
 
 class LimitConfig(Base):
     __tablename__ = 'limit_config'

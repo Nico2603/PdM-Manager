@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from app.database import SessionLocal
 from app.crud import create_vibration_data, get_sensors, create_alert, update_sensor_last_status
 from app.crud_config import get_system_config, get_model_by_id
-from app.models import VibrationData
+from app.models import RawVibrationData
 
 # Configuración de logging
 logger = logging.getLogger("pdm_manager.mqtt_client")
