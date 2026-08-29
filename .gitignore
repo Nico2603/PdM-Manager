@@ -218,3 +218,6 @@ build/
 *.weights 
 graphify-out/
 
+
+.graphify/
+
